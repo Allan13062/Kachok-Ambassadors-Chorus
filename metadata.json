@@ -1,0 +1,8 @@
+{
+  "name": "Remix: Kachamba Chorus",
+  "description": "The official website for The  Kachamba Chorus (Kachok Ambassadors Chorus)",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

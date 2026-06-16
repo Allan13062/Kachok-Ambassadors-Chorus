@@ -1,0 +1,133 @@
+{
+  "passcode": "SDA2026",
+  "activities": [
+    {
+      "id": "act-1",
+      "title": "Sabbath Afternoon Choral Vesper",
+      "date": "Every Sabbath (Saturday) at 2:30 PM",
+      "location": "Kachok Seventh-day Adventist Church",
+      "description": "Our weekly main rehearsal and praise session. We sing hymns, study the Sabbath School lesson together, and rehearse new acappella selections to prepare for our upcoming evangelistic missions.",
+      "category": "Worship & Practice",
+      "image": "https://images.unsplash.com/photo-1515162305285-0293e4767cc2?auto=format&fit=crop&q=80&w=600"
+    },
+    {
+      "id": "act-2",
+      "title": "Vibrant Youth Campout & Music Seminar",
+      "date": "August 12 - 19, 2026",
+      "location": "Mt. Elgon Forest Reserve Campgrounds",
+      "description": "An enriching 7-day youth encampment combining nature exploration, spiritual revivals, and vocal/conducting masterclasses. Guided by elder vocal trainers and SDA music ministers.",
+      "category": "Youth Camp & Training",
+      "image": "https://images.unsplash.com/photo-1478147427282-58a87a120781?auto=format&fit=crop&q=80&w=600"
+    },
+    {
+      "id": "act-3",
+      "title": "SDA Community Health & Hymn Mission",
+      "date": "July 05, 2026",
+      "location": "Kachok Community Health Center & Slums",
+      "description": "Sharing the gospel through medical missionary work and soothing vocal melodies. We conduct free blood pressure screenings, hold a sanitation drive, and perform bedside comfort songs.",
+      "category": "Community Outreach",
+      "image": "https://images.unsplash.com/photo-1469571486040-0b3b27573b77?auto=format&fit=crop&q=80&w=600"
+    }
+  ],
+  "itinerary": [
+    {
+      "id": "iti-1",
+      "event": "Western Region SDA Youth Camp Meeting",
+      "date": "2026-06-25",
+      "time": "10:30 AM",
+      "location": "Kisumu Sports Ground, Kisumu",
+      "host": "Lake Victoria Field (SDA)",
+      "status": "Confirmed",
+      "notes": "Main afternoon choir performance. We will be ministering to over 3,000 Adventist youth from 15 districts."
+    },
+    {
+      "id": "iti-2",
+      "event": "Sacred Music Evangelistic Crusade",
+      "date": "2026-07-12",
+      "time": "4:00 PM",
+      "location": "Migori SDA Town Church",
+      "host": "Kenya Lake Conference",
+      "status": "Confirmed",
+      "notes": "Full evening concert. Bringing message of hope and the three angels' warnings through accapella and scripture readings."
+    },
+    {
+      "id": "iti-bbb",
+      "event": "Blot Brightons Bullets Choral Initiative",
+      "date": "2026-07-19",
+      "time": "2:00 PM",
+      "location": "SDA Kachok Church",
+      "host": "Kachok Ambassadors Chorus",
+      "status": "Confirmed",
+      "notes": "A critical medical charity fundraising ministry. We are raising urgent surgery funds for Brighton, one of our own who was a victim of police brutality in 2023 and has bullets still lodged in his lungs. Come lift our brother in prayer and charitable support through acappella.",
+      "mediaUrl": "/brightons_bullets_initiative_1781161343388.png",
+      "mediaType": "image"
+    },
+    {
+      "id": "iti-3",
+      "event": "Kachok Ambassadors Combined Sanctuary Ministry",
+      "date": "2026-08-01",
+      "time": "8:30 AM",
+      "location": "Kachok SDA Central Church",
+      "host": "Local Church Board",
+      "status": "Confirmed",
+      "notes": "Sabbath divine service sermon accompaniment and special afternoon choral hour featuring our classical Adventist hymnal set."
+    },
+    {
+      "id": "iti-4",
+      "event": "Nairobi Youth Music Union Festival",
+      "date": "2026-09-05",
+      "time": "11:00 AM",
+      "location": "Maxwell SDA Church, Nairobi",
+      "host": "Central Kenya Conference",
+      "status": "Tentative",
+      "notes": "Waiting final flight/logistics confirmation. Combined performance with other national Ambassador choirs."
+    }
+  ],
+  "inquiries": [
+    {
+      "id": "inq-1",
+      "name": "Sister Sarah Odhiambo",
+      "email": "sarah.o@yahoo.com",
+      "subject": "Inquiry about Choir Booking for Wedding",
+      "message": "Greetings in Christ. We are planning a Christian wedding on October 18th, 2026, and would love the Kachamba Chorus to minister during our ceremony. Please let us know if you are available and what the logistical requirements would be. Blessings!",
+      "date": "2026-06-08T14:22:10Z",
+      "status": "Unread"
+    }
+  ],
+  "music": {
+    "songTitle": "Umchukue Mwanao",
+    "artistName": "Kachok Ambassadors Chorus",
+    "albumName": "Sounds Of Togetherness",
+    "audioUrl": "",
+    "coverUrl": "https://www.image2url.com/r2/default/images/1781158805053-8065486f-a622-4189-b9ac-56226bce6af9.png",
+    "quoteText": "Coming Soon",
+    "label": "Album 6",
+    "lyrics": "[Acapella Harmony Intro]\n(Ibrahimu, Ibrahimu...\nMchukue mwanao, umpendaye sana Isaka...\nUkamtoe dhabihu...)\n\n(Verse 1)\nSiku ile Mungu alimwita Ibrahimu akasema: \"Ibrahimu!\"\nNaye akaitika kwa upole: \"Mimi hapa Bwana.\"\nAkamwambia: \"Umchukue mwanao, mwana wako wa pekee,\nIsaka yule unayempenda sana, ukaende mpaka nchi ya Moria,\nUkamtoe awe dhabihu ya kuteketezwa juu ya mlima nitakaokuonyesha.\"\n\n(Chorus)\nAkatandika punda wake asubuhi, akachukua kuni na moto,\nAkaanza safari ya utiifu, akamchukua mwanawe Isaka.\nMwanangu kumbuka, utiifu kwa Bwana ni ufunguo wa baraka,\nUnapoombwa kutoa kilicho bora, usisite wala usilalamike,\nMaana Mungu wetu aliye hai, kila wakati atajipatia!\n\n(Verse 2)\nWakiwa njiani mwana Isaka akamwuliza baba yake kwa unyenyekevu:\n\"Baba yangu, moto upo na kuni zipo, lakini yuko wapi kondoo?\"\nIbrahimu akamjibu kwa imani kuu, akasema kwa ujasiri:\n\"Mwanangu, Mungu atajipatia mwenyewe kondoo wa dhabihu.\"\nWakaendelea mbele kwa pamoja, mioyo yao ikiwa imejaa imani.\n\n(Bridge)\nWalipofika juu ya madhabahu, Ibrahimu akanyosha mkono wake,\nAkatwaa kisu amtoe mwanawe dhabihu, ghafla Malaika wa Bwana akaita:\n\"Ibrahimu! Ibrahimu! Usinyoshe mkono wako juu ya kijana!\"\nTazama! Nyuma yake kulikuwa na kondoo dume, amenaswa pembe zake kichakani,\nIbrahimu akamtoe yule kondoo badala ya Isaka!\n\n[Outro]\nBwana atajipatia... Yehova Yire!\nUtiifu wako utaleta baraka kubwa maishani mwako.\nMchukue mwanao, mchukue kila ulichonacho, umkabidhi Bwana,\nMshahara wako utakuwa mkuu mbinguni. Amina!"
+  },
+  "leaders": [
+    {
+      "id": "ldr-1",
+      "name": "Director Brighton",
+      "role": "Music Director & Chief Conductor",
+      "image": "/WhatsApp Image 2026-06-11 at 11.06.18 AM.jpeg",
+      "bio": "Guiding our pristine acappella harmonies and leading choral arrangements with deep spiritual devotion.",
+      "phone": "+254 712 345 678"
+    },
+    {
+      "id": "ldr-2",
+      "name": "Sister Sarah Odhiambo",
+      "role": "Choir Secretary & Coordinator",
+      "image": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400",
+      "bio": "Coordinating external invitations and wedding bookings, and managing our prayer groups and rehearsal schedules.",
+      "phone": "+254 723 456 789"
+    },
+    {
+      "id": "ldr-3",
+      "name": "Elder Samuel Omwamba",
+      "role": "Ministry Patron & Treasurer",
+      "image": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400",
+      "bio": "Spiritual advisor delegated by the Local Church Board, overseeing our outreach logistics and uniform supplies.",
+      "phone": "+254 734 567 890"
+    }
+  ]
+}

@@ -1,0 +1,116 @@
+{
+  "entities": {
+    "Activity": {
+      "title": "Activity",
+      "description": "An activity or outreach event organized by the youth chorus",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "date": { "type": "string" },
+        "location": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "image": { "type": "string" }
+      },
+      "required": ["id", "title", "date", "location", "description"]
+    },
+    "ItineraryItem": {
+      "title": "ItineraryItem",
+      "description": "An event itinerary item, scheduled chronologically",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "event": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "location": { "type": "string" },
+        "host": { "type": "string" },
+        "status": { "type": "string" },
+        "notes": { "type": "string" },
+        "mediaUrl": { "type": "string" },
+        "mediaType": { "type": "string" }
+      },
+      "required": ["id", "event", "date", "location"]
+    },
+    "Inquiry": {
+      "title": "Inquiry",
+      "description": "A user-submitted contact or booking inquiry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "subject": { "type": "string" },
+        "message": { "type": "string" },
+        "date": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "name", "email", "message", "date", "status"]
+    },
+    "Leader": {
+      "title": "Leader",
+      "description": "A youth chorus leader or music director",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "image": { "type": "string" },
+        "bio": { "type": "string" },
+        "phone": { "type": "string" }
+      },
+      "required": ["id", "name", "role", "image"]
+    },
+    "MusicData": {
+      "title": "MusicData",
+      "description": "Music streaming panel details",
+      "type": "object",
+      "properties": {
+        "songTitle": { "type": "string" },
+        "artistName": { "type": "string" },
+        "albumName": { "type": "string" },
+        "audioUrl": { "type": "string" },
+        "coverUrl": { "type": "string" },
+        "quoteText": { "type": "string" },
+        "label": { "type": "string" }
+      },
+      "required": ["songTitle", "artistName", "albumName"]
+    },
+    "AdminConfig": {
+      "title": "AdminConfig",
+      "description": "Global administration settings including passcode",
+      "type": "object",
+      "properties": {
+        "passcode": { "type": "string" }
+      },
+      "required": ["passcode"]
+    }
+  },
+  "firestore": {
+    "/activities/{activityId}": {
+      "schema": "Activity",
+      "description": "Outreach and events calendar items"
+    },
+    "/itinerary/{itineraryId}": {
+      "schema": "ItineraryItem",
+      "description": "Performance and rehearsals itinerary events"
+    },
+    "/inquiries/{inquiryId}": {
+      "schema": "Inquiry",
+      "description": "Submitted contact/booking inquiry messages"
+    },
+    "/leaders/{leaderId}": {
+      "schema": "Leader",
+      "description": "Choral leadership committee members"
+    },
+    "/configs/admin": {
+      "schema": "AdminConfig",
+      "description": "SDA admin passcode config"
+    },
+    "/configs/music": {
+      "schema": "MusicData",
+      "description": "Music streaming and audio meta details"
+    }
+  }
+}

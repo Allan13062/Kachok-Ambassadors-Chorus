@@ -1,0 +1,47 @@
+version: "3.8"
+
+services:
+  # 1. Database Service (Postgres)
+  db:
+    image: postgres:15-alpine
+    container_name: kachamba-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: kachamba_admin
+      POSTGRES_PASSWORD: secure_database_password_change_me
+      POSTGRES_DB: kachamba_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # 2. Web Application Service (React + Express Server)
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kachamba-web
+    restart: always
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      # Connect to the 'db' service container internally
+      SQL_HOST: db
+      SQL_USER: kachamba_admin
+      SQL_PASSWORD: secure_database_password_change_me
+      SQL_DB_NAME: kachamba_db
+      # Add your Gemini API Key here for the interactive chatbot
+      GEMINI_API_KEY: "YOUR_PROD_GEMINI_API_KEY_HERE"
+      # Public URL hosted on your VPS
+      APP_URL: "https://yourdomain.com"
+    volumes:
+      # Persistent storage volume for dynamic asset uploads
+      - uploads_data:/app/uploads
+
+volumes:
+  postgres_data:
+  uploads_data:
