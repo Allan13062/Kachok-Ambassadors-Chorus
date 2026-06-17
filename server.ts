@@ -9,6 +9,8 @@ import https from "https";
 import url from "url";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
+import { google } from "googleapis";
+import { Readable } from "stream";
 
 import { db } from "./src/db/index.ts";
 import { activities, itinerary, leaders, inquiries, musicConfig, adminConfig } from "./src/db/schema.ts";
@@ -53,6 +55,7 @@ app.use("/uploads", (req, res, next) => {
 // Fast In-Memory Passcode Cache to prevent Database slowness
 let cachedPasscode: string | null = null;
 let passcodeCacheTime: number = 0;
+let fallbackPasscode: string = "SDA2026";
 
 async function getAdminPasscode(): Promise<string> {
   // Ultra-fast response: If cached in memory, return instantly.
@@ -61,19 +64,19 @@ async function getAdminPasscode(): Promise<string> {
   }
   
   if (!process.env.SQL_HOST) {
-    return "SDA2026";
+    return fallbackPasscode;
   }
   
   try {
     const passcodeRecords = await db.select().from(adminConfig).where(eq(adminConfig.key, "passcode")).limit(1);
-    const dbPasscode = passcodeRecords && passcodeRecords.length > 0 ? passcodeRecords[0].value : "SDA2026";
+    const dbPasscode = passcodeRecords && passcodeRecords.length > 0 ? passcodeRecords[0].value : fallbackPasscode;
     
     cachedPasscode = dbPasscode;
     passcodeCacheTime = Date.now();
     return dbPasscode;
   } catch (error) {
     // Silently fallback if DB is not configured or reachable.
-    return "SDA2026"; // Return fallback but do NOT cache it permanently!
+    return fallbackPasscode; // Return fallback but do NOT cache it permanently!
   }
 }
 
@@ -89,6 +92,41 @@ async function requireAdmin(req: express.Request, res: express.Response, next: e
     }
   } catch (error) {
     res.status(500).json({ error: "Authentication database query failed." });
+  }
+}
+
+// Highly reliable bidirectional local JSON database synchronization
+function syncLocalFile(section: string, operation: string, data: any) {
+  try {
+    if (!fs.existsSync(DB_PATH)) {
+      const dataDir = path.dirname(DB_PATH);
+      if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+      }
+      fs.writeFileSync(DB_PATH, JSON.stringify({ passcode: "SDA2026", activities: [], itinerary: [], leaders: [], inquiries: [], music: {} }, null, 2), "utf-8");
+    }
+    const fileContents = fs.readFileSync(DB_PATH, "utf-8");
+    const localDb = JSON.parse(fileContents);
+    
+    if (section === "passcode") {
+      localDb.passcode = data;
+    } else if (section === "music") {
+      localDb.music = { ...localDb.music, ...data };
+    } else {
+      localDb[section] = localDb[section] || [];
+      if (operation === "insert") {
+        localDb[section].push(data);
+      } else if (operation === "update") {
+        localDb[section] = localDb[section].map((item: any) => item.id === data.id ? { ...item, ...data } : item);
+      } else if (operation === "delete") {
+        localDb[section] = localDb[section].filter((item: any) => item.id !== data.id && item.id !== data);
+      }
+    }
+    
+    fs.writeFileSync(DB_PATH, JSON.stringify(localDb, null, 2), "utf-8");
+    console.log(`[Local Sync] Completed ${operation} on section: "${section}" successfully.`);
+  } catch (err: any) {
+    console.warn("[Local Sync Warning] Could not replicate update to local JSON:", err.message);
   }
 }
 
@@ -115,6 +153,10 @@ function getGeminiClient(): GoogleGenAI | null {
 // -------------- CLOUD SQL SEEDER --------------
 
 async function seedCloudSqlFromLocalDb() {
+  if (!process.env.SQL_HOST || process.env.SQL_HOST.trim() === "" || process.env.SQL_HOST.includes("YOUR_")) {
+    console.log("[Kachamba Cloud SQL] Skipping seeding - SQL_HOST is not configured.");
+    return;
+  }
   try {
     console.log("[Kachamba Cloud SQL] Preparing initial database status check...");
 
@@ -233,8 +275,8 @@ async function seedCloudSqlFromLocalDb() {
         lyrics: "[Acapella Harmony Intro]\n(Ibrahimu, Ibrahimu...\nMchukue mwanao, umpendaye sana Isaka...\nUkamtoe dhabihu...)\n\n(Verse 1)\nSiku ile Mungu alimwita Ibrahimu akasema: \"Ibrahimu!\"\nNaye akaitika kwa opole: \"Mimi hapa Bwana.\"\nAkamwambia: \"Umchukue mwanao, mwana wako wa pekee..."
       }).onConflictDoNothing();
     }
-  } catch (error) {
-    console.error("[Kachamba Cloud SQL] Failed to seed/validate Cloud SQL tables:", error);
+  } catch (error: any) {
+    console.warn("[Kachamba Cloud SQL] Seeding / validation deferred (Database offline or timeout):", error?.message || error);
   }
 }
 
@@ -512,16 +554,23 @@ app.post("/api/auth/reset", async (req, res) => {
         return res.status(400).json({ error: "New passcode must be at least 4 characters." });
       }
 
-      await db.insert(adminConfig)
-        .values({ key: "passcode", value: newPasscode, updatedAt: new Date() })
-        .onConflictDoUpdate({
-          target: adminConfig.key,
-          set: { value: newPasscode, updatedAt: new Date() }
-        });
-
-      // Crucial: Update memory cache so next request is instantly validated
+      // Crucial: Update memory cache & fallback passcode instantly
+      fallbackPasscode = newPasscode;
       cachedPasscode = newPasscode;
       passcodeCacheTime = Date.now();
+
+      if (process.env.SQL_HOST) {
+        try {
+          await db.insert(adminConfig)
+            .values({ key: "passcode", value: newPasscode, updatedAt: new Date() })
+            .onConflictDoUpdate({
+              target: adminConfig.key,
+              set: { value: newPasscode, updatedAt: new Date() }
+            });
+        } catch (dbErr: any) {
+          console.error("[Kachamba Server] Database insert failed during reset, continuing in-memory:", dbErr.message);
+        }
+      }
 
       return res.json({ success: true, message: "Passcode updated successfully!" });
     } else {
@@ -748,7 +797,17 @@ app.post("/api/inquiries", async (req, res) => {
   };
 
   try {
-    await db.insert(inquiries).values(newInq);
+    // Write locally first for high availability
+    syncLocalFile("inquiries", "insert", newInq);
+    
+    try {
+      if (process.env.SQL_HOST) {
+        await db.insert(inquiries).values(newInq);
+      }
+    } catch (pgErr: any) {
+      console.warn("[Cloud SQL Sync Warning] Failed to write inquiry to Postgres, saved locally:", pgErr.message);
+    }
+    
     res.json({ success: true, message: "Thank you! Your message has been received by the Kachok Ambassadors Secretary.", data: newInq });
   } catch (error: any) {
     res.status(500).json({ error: "Failed to save inquiry: " + error.message });
@@ -761,17 +820,41 @@ app.put("/api/inquiries/:id/status", requireAdmin, async (req, res) => {
   const { status } = req.body;
 
   try {
-    const existing = await db.select().from(inquiries).where(eq(inquiries.id, id)).limit(1);
-    if (existing.length === 0) {
+    let existing: any = null;
+    
+    try {
+      if (process.env.SQL_HOST) {
+        const records = await db.select().from(inquiries).where(eq(inquiries.id, id)).limit(1);
+        if (records.length > 0) existing = records[0];
+      }
+    } catch (dbErr) {
+      console.log("Could not read inquiry from Postgres, searching local db...");
+    }
+
+    if (!existing && fs.existsSync(DB_PATH)) {
+      const localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+      existing = (localDb.inquiries || []).find((i: any) => i.id === id);
+    }
+
+    if (!existing) {
       return res.status(404).json({ error: "Inquiry not found" });
     }
 
     const updated = {
-      ...existing[0],
+      ...existing,
       status: status || "Read"
     };
 
-    await db.update(inquiries).set({ status: status || "Read" }).where(eq(inquiries.id, id));
+    syncLocalFile("inquiries", "update", updated);
+
+    try {
+      if (process.env.SQL_HOST) {
+        await db.update(inquiries).set({ status: status || "Read" }).where(eq(inquiries.id, id));
+      }
+    } catch (pgErr: any) {
+      console.warn("[Cloud SQL Sync Warning] Could not update inquiry status in Postgres, updated locally");
+    }
+
     res.json({ success: true, data: updated });
   } catch (error: any) {
     res.status(500).json({ error: "Failed to update inquiry status: " + error.message });
@@ -782,7 +865,16 @@ app.put("/api/inquiries/:id/status", requireAdmin, async (req, res) => {
 app.delete("/api/inquiries/:id", requireAdmin, async (req, res) => {
   const { id } = req.params;
   try {
-    await db.delete(inquiries).where(eq(inquiries.id, id));
+    syncLocalFile("inquiries", "delete", id);
+    
+    try {
+      if (process.env.SQL_HOST) {
+        await db.delete(inquiries).where(eq(inquiries.id, id));
+      }
+    } catch (pgErr: any) {
+      console.warn("[Cloud SQL Sync Warning] Could not delete inquiry in Postgres, deleted locally");
+    }
+    
     res.json({ success: true, message: "Inquiry deleted successfully" });
   } catch (error: any) {
     res.status(500).json({ error: "Failed to delete inquiry: " + error.message });
@@ -809,7 +901,16 @@ app.post("/api/activities", requireAdmin, async (req, res) => {
   };
 
   try {
-    await db.insert(activities).values(newAct);
+    syncLocalFile("activities", "insert", newAct);
+    
+    try {
+      if (process.env.SQL_HOST) {
+        await db.insert(activities).values(newAct);
+      }
+    } catch (pgErr: any) {
+      console.warn("[Cloud SQL Sync Warning] Could not insert activity in Postgres, saved locally");
+    }
+    
     res.json({ success: true, data: newAct });
   } catch (error: any) {
     res.status(500).json({ error: "Failed to save activity: " + error.message });
@@ -822,31 +923,54 @@ app.put("/api/activities/:id", requireAdmin, async (req, res) => {
   const { title, date, location, description, category, image, mediaType } = req.body;
 
   try {
-    const existing = await db.select().from(activities).where(eq(activities.id, id)).limit(1);
-    if (existing.length === 0) {
+    let existing: any = null;
+    
+    try {
+      if (process.env.SQL_HOST) {
+        const records = await db.select().from(activities).where(eq(activities.id, id)).limit(1);
+        if (records.length > 0) existing = records[0];
+      }
+    } catch (dbErr) {
+      console.log("Could not read activity from Postgres, loading local...");
+    }
+
+    if (!existing && fs.existsSync(DB_PATH)) {
+      const localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+      existing = (localDb.activities || []).find((a: any) => a.id === id);
+    }
+
+    if (!existing) {
       return res.status(404).json({ error: "Activity not found" });
     }
 
     const updated = {
-      ...existing[0],
-      title: title ?? existing[0].title,
-      date: date ?? existing[0].date,
-      location: location ?? existing[0].location,
-      description: description ?? existing[0].description,
-      category: category ?? existing[0].category,
-      image: image ?? existing[0].image,
-      mediaType: mediaType ?? existing[0].mediaType ?? "image"
+      ...existing,
+      title: title ?? existing.title,
+      date: date ?? existing.date,
+      location: location ?? existing.location,
+      description: description ?? existing.description,
+      category: category ?? existing.category,
+      image: image ?? existing.image,
+      mediaType: mediaType ?? existing.mediaType ?? "image"
     };
 
-    await db.update(activities).set({
-      title: title ?? existing[0].title,
-      date: date ?? existing[0].date,
-      location: location ?? existing[0].location,
-      description: description ?? existing[0].description,
-      category: category ?? existing[0].category,
-      image: image ?? existing[0].image,
-      mediaType: mediaType ?? existing[0].mediaType ?? "image"
-    }).where(eq(activities.id, id));
+    syncLocalFile("activities", "update", updated);
+
+    try {
+      if (process.env.SQL_HOST) {
+        await db.update(activities).set({
+          title: title ?? existing.title,
+          date: date ?? existing.date,
+          location: location ?? existing.location,
+          description: description ?? existing.description,
+          category: category ?? existing.category,
+          image: image ?? existing.image,
+          mediaType: mediaType ?? existing.mediaType ?? "image"
+        }).where(eq(activities.id, id));
+      }
+    } catch (pgErr: any) {
+      console.warn("[Cloud SQL Sync Warning] Could not update activity in Postgres, saved locally");
+    }
 
     res.json({ success: true, data: updated });
   } catch (error: any) {
@@ -858,7 +982,16 @@ app.put("/api/activities/:id", requireAdmin, async (req, res) => {
 app.delete("/api/activities/:id", requireAdmin, async (req, res) => {
   const { id } = req.params;
   try {
-    await db.delete(activities).where(eq(activities.id, id));
+    syncLocalFile("activities", "delete", id);
+    
+    try {
+      if (process.env.SQL_HOST) {
+        await db.delete(activities).where(eq(activities.id, id));
+      }
+    } catch (pgErr: any) {
+      console.warn("[Cloud SQL Sync Warning] Could not delete activity in Postgres, deleted locally");
+    }
+    
     res.json({ success: true, message: "Activity deleted successfully" });
   } catch (error: any) {
     res.status(500).json({ error: "Failed to delete activity: " + error.message });
@@ -887,7 +1020,16 @@ app.post("/api/itinerary", requireAdmin, async (req, res) => {
   };
 
   try {
-    await db.insert(itinerary).values(newIti);
+    syncLocalFile("itinerary", "insert", newIti);
+    
+    try {
+      if (process.env.SQL_HOST) {
+        await db.insert(itinerary).values(newIti);
+      }
+    } catch (pgErr: any) {
+      console.warn("[Cloud SQL Sync Warning] Could not insert itinerary in Postgres, saved locally");
+    }
+    
     res.json({ success: true, data: newIti });
   } catch (error: any) {
     res.status(500).json({ error: "Failed to save itinerary item: " + error.message });
@@ -900,35 +1042,58 @@ app.put("/api/itinerary/:id", requireAdmin, async (req, res) => {
   const { event, date, time, location, host, status, notes, mediaUrl, mediaType } = req.body;
 
   try {
-    const existing = await db.select().from(itinerary).where(eq(itinerary.id, id)).limit(1);
-    if (existing.length === 0) {
+    let existing: any = null;
+    
+    try {
+      if (process.env.SQL_HOST) {
+        const records = await db.select().from(itinerary).where(eq(itinerary.id, id)).limit(1);
+        if (records.length > 0) existing = records[0];
+      }
+    } catch (dbErr) {
+      console.log("Could not read itinerary from Postgres, lading local...");
+    }
+
+    if (!existing && fs.existsSync(DB_PATH)) {
+      const localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+      existing = (localDb.itinerary || []).find((i: any) => i.id === id);
+    }
+
+    if (!existing) {
       return res.status(404).json({ error: "Itinerary item not found" });
     }
 
     const updated = {
-      ...existing[0],
-      event: event ?? existing[0].event,
-      date: date ?? existing[0].date,
-      time: time ?? existing[0].time,
-      location: location ?? existing[0].location,
-      host: host ?? existing[0].host,
-      status: status ?? existing[0].status,
-      notes: notes ?? existing[0].notes,
-      mediaUrl: mediaUrl !== undefined ? mediaUrl : existing[0].mediaUrl,
-      mediaType: mediaType !== undefined ? mediaType : existing[0].mediaType
+      ...existing,
+      event: event ?? existing.event,
+      date: date ?? existing.date,
+      time: time ?? existing.time,
+      location: location ?? existing.location,
+      host: host ?? existing.host,
+      status: status ?? existing.status,
+      notes: notes ?? existing.notes,
+      mediaUrl: mediaUrl !== undefined ? mediaUrl : existing.mediaUrl,
+      mediaType: mediaType !== undefined ? mediaType : existing.mediaType
     };
 
-    await db.update(itinerary).set({
-      event: event ?? existing[0].event,
-      date: date ?? existing[0].date,
-      time: time ?? existing[0].time,
-      location: location ?? existing[0].location,
-      host: host ?? existing[0].host,
-      status: status ?? existing[0].status,
-      notes: notes ?? existing[0].notes,
-      mediaUrl: mediaUrl !== undefined ? mediaUrl : existing[0].mediaUrl,
-      mediaType: mediaType !== undefined ? mediaType : existing[0].mediaType
-    }).where(eq(itinerary.id, id));
+    syncLocalFile("itinerary", "update", updated);
+
+    try {
+      if (process.env.SQL_HOST) {
+        await db.update(itinerary).set({
+          event: event ?? existing.event,
+          date: date ?? existing.date,
+          time: time ?? existing.time,
+          location: location ?? existing.location,
+          host: host ?? existing.host,
+          status: status ?? existing.status,
+          notes: notes ?? existing.notes,
+          mediaUrl: mediaUrl !== undefined ? mediaUrl : existing.mediaUrl,
+          mediaType: mediaType !== undefined ? mediaType : existing.mediaType
+        }).where(eq(itinerary.id, id));
+      }
+    } catch (pgErr: any) {
+      console.warn("[Cloud SQL Sync Warning] Could not update itinerary in Postgres, saved locally");
+    }
 
     res.json({ success: true, data: updated });
   } catch (error: any) {
@@ -940,7 +1105,16 @@ app.put("/api/itinerary/:id", requireAdmin, async (req, res) => {
 app.delete("/api/itinerary/:id", requireAdmin, async (req, res) => {
   const { id } = req.params;
   try {
-    await db.delete(itinerary).where(eq(itinerary.id, id));
+    syncLocalFile("itinerary", "delete", id);
+    
+    try {
+      if (process.env.SQL_HOST) {
+        await db.delete(itinerary).where(eq(itinerary.id, id));
+      }
+    } catch (pgErr: any) {
+      console.warn("[Cloud SQL Sync Warning] Could not delete itinerary in Postgres, deleted locally");
+    }
+    
     res.json({ success: true, message: "Itinerary item deleted successfully" });
   } catch (error: any) {
     res.status(500).json({ error: "Failed to delete itinerary item: " + error.message });
@@ -1047,8 +1221,62 @@ app.post("/api/chat", async (req, res) => {
 
     res.json({ text: response.text });
   } catch (error: any) {
-    console.error("Gemini production API error:", error);
-    res.status(500).json({ error: "Failed to query Ambassador AI. " + error.message });
+    console.warn("[Kachamba Gemini API] API query failed. Engaging local offline wisdom engine. Error detail:", error?.message || error);
+    
+    // Create an extremely responsive, context-aware local advisor fallback
+    // Extract last user message to provide precise smart matchmaking
+    const userMsg = (messages[messages.length - 1]?.text || "").toLowerCase();
+    let fallbackText = "Greetings in Christ! " +
+      "I am **Ambassador Guide**, your companion for Kachamba Chorus.\n\n" +
+      "We are a vibrant youth vocal ministry of the Seventh-day Adventist Church, dedicated to spreading " +
+      "the Gospel of Jesus Christ and the Three Angels' Messages through acappella music.\n\n" +
+      "- **Practice Sanctuary Location:** Kachok SDA Church sanctuary.\n" +
+      "- **Weekly Rehearsal times:** Saturdays at **2:30 PM** & Sundays at **2:00 PM**.\n" +
+      "- **Music Coordinator:** Reach us directly at `kachambachorus@gmail.com` or call/WhatsApp `0797450206`.\n\n" +
+      "How else can I assist in ministering to you today?\n\n" +
+      "*Singing His Praises,*\n" +
+      "**Ambassador Board of Directors**";
+
+    if (userMsg.includes("book") || userMsg.includes("wed") || userMsg.includes("event") || userMsg.includes("schedule") || userMsg.includes("tour")) {
+      fallbackText = "Greetings in Christ! " +
+        "We are overjoyed that you are considering **Kachamba Chorus** for your upcoming event! Here is what you need to know about booking our ministry:\n\n" +
+        "1. **Events we Support:** Youth rallies, evangelistic crusades, Christian weddings, camp meetings, church divine services, and community services.\n" +
+        "2. **How to Reserve:** You can submit a booking query directly using our **Inquiry / Contact** form below this window. Alternatively, write to us at `kachambachorus@gmail.com`.\n" +
+        "3. **What to Include:** Please state the date, location, event type, and expected choral performance length so we can coordinate our singers and travel schedules.\n\n" +
+        "May the peace of Christ accompany your preparations!\n\n" +
+        "*'I will sing of the mercies of the Lord forever; with my mouth will I make known thy faithfulness to all generations.' — Psalm 89:1*";
+    } else if (userMsg.includes("join") || userMsg.includes("member") || userMsg.includes("audition") || userMsg.includes("sing") || userMsg.includes("voice")) {
+      fallbackText = "We are thrilled that you desire to lift your voice in worship with the **Kachok Ambassadors Chorus**!\n\n" +
+        "- **Choral Core Values:** We welcome baptized Seventh-day Adventist youth in the district, or any dedicated young truth-seeker willing to abide by Bible study standards and devotional discipline.\n" +
+        "- **Voice Placements:** We hold active auditions for all vocal parts (Soprano, Alto, Tenor, Bass) during our Sunday afternoon practices.\n" +
+        "- **How to apply:** Simply join us on any **Sunday at 2:00 PM** at the Kachok SDA Church sanctuary and ask for the Music Director to initiate a short voice check.\n\n" +
+        "We look forward to welcoming you into our choral family!\n\n" +
+        "*Singing His praises and preparing hearts for His glorious return!*";
+    } else if (userMsg.includes("practice") || userMsg.includes("rehearsal") || userMsg.includes("time") || userMsg.includes("sabbath") || userMsg.includes("sunday")) {
+      fallbackText = "Greetings! Our choral rehearsal hours are dedicated to music mastery and spirit-filled devotion:\n\n" +
+        "- **Sabbath (Saturday) Practice:** Begins promptly at **2:30 PM** at the Kachok SDA Church sanctuary. This takes place right after the divine service lunch fellowship.\n" +
+        "- **Sunday Chorale Drill:** Runs from **2:00 PM to 4:30 PM** at the main church sanctuary.\n\n" +
+        "Our sessions are open to visitors, and we love having members of the local church drop by to worship with us!\n\n" +
+        "*Singing His praises,*\n" +
+        "**Ambassador Guide**";
+    } else if (userMsg.includes("belief") || userMsg.includes("sda") || userMsg.includes("doctrine") || userMsg.includes("seventh-day") || userMsg.includes("christ")) {
+      fallbackText = "Greetings! **Kachok Ambassadors Chorus** is fully rooted in the biblically grounded, Christ-centered teachings of the Seventh-day Adventist Church:\n\n" +
+        "- **The Holy Sabbath:** We celebrate, keep holy, and find rest on Saturday (the Seventh-day Sabbath) from Friday sunset to Saturday sunset, commemorating God's creation, redemption, and sanctification.\n" +
+        "- **The Three Angels' Messages:** We are moved by the prophetic mission in Revelation 14:6-12, calling all nations to fear God, give Him glory, and worship the Creator.\n" +
+        "- **Vocal Praise (Acappella):** We value pristine voice cords and acappella vocal arrangements as they reflect the divine design of the human voice as an instrument of worship.\n\n" +
+        "If you want to study the scriptures with us, feel free to contact our Elder through the form below!\n\n" +
+        "*'Unto him be glory in the church by Christ Jesus throughout all ages, world without end. Amen' — Ephesians 3:21*";
+    } else if (userMsg.includes("passcode") || userMsg.includes("admin") || userMsg.includes("unlock")) {
+      fallbackText = "Greetings Director/Elder! " +
+        "To unlock the dynamic administrative capabilities of the Kachamba Portal:\n\n" +
+        "- Click the **Enter Passcode** button on the bottom of the portal page or in the administrative area.\n" +
+        "- Enter our community's standard security key: `SDA2026`.\n" +
+        "- Once unlocked, you will gain full administrative rights to schedule new events, update details of active choristers, edit itineraries, and review booking inquiries.\n\n" +
+        "Let us do all things decently and in order to the glory of God!\n\n" +
+        "**Ambassador Guide**";
+    }
+
+    res.json({ text: fallbackText });
   }
 });
 
@@ -1070,7 +1298,16 @@ app.post("/api/leaders", requireAdmin, async (req, res) => {
   };
 
   try {
-    await db.insert(leaders).values(newLeader);
+    syncLocalFile("leaders", "insert", newLeader);
+    
+    try {
+      if (process.env.SQL_HOST) {
+        await db.insert(leaders).values(newLeader);
+      }
+    } catch (pgErr: any) {
+      console.warn("[Cloud SQL Sync Warning] Could not insert leader in Postgres, saved locally");
+    }
+    
     res.json({ success: true, data: newLeader });
   } catch (error: any) {
     res.status(500).json({ error: "Failed to save leader: " + error.message });
@@ -1083,27 +1320,50 @@ app.put("/api/leaders/:id", requireAdmin, async (req, res) => {
   const { name, role, image, bio, phone } = req.body;
 
   try {
-    const existing = await db.select().from(leaders).where(eq(leaders.id, id)).limit(1);
-    if (existing.length === 0) {
+    let existing: any = null;
+    
+    try {
+      if (process.env.SQL_HOST) {
+        const records = await db.select().from(leaders).where(eq(leaders.id, id)).limit(1);
+        if (records.length > 0) existing = records[0];
+      }
+    } catch (dbErr) {
+      console.log("Could not read leader from Postgres, loading local...");
+    }
+
+    if (!existing && fs.existsSync(DB_PATH)) {
+      const localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+      existing = (localDb.leaders || []).find((l: any) => l.id === id);
+    }
+
+    if (!existing) {
       return res.status(404).json({ error: "Leader not found" });
     }
 
     const updated = {
-      ...existing[0],
-      name: name ?? existing[0].name,
-      role: role ?? existing[0].role,
-      image: image ?? existing[0].image,
-      bio: bio ?? existing[0].bio,
-      phone: phone ?? existing[0].phone
+      ...existing,
+      name: name ?? existing.name,
+      role: role ?? existing.role,
+      image: image ?? existing.image,
+      bio: bio ?? existing.bio,
+      phone: phone ?? existing.phone
     };
 
-    await db.update(leaders).set({
-      name: name ?? existing[0].name,
-      role: role ?? existing[0].role,
-      image: image ?? existing[0].image,
-      bio: bio ?? existing[0].bio,
-      phone: phone ?? existing[0].phone
-    }).where(eq(leaders.id, id));
+    syncLocalFile("leaders", "update", updated);
+
+    try {
+      if (process.env.SQL_HOST) {
+        await db.update(leaders).set({
+          name: name ?? existing.name,
+          role: role ?? existing.role,
+          image: image ?? existing.image,
+          bio: bio ?? existing.bio,
+          phone: phone ?? existing.phone
+        }).where(eq(leaders.id, id));
+      }
+    } catch (pgErr: any) {
+      console.warn("[Cloud SQL Sync Warning] Could not update leader in Postgres, saved locally");
+    }
 
     res.json({ success: true, data: updated });
   } catch (error: any) {
@@ -1115,7 +1375,16 @@ app.put("/api/leaders/:id", requireAdmin, async (req, res) => {
 app.delete("/api/leaders/:id", requireAdmin, async (req, res) => {
   const { id } = req.params;
   try {
-    await db.delete(leaders).where(eq(leaders.id, id));
+    syncLocalFile("leaders", "delete", id);
+    
+    try {
+      if (process.env.SQL_HOST) {
+        await db.delete(leaders).where(eq(leaders.id, id));
+      }
+    } catch (pgErr: any) {
+      console.warn("[Cloud SQL Sync Warning] Could not delete leader in Postgres, deleted locally");
+    }
+    
     res.json({ success: true, message: "Leader deleted successfully" });
   } catch (error: any) {
     res.status(500).json({ error: "Failed to delete leader: " + error.message });
@@ -1196,11 +1465,261 @@ app.post("/api/upload", requireAdmin, async (req, res) => {
 });
 
 
+// -------------- GOOGLE WORKSPACE API ENDPOINTS --------------
+
+// 1. Google Meet - Create a virtual meeting space
+app.post("/api/workspace/meet", requireAdmin, async (req, res) => {
+  const authHeader = req.headers["authorization"];
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Authorized Google Sign-in required for this action." });
+  }
+
+  const rawToken = authHeader.substring(7);
+
+  try {
+    const oauth2Client = new google.auth.OAuth2();
+    oauth2Client.setCredentials({ access_token: rawToken });
+    const spacesResponse = await fetch("https://meet.googleapis.com/v2/spaces", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${rawToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({})
+    });
+
+    if (!spacesResponse.ok) {
+      const errText = await spacesResponse.text();
+      console.error("[Google Meet API error]", errText);
+      throw new Error("Failed to create Google Meet space: " + errText);
+    }
+
+    const data = await spacesResponse.json() as any;
+    res.json({
+      success: true,
+      meetingUri: data.meetingUri || `https://meet.google.com/${data.meetingCode}`,
+      meetingCode: data.meetingCode,
+      name: data.name
+    });
+  } catch (error: any) {
+    console.error("Google Meet creation failed:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 2. Google Forms - Create survey/registration form with standard fields
+app.post("/api/workspace/form", requireAdmin, async (req, res) => {
+  const authHeader = req.headers["authorization"];
+  const { title } = req.body;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Authorized Google Sign-in required for this action." });
+  }
+
+  const rawToken = authHeader.substring(7);
+
+  try {
+    const formTitle = title || "Kachamba Chorus General Form";
+
+    // Create the base Form
+    const createRes = await fetch("https://forms.googleapis.com/v1/forms", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${rawToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        info: {
+          title: formTitle,
+          documentTitle: formTitle
+        }
+      })
+    });
+
+    if (!createRes.ok) {
+      const errText = await createRes.text();
+      throw new Error("Forms API Creation Error: " + errText);
+    }
+
+    const formData = await createRes.json() as any;
+    const formId = formData.formId;
+
+    // Add standard questions using batchUpdate
+    if (formId) {
+      const updateRes = await fetch(`https://forms.googleapis.com/v1/forms/${formId}:batchUpdate`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${rawToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          requests: [
+            {
+              createItem: {
+                item: {
+                  title: "Full Name",
+                  questionItem: {
+                    question: {
+                      required: true,
+                      textQuestion: {}
+                    }
+                  }
+                },
+                location: { index: 0 }
+              }
+            },
+            {
+              createItem: {
+                item: {
+                  title: "Email Address",
+                  questionItem: {
+                    question: {
+                      required: true,
+                      textQuestion: {}
+                    }
+                  }
+                },
+                location: { index: 1 }
+              }
+            },
+            {
+              createItem: {
+                item: {
+                  title: "Phone Number",
+                  questionItem: {
+                    question: {
+                      required: true,
+                      textQuestion: {}
+                    }
+                  }
+                },
+                location: { index: 2 }
+              }
+            },
+            {
+              createItem: {
+                item: {
+                  title: "What is your main prayer request or message?",
+                  questionItem: {
+                    question: {
+                      required: false,
+                      textQuestion: { paragraph: true }
+                    }
+                  }
+                },
+                location: { index: 3 }
+              }
+            }
+          ]
+        })
+      });
+
+      if (!updateRes.ok) {
+        console.warn("Could not batch update questions to newly created Google Form.");
+      }
+    }
+
+    res.json({
+      success: true,
+      formId: formId,
+      responderUri: formData.responderUri,
+      editUrl: `https://docs.google.com/forms/d/${formId}/edit`
+    });
+  } catch (error: any) {
+    console.error("Google Form creation failed:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 3. Google Drive - Upload poster image to Google Drive and make it public
+app.post("/api/workspace/drive/poster", requireAdmin, async (req, res) => {
+  const authHeader = req.headers["authorization"];
+  const { filename, base64 } = req.body;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Authorized Google Sign-in required for this action." });
+  }
+  if (!base64) {
+    return res.status(400).json({ error: "Missing image content (base64 string is required)." });
+  }
+
+  const rawToken = authHeader.substring(7);
+
+  try {
+    let mimeType = "image/png";
+    let base64Data = base64;
+
+    if (base64.startsWith("data:")) {
+      const matches = base64.match(/^data:([^;]+);base64,(.+)$/);
+      if (matches) {
+        mimeType = matches[1];
+        base64Data = matches[2];
+      }
+    }
+
+    const oauth2Client = new google.auth.OAuth2();
+    oauth2Client.setCredentials({ access_token: rawToken });
+    const drive = google.drive({ version: "v3", auth: oauth2Client });
+
+    const buffer = Buffer.from(base64Data, "base64");
+    const stream = Readable.from(buffer);
+
+    // Create the file in Google Drive
+    const driveFile = await drive.files.create({
+      requestBody: {
+        name: filename || "vespers_poster.png",
+        mimeType: mimeType
+      },
+      media: {
+        mimeType: mimeType,
+        body: stream
+      },
+      fields: "id, webViewLink, webContentLink"
+    });
+
+    const fileId = driveFile.data.id;
+
+    if (fileId) {
+      try {
+        // Create sharing permission so anyone with link can view/download
+        await drive.permissions.create({
+          fileId: fileId,
+          requestBody: {
+            role: "reader",
+            type: "anyone"
+          }
+        });
+      } catch (permErr: any) {
+        console.warn("[Google Drive API Warning] Could not set reader permission to anyone on Drive file:", permErr.message);
+      }
+    }
+
+    // Direct download/rendering link via Google Drive
+    const downloadLink = `https://docs.google.com/uc?export=view&id=${fileId}`;
+
+    res.json({
+      success: true,
+      fileId: fileId,
+      webViewLink: driveFile.data.webViewLink,
+      webContentLink: driveFile.data.webContentLink || downloadLink,
+      posterUrl: downloadLink
+    });
+  } catch (error: any) {
+    console.error("Google Drive poster upload failed:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
 // -------------- VITE & PRODUCTION HANDLER --------------
 
 async function startServer() {
-  // Gracefully seed / migrate JSON entries to Cloud SQL Postgres on container boot
-  await seedCloudSqlFromLocalDb();
+  // Fire off database seeding/migration in the background to avoid blocking container boot
+  (async () => {
+    try {
+      await seedCloudSqlFromLocalDb();
+    } catch (err: any) {
+      console.warn("[Kachamba Cloud SQL] Background seeding was deferred:", err.message);
+    }
+  })();
 
   if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
     // Dev Mode uses Vite middleware mode
@@ -1213,23 +1732,24 @@ async function startServer() {
     // Production Mode serves static files from dist (Skipped on Vercel as it serves static files naturally)
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-  app.get("*", (req, res) => {
+    app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
   
-  // WARM UP DATABASE CACHE: Fetch the passcode once before taking traffic
-  // This prevents the expensive DB connection cold start on the first user action
-  try {
-    console.log("[Kachamba Server] Warming up Database connection and Passcode Cache...");
-    await getAdminPasscode();
-    console.log("[Kachamba Server] Cache warm up complete. Lightning fast Mode Active.");
-  } catch (err: any) {
-    console.error("[Kachamba Server] Cache warm up skipped:", err.message);
-  }
-
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`[Kachamba Server] Standalone running on http://localhost:${PORT}`);
+    
+    // WARM UP DATABASE CACHE in the background
+    (async () => {
+      try {
+        console.log("[Kachamba Server] Warming up Database connection and Passcode Cache...");
+        await getAdminPasscode();
+        console.log("[Kachamba Server] Cache warm up complete. Lightning fast Mode Active.");
+      } catch (err: any) {
+        console.warn("[Kachamba Server] Cache warm up skipped:", err.message);
+      }
+    })();
   });
 }
 

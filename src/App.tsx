@@ -37,6 +37,9 @@ function FadeInSection({ children }: { children: React.ReactNode }) {
 export default function App() {
   // Authentication state
   const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(() => {
+    return localStorage.getItem("kachamba_google_accessToken");
+  });
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -47,8 +50,16 @@ export default function App() {
 
   const handleGoogleLogin = async () => {
     const provider = new GoogleAuthProvider();
+    provider.addScope("https://www.googleapis.com/auth/meetings.space.created");
+    provider.addScope("https://www.googleapis.com/auth/forms.body");
+    provider.addScope("https://www.googleapis.com/auth/drive.file");
     try {
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      if (credential?.accessToken) {
+        setGoogleAccessToken(credential.accessToken);
+        localStorage.setItem("kachamba_google_accessToken", credential.accessToken);
+      }
     } catch (error) {
       console.error("Login failed:", error);
     }
@@ -57,6 +68,8 @@ export default function App() {
   const handleGoogleLogout = async () => {
     try {
       await signOut(auth);
+      setGoogleAccessToken(null);
+      localStorage.removeItem("kachamba_google_accessToken");
     } catch (error) {
       console.error("Logout failed:", error);
     }
@@ -114,6 +127,21 @@ export default function App() {
   const [actToEdit, setActToEdit] = useState<Activity | null>(null);
   const [itiToEdit, setItiToEdit] = useState<ItineraryItem | null>(null);
   const [ldrToEdit, setLdrToEdit] = useState<Leader | null>(null);
+
+  // Shared Vesper Poster link lookup
+  const [sharedEvent, setSharedEvent] = useState<ItineraryItem | null>(null);
+  const [copiedShareEventId, setCopiedShareEventId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const eventId = params.get("event");
+    if (eventId && dbData.itinerary.length > 0) {
+      const found = dbData.itinerary.find(item => item.id === eventId);
+      if (found) {
+        setSharedEvent(found);
+      }
+    }
+  }, [dbData.itinerary]);
 
   // Load database items on launch and whenever passcode changes
   const fetchData = async () => {
@@ -611,6 +639,8 @@ export default function App() {
             onLogin={handleAdminAuth}
             onLogout={handleAdminLogout}
             isAuthenticated={!!adminPasscode}
+            googleAccessToken={googleAccessToken}
+            onGoogleLogin={handleGoogleLogin}
             inquiries={dbData.inquiries}
             onDeleteInquiry={handleDeleteInquiry}
             onUpdateInquiryStatus={handleUpdateInquiryStatus}
@@ -628,6 +658,166 @@ export default function App() {
           />
         )}
       </AnimatePresence>
+
+
+      {/* 🌟 STANDALONE SABBATH/FRIDAY VESPER POSTER & EVENT DISPATCH VIEW 🌟 */}
+      <AnimatePresence>
+        {sharedEvent && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4 overflow-y-auto text-slate-100"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl relative"
+            >
+              <button 
+                onClick={() => {
+                  setSharedEvent(null);
+                  window.history.pushState({}, "", window.location.origin);
+                }}
+                className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-slate-950/60 hover:bg-slate-950 text-slate-400 hover:text-white flex items-center justify-center transition-all cursor-pointer border border-slate-805"
+                title="Return to Main Website"
+              >
+                ✕
+              </button>
+
+              {/* Poster frame aspect ratio container */}
+              <div className="relative aspect-[16/10] sm:aspect-[16/9] w-full bg-slate-1050 flex items-center justify-center border-b border-slate-850 overflow-hidden group">
+                {sharedEvent.mediaUrl ? (
+                  <img 
+                    src={sharedEvent.mediaUrl} 
+                    alt={sharedEvent.event}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 font-sans"
+                  />
+                ) : (
+                  <div className="text-center p-6 flex flex-col items-center gap-3">
+                    <span className="text-4xl">🎶</span>
+                    <h3 className="font-sans font-bold text-lg text-amber-400 tracking-wide uppercase">Kachamba Chorus Sabbath Vesper</h3>
+                    <p className="text-[11px] font-mono text-slate-500 uppercase tracking-widest">Worship in Truth & Choral Sacred Music</p>
+                  </div>
+                )}
+                {/* Backdrop amber layout glow */}
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent pointer-events-none" />
+                
+                {/* Status banner */}
+                <div className="absolute top-4 left-4 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-mono font-bold px-3 py-1 rounded-full uppercase tracking-widest">
+                  Upcoming Sabbath Crusade
+                </div>
+              </div>
+
+              {/* Event details container */}
+              <div className="p-6 sm:p-8 flex flex-col gap-5">
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-sans font-black tracking-tight text-white mb-2 uppercase">
+                    {sharedEvent.event}
+                  </h2>
+                  <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-slate-450 uppercase font-mono tracking-wider">
+                    <span className="flex items-center gap-1.5 text-amber-405">
+                      📅 {new Date(sharedEvent.date).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+                    </span>
+                    <span>•</span>
+                    <span className="flex items-center gap-1.5 text-slate-300">
+                      ⏰ {sharedEvent.time || "Sunset"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Meta properties details */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-950/40 border border-slate-850 p-4 rounded-2xl text-xs">
+                  <div>
+                    <span className="block text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-0.5">Host Council</span>
+                    <strong className="text-slate-200">{sharedEvent.host || "SDA Kachock Church"}</strong>
+                  </div>
+                  <div>
+                    <span className="block text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-0.5">Auditorium Venue</span>
+                    <strong className="text-slate-200">{sharedEvent.location}</strong>
+                  </div>
+                </div>
+
+                {/* Pastor notes section */}
+                {sharedEvent.notes && (
+                  <div className="bg-slate-950/20 border border-slate-800 p-4 rounded-2xl">
+                    <span className="block text-[9px] font-mono text-amber-400 uppercase tracking-widest mb-2 font-bold">Pastor's Special Guide Notes</span>
+                    <p className="text-xs text-slate-300 whitespace-pre-line leading-relaxed font-sans font-medium">
+                      {sharedEvent.notes}
+                    </p>
+                  </div>
+                )}
+
+                {/* Render extracted real Google Meet / Forms direct link button proxies */}
+                <div className="flex flex-col gap-2 mt-1">
+                  {/* Extracted Google Meet link buttons */}
+                  {sharedEvent.notes?.includes("meet.google.com/") && (
+                    <a 
+                      href={sharedEvent.notes.match(/https:\/\/meet\.google\.com\/[a-z0-9-]+/i)?.[0] || "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold p-3.5 rounded-2xl text-xs flex items-center justify-center gap-2 transition-all hover:scale-[1.01] uppercase tracking-wider font-mono cursor-pointer"
+                    >
+                      🎥 Click to Join Sabbath Google Meet Room
+                    </a>
+                  )}
+
+                  {/* Extracted Google Forms RSVP buttons */}
+                  {sharedEvent.notes?.includes("docs.google.com/forms/") && (
+                    <a 
+                      href={sharedEvent.notes.match(/https:\/\/docs\.google\.com\/forms\/[a-zA-Z0-9-_\/]+/i)?.[0] || "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-purple-600 hover:bg-purple-500 text-white font-bold p-3.5 rounded-2xl text-xs flex items-center justify-center gap-2 transition-all hover:scale-[1.01] uppercase tracking-wider font-mono cursor-pointer"
+                    >
+                      📝 Submit Requests / Prayer Form to Admin
+                    </a>
+                  )}
+                </div>
+
+                {/* Footer share controls */}
+                <div className="flex items-center gap-2 border-t border-slate-850 pt-5 mt-2 justify-between">
+                  <div className="flex items-center gap-2 text-xs font-mono text-slate-500">
+                    <span>Spread the Gospel:</span>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        const url = `${window.location.origin}/?event=${sharedEvent.id}`;
+                        navigator.clipboard.writeText(url).then(() => {
+                          setCopiedShareEventId(sharedEvent.id);
+                          setTimeout(() => setCopiedShareEventId(null), 2000);
+                        });
+                      }}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer font-sans transition-colors flex items-center gap-1.5 ${
+                        copiedShareEventId === sharedEvent.id
+                          ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                          : "bg-slate-800 hover:bg-slate-755 text-slate-200 border border-slate-700"
+                      }`}
+                    >
+                      <span>{copiedShareEventId === sharedEvent.id ? "✓ Copied Link!" : "🔗 Share Link"}</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setSharedEvent(null);
+                        window.history.pushState({}, "", window.location.origin);
+                      }}
+                      className="bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider cursor-pointer transition-transform duration-100 hover:scale-102"
+                    >
+                      Explore Chorus HQ ➜
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
 
       {/* Footer */}
       <footer className="bg-slate-950 border-t border-slate-900 py-12 px-6 text-center text-slate-500 text-xs">

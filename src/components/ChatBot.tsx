@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { MessageSquare, X, Send, Bot, User, Minimize2, ArrowUpRight, Search, MapPin, Zap } from "lucide-react";
 import { ChatMessage } from "../types";
+import { motion, useDragControls } from "motion/react";
 
 interface ChatBotProps {
   isOpen: boolean;
@@ -9,6 +10,26 @@ interface ChatBotProps {
 }
 
 export default function ChatBot({ isOpen, onClose, onOpen }: ChatBotProps) {
+  const [isMobile, setIsMobile] = useState(false);
+  const [dragConstraints, setDragConstraints] = useState({ left: -600, right: 0, top: -400, bottom: 0 });
+  const dragControls = useDragControls();
+
+  useEffect(() => {
+    const handleResize = () => {
+      const mobileStatus = window.innerWidth < 640;
+      setIsMobile(mobileStatus);
+      setDragConstraints({
+        left: mobileStatus ? 0 : -(window.innerWidth - 440),
+        right: mobileStatus ? 0 : 20,
+        top: mobileStatus ? 0 : -(window.innerHeight - 600),
+        bottom: mobileStatus ? 0 : 20
+      });
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "welcome",
@@ -146,10 +167,21 @@ export default function ChatBot({ isOpen, onClose, onOpen }: ChatBotProps) {
 
       {/* Main Chat Interface */}
       {isOpen && (
-        <div className="bg-slate-900 border border-slate-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:w-[400px] h-[85vh] sm:h-[550px] flex flex-col overflow-hidden text-white transition-all scale-100 opacity-100">
+        <motion.div 
+          drag={isMobile ? false : true}
+          dragControls={dragControls}
+          dragListener={false}
+          dragMomentum={false}
+          dragElastic={0.05}
+          dragConstraints={dragConstraints}
+          className="bg-slate-900 border border-slate-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:w-[400px] h-[85vh] sm:h-[550px] flex flex-col overflow-hidden text-white transition-all scale-100 opacity-100"
+        >
           
           {/* Header Banner */}
-          <div className="bg-slate-950 px-5 py-4 border-b border-slate-805 flex justify-between items-center">
+          <div 
+            onPointerDown={(e) => !isMobile && dragControls.start(e)}
+            className="bg-slate-950 px-5 py-4 border-b border-slate-805 flex justify-between items-center cursor-grab active:cursor-grabbing select-none"
+          >
             <div className="flex items-center gap-3">
               <div className="relative w-8 h-8 rounded-full overflow-hidden border border-amber-550/35 bg-[#050B14] flex items-center justify-center shadow-md">
                 <img 
@@ -169,6 +201,7 @@ export default function ChatBot({ isOpen, onClose, onOpen }: ChatBotProps) {
             </div>
             <button 
               onClick={onClose}
+              onPointerDown={(e) => e.stopPropagation()}
               className="text-slate-400 hover:text-white hover:bg-slate-800 p-1.5 rounded-lg cursor-pointer transition-colors"
             >
               <Minimize2 className="w-4 h-4" />
@@ -303,7 +336,7 @@ export default function ChatBot({ isOpen, onClose, onOpen }: ChatBotProps) {
             </div>
           </div>
 
-        </div>
+        </motion.div>
       )}
     </div>
   );

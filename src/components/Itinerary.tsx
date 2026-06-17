@@ -4,7 +4,8 @@ import { ItineraryItem } from "../types";
 import { 
   CalendarDays, MapPin, ShieldCheck, Clock, Plus, Trash2, Edit, Play, 
   Minimize2, ZoomIn, Eye, ChevronRight, Upload, X, Check, Filter, 
-  Newspaper, Camera, Film, AlertCircle, RefreshCw, Send, HelpCircle, Heart, Share2
+  Newspaper, Camera, Film, AlertCircle, RefreshCw, Send, HelpCircle, Heart, Share2,
+  Bell, BellRing, CalendarPlus, Download
 } from "lucide-react";
 
 import { User as FirebaseUser } from "firebase/auth";
@@ -37,7 +38,113 @@ export default function Itinerary({
   onGoogleLogin
 }: ItineraryProps) {
   // Favorites logic
-  const [favorites, setFavorites] = useState<string[]>([]);
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("kachamba_favorites");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Bookmarked local reminders state
+  const [bookmarkedReminders, setBookmarkedReminders] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("kachamba_event_reminders");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [activeReminderMenuId, setActiveReminderMenuId] = useState<string | null>(null);
+
+  const toggleBookmarkReminder = (id: string) => {
+    const nextList = bookmarkedReminders.includes(id)
+      ? bookmarkedReminders.filter(item => item !== id)
+      : [...bookmarkedReminders, id];
+    setBookmarkedReminders(nextList);
+    try {
+      localStorage.setItem("kachamba_event_reminders", JSON.stringify(nextList));
+    } catch (err) {
+      console.error("Local storage bookmark save error", err);
+    }
+  };
+
+  const handleDownloadICS = (item: ItineraryItem) => {
+    const title = item.event;
+    const description = item.notes || `Choral mission by ${item.host || "Kachamba Chorus"}`;
+    const location = item.location;
+    
+    let startTime = "090000";
+    let endTime = "110000";
+    
+    if (item.time) {
+      const timeMatch = item.time.match(/(\d{1,2})[.:](\d{2})/);
+      if (timeMatch) {
+        const hours = parseInt(timeMatch[1]).toString().padStart(2, '0');
+        const minutes = parseInt(timeMatch[2]).toString().padStart(2, '0');
+        startTime = `${hours}${minutes}00`;
+        const endHours = (parseInt(timeMatch[1]) + 2).toString().padStart(2, '0');
+        endTime = `${endHours}${minutes}00`;
+      }
+    }
+
+    const dateStr = item.date.replace(/-/g, ""); // YYYYMMDD
+    const startStamp = `${dateStr}T${startTime}`;
+    const endStamp = `${dateStr}T${endTime}`;
+    
+    const icsLines = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//Kachamba Chorus//Adventist News Event Calendar//EN",
+      "BEGIN:VEVENT",
+      `UID:${item.id}@kachambachorus.org`,
+      `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, "").split(".")[0]}Z`,
+      `DTSTART:${startStamp}`,
+      `DTEND:${endStamp}`,
+      `SUMMARY:${title}`,
+      `DESCRIPTION:${description.replace(/\n/g, "\\n")}`,
+      `LOCATION:${location}`,
+      "END:VEVENT",
+      "END:VCALENDAR"
+    ];
+
+    const blob = new Blob([icsLines.join("\r\n")], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${title.toLowerCase().replace(/[^a-z0-9]+/g, "_")}_reminder.ics`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const getGoogleCalendarURL = (item: ItineraryItem): string => {
+    const title = encodeURIComponent(item.event);
+    const description = encodeURIComponent(item.notes || `Choral mission by ${item.host || "Kachamba Chorus"}`);
+    const location = encodeURIComponent(item.location);
+    
+    let startTime = "090000";
+    let endTime = "110000";
+    
+    if (item.time) {
+      const timeMatch = item.time.match(/(\d{1,2})[.:](\d{2})/);
+      if (timeMatch) {
+        const hours = parseInt(timeMatch[1]).toString().padStart(2, '0');
+        const minutes = parseInt(timeMatch[2]).toString().padStart(2, '0');
+        startTime = `${hours}${minutes}00`;
+        const endHours = (parseInt(timeMatch[1]) + 2).toString().padStart(2, '0');
+        endTime = `${endHours}${minutes}00`;
+      }
+    }
+
+    const dateStr = item.date.replace(/-/g, "");
+    const datesParam = `${dateStr}T${startTime}/${dateStr}T${endTime}`;
+    
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${datesParam}&details=${description}&location=${location}`;
+  };
   
   useEffect(() => {
     if (user) {
@@ -46,15 +153,38 @@ export default function Itinerary({
           const docRef = doc(db, "users", user.uid);
           const docSnap = await getDoc(docRef);
           if (docSnap.exists() && docSnap.data().favorites) {
-            setFavorites(docSnap.data().favorites);
+            const remoteFavs = docSnap.data().favorites as string[];
+            setFavorites(remoteFavs);
+            try {
+              localStorage.setItem("kachamba_favoritesRef_" + user.uid, JSON.stringify(remoteFavs));
+              localStorage.setItem("kachamba_favorites", JSON.stringify(remoteFavs));
+            } catch (storageErr) {
+              console.warn("Failed to update local favorites cache:", storageErr);
+            }
           }
-        } catch (error) {
-          console.error("Error fetching favorites:", error);
+        } catch (error: any) {
+          // If the network request fails because the client is offline or firebase fails,
+          // we gracefully fallback to the user's cached user-specific favorites.
+          console.warn("Error fetching favorites from Firestore, using offline cache:", error?.message || error);
+          try {
+            const cached = localStorage.getItem("kachamba_favoritesRef_" + user.uid);
+            if (cached) {
+              setFavorites(JSON.parse(cached));
+            }
+          } catch {
+            // keep current state
+          }
         }
       };
       fetchFavorites();
     } else {
-      setFavorites([]);
+      // If not logged in, fetch general local favorites
+      try {
+        const saved = localStorage.getItem("kachamba_favorites");
+        setFavorites(saved ? JSON.parse(saved) : []);
+      } catch {
+        setFavorites([]);
+      }
     }
   }, [user]);
 
@@ -69,14 +199,20 @@ export default function Itinerary({
     setFavorites(newFavs);
 
     try {
+      localStorage.setItem("kachamba_favorites", JSON.stringify(newFavs));
+      localStorage.setItem("kachamba_favoritesRef_" + user.uid, JSON.stringify(newFavs));
+    } catch (err) {
+      console.warn("Local storage write error:", err);
+    }
+
+    try {
       const docRef = doc(db, "users", user.uid);
       await setDoc(docRef, {
         favorites: isFav ? arrayRemove(id) : arrayUnion(id)
       }, { merge: true });
-    } catch (error) {
-      console.error("Error updating favorites:", error);
-      // Revert on fail
-      setFavorites(favorites);
+    } catch (error: any) {
+      console.warn("Error updating remote favorites, relying on offline local storage:", error?.message || error);
+      // Since we updated local storage cache successfully, do NOT revert state on temporary network failures!
     }
   };
 
@@ -103,9 +239,59 @@ export default function Itinerary({
   // Copied item ID state for sharing
   const [copiedItemId, setCopiedItemId] = useState<string | null>(null);
 
+  // Find the next upcoming event dynamically
+  const nextUpcomingEvent = [...items]
+    .filter(item => {
+      if (item.status === "Past") return false;
+      try {
+        const itemDate = new Date(item.date);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return itemDate >= today;
+      } catch {
+        return false;
+      }
+    })
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
+
+  const [timeLeft, setTimeLeft] = useState<{ days: number, hours: number, minutes: number, seconds: number, total: number } | null>(null);
+
+  useEffect(() => {
+    if (!nextUpcomingEvent) {
+      setTimeLeft(null);
+      return;
+    }
+
+    const calculateTime = () => {
+      const dateParts = nextUpcomingEvent.date.split("-");
+      let target: Date;
+      if (dateParts.length === 3) {
+        target = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]), 0, 0, 0);
+      } else {
+        target = new Date(nextUpcomingEvent.date);
+      }
+
+      const diff = target.getTime() - Date.now();
+      if (diff <= 0) {
+        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0, total: 0 });
+      } else {
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+        const minutes = Math.floor((diff / 1000 / 60) % 60);
+        const seconds = Math.floor((diff / 1000) % 60);
+        setTimeLeft({ days, hours, minutes, seconds, total: diff });
+      }
+    };
+
+    calculateTime();
+    const timer = setInterval(calculateTime, 1000);
+
+    return () => clearInterval(timer);
+  }, [nextUpcomingEvent?.date, nextUpcomingEvent?.id]);
+
   const handleCopyItinerary = (id: string, eventName: string, date: string, location: string) => {
-    const shareableUrl = `${window.location.origin}/#itinerary-dispatch-${id}`;
-    const textToCopy = `Kachamba Chorus Event Alert! 🎶\n\n📢 *${eventName}*\n🗓️ Date: ${formatFriendlyDate(date)}\n📍 Venue: ${location}\n\nJoin us for fellowship & worship! Learn more: ${shareableUrl}`;
+    const shareableUrl = `${window.location.origin}/?event=${id}`;
+    const textToCopy = `Kachamba Chorus Sabbath Vesper Alert! 🎶\n\n📢 *${eventName}*\n🗓️ Date: ${formatFriendlyDate(date)}\n📍 Venue: ${location}\n\nJoin us for fellowship & worship! Link details: ${shareableUrl}`;
     navigator.clipboard.writeText(textToCopy).then(() => {
       setCopiedItemId(id);
       setTimeout(() => setCopiedItemId(null), 2000);
@@ -130,7 +316,7 @@ export default function Itinerary({
     return { label: "WORSHIP", color: "bg-blue-600 text-blue-50 border-blue-500/20" };
   };
 
-  // Filter items based on activeTab
+  // Filter items based on activeTab and sort chronologically
   const filteredItems = items.filter(item => {
     if (activeTab === "all") return true;
     if (activeTab === "past") return item.status === "Past";
@@ -140,6 +326,12 @@ export default function Itinerary({
     if (activeTab === "charity") return tag === "MEDICAL CHARITY";
     if (activeTab === "revival") return tag === "SABBATH REVIVAL" || tag === "CHORAL WORSHIP";
     return true;
+  }).sort((a, b) => {
+    try {
+      return new Date(a.date).getTime() - new Date(b.date).getTime();
+    } catch {
+      return 0;
+    }
   });
 
   // Calculate counts for badges
@@ -484,6 +676,114 @@ export default function Itinerary({
             )}
           </div>
         </div>
+
+        {/* Next Tour / Event Countdown Banner with 'Days Until' dynamic countdown timer */}
+        {nextUpcomingEvent && timeLeft && (
+          <div className="mb-12 p-[1px] bg-gradient-to-r from-amber-500 via-rose-500 to-amber-600 rounded-3xl shadow-2xl shadow-amber-500/[0.05] animate-in fade-in duration-700">
+            <div className="bg-slate-950 rounded-[23px] p-6 md:p-8 flex flex-col lg:flex-row items-center justify-between gap-8">
+              
+              {/* Left Column: Event details, venue context, and admin quick edit shortcut */}
+              <div className="space-y-4 text-center lg:text-left flex-1 min-w-0">
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full text-amber-400 font-mono text-[9px] uppercase tracking-wider font-extrabold">
+                  <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-ping shrink-0" />
+                  <span>Next Upcoming Choral Destination</span>
+                </div>
+                
+                <h3 className="text-2xl md:text-3xl font-sans font-black text-white uppercase tracking-tight leading-none truncate max-w-full" title={nextUpcomingEvent.event}>
+                  {nextUpcomingEvent.event}
+                </h3>
+                
+                <div className="flex flex-wrap justify-center lg:justify-start items-center gap-x-4 gap-y-2 text-xs text-slate-400">
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <MapPin className="w-4 h-4 text-amber-500 shrink-0" />
+                    <span className="truncate">{nextUpcomingEvent.location}</span>
+                  </span>
+                  <span className="text-slate-800 hidden sm:inline">•</span>
+                  <span className="flex items-center gap-1.5 font-mono text-slate-300 shrink-0">
+                    <CalendarDays className="w-4 h-4 text-rose-500" />
+                    <span>{formatFriendlyDate(nextUpcomingEvent.date)}</span>
+                  </span>
+                  {nextUpcomingEvent.time && (
+                    <>
+                      <span className="text-slate-800">•</span>
+                      <span className="text-slate-300 font-mono">{nextUpcomingEvent.time}</span>
+                    </>
+                  )}
+                </div>
+                
+                {nextUpcomingEvent.notes && (
+                  <p className="text-xs text-slate-400 max-w-xl font-sans leading-relaxed line-clamp-2 italic border-l-2 border-slate-850 pl-3.5 py-0.5">
+                    "{nextUpcomingEvent.notes}"
+                  </p>
+                )}
+                
+                {/* Admin Quick Editor Portal toggle inside the countdown unit to guarantee Timeline is easily editable */}
+                {isAdmin && (
+                  <div className="pt-1 flex flex-wrap justify-center lg:justify-start gap-2 items-center">
+                    <span className="text-[10px] uppercase font-mono tracking-wider text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded flex items-center gap-1">
+                      <ShieldCheck className="w-3 h-3" />
+                      <span>Timeline Editor Mode</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => startInlineEdit(nextUpcomingEvent)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-sans font-black uppercase tracking-wider transition-all shadow-md shadow-amber-500/10 cursor-pointer"
+                      title="Directly edit dates and itinerary sequence parameters"
+                    >
+                      <Edit className="w-3.5 h-3.5" />
+                      <span>Timeline Quick-Edit</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column: Beautiful animated digital countdown block */}
+              <div className="shrink-0 w-full lg:w-auto bg-slate-900/40 border border-slate-900/60 rounded-2xl p-6 flex items-center justify-center gap-4 sm:gap-6 shadow-xl relative overflow-hidden font-sans">
+                {/* Subtle visual lighting accent under the digital digits */}
+                <div className="absolute -inset-10 bg-amber-500/[0.03] rounded-full blur-2xl pointer-events-none" />
+                
+                {/* Years/Days countdown slot */}
+                <div className="flex flex-col items-center">
+                  <div className="text-3xl md:text-4xl font-extrabold font-mono text-white tracking-tight leading-none drop-shadow-md">
+                    {String(timeLeft.days).padStart(2, '0')}
+                  </div>
+                  <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mt-1.5 font-bold">Days</span>
+                </div>
+                
+                <div className="text-xl font-black font-mono text-amber-500/40 select-none -translate-y-1.5">:</div>
+                
+                {/* Hours countdown slot */}
+                <div className="flex flex-col items-center">
+                  <div className="text-3xl md:text-4xl font-extrabold font-mono text-white tracking-tight leading-none drop-shadow-md">
+                    {String(timeLeft.hours).padStart(2, '0')}
+                  </div>
+                  <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mt-1.5 font-bold">Hours</span>
+                </div>
+                
+                <div className="text-xl font-black font-mono text-amber-500/40 select-none -translate-y-1.5">:</div>
+                
+                {/* Minutes countdown slot */}
+                <div className="flex flex-col items-center">
+                  <div className="text-3xl md:text-4xl font-extrabold font-mono text-white tracking-tight leading-none drop-shadow-md">
+                    {String(timeLeft.minutes).padStart(2, '0')}
+                  </div>
+                  <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mt-1.5 font-bold">Mins</span>
+                </div>
+                
+                <div className="text-xl font-black font-mono text-amber-500/40 select-none -translate-y-1.5">:</div>
+                
+                {/* Seconds countdown slot with highlighted accent */}
+                <div className="flex flex-col items-center">
+                  <div className="text-3xl md:text-4xl font-extrabold font-mono text-amber-400 tracking-tight leading-none drop-shadow-md animate-pulse">
+                    {String(timeLeft.seconds).padStart(2, '0')}
+                  </div>
+                  <span className="text-[9px] font-mono text-amber-400 font-bold uppercase tracking-widest mt-1.5">Secs</span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        )}
 
         {/* Newspaper Section Style Filter Pills with Sliding active background */}
         <div className="flex flex-wrap gap-2 mb-10 pb-4 border-b border-slate-900/60 overflow-x-auto scrollbar-none relative">
@@ -927,6 +1227,85 @@ export default function Itinerary({
                         <div className="flex items-center gap-1.5 border-l border-slate-850 pl-3">
                           <span className="text-[9px] font-mono text-slate-500 uppercase tracking-wider hidden sm:inline">Share:</span>
                           
+                          {/* Local iCal Calendar Integration & Reminder Bookmark */}
+                          <div className="relative">
+                            <button
+                              onClick={() => {
+                                toggleBookmarkReminder(item.id);
+                                if (activeReminderMenuId === item.id) {
+                                  setActiveReminderMenuId(null);
+                                } else {
+                                  setActiveReminderMenuId(item.id);
+                                }
+                              }}
+                              className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all cursor-pointer ${
+                                bookmarkedReminders.includes(item.id)
+                                  ? "bg-amber-500/15 text-amber-500 border-amber-550/30 ring-2 ring-amber-500/10 shadow-lg"
+                                  : "bg-slate-900 border-slate-800 text-slate-400 hover:text-amber-400 hover:border-amber-400/20"
+                              }`}
+                              title={bookmarkedReminders.includes(item.id) ? "Reminder configured! Click for export actions." : "Configure calendar reminder bookmark"}
+                            >
+                              {bookmarkedReminders.includes(item.id) ? (
+                                <BellRing className="w-3.5 h-3.5 text-amber-400 animate-bounce" />
+                              ) : (
+                                <Bell className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+
+                            {/* Dropdown menu overlay */}
+                            <AnimatePresence>
+                              {activeReminderMenuId === item.id && (
+                                <>
+                                  <div 
+                                    className="fixed inset-0 z-10" 
+                                    onClick={() => setActiveReminderMenuId(null)} 
+                                  />
+                                  <motion.div
+                                    initial={{ opacity: 0, scale: 0.95, y: -5 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.95, y: -5 }}
+                                    className="absolute left-0 bottom-9 mt-1.5 w-60 rounded-2xl bg-slate-950 border border-slate-800 p-2 shadow-2xl z-20 text-left"
+                                  >
+                                    <div className="px-3.5 py-2 border-b border-slate-900">
+                                      <p className="text-[10px] font-mono text-amber-500 uppercase tracking-widest font-extrabold">Reminder Synced</p>
+                                      <p className="text-xs font-sans text-slate-200 mt-0.5 truncate font-extrabold">{item.event}</p>
+                                    </div>
+                                    <div className="p-1 flex flex-col gap-1.5 mt-1">
+                                      {/* Download ICS */}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          handleDownloadICS(item);
+                                          setActiveReminderMenuId(null);
+                                        }}
+                                        className="w-full text-left font-sans text-[11px] font-bold text-slate-300 hover:text-white hover:bg-slate-900 rounded-lg p-2.5 flex items-center gap-2 cursor-pointer transition-colors"
+                                      >
+                                        <Download className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                        <span>Download iCal Entry (.ics)</span>
+                                      </button>
+
+                                      {/* Export Google Calendar */}
+                                      <a
+                                        href={getGoogleCalendarURL(item)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={() => setActiveReminderMenuId(null)}
+                                        className="w-full text-left font-sans text-[11px] font-bold text-slate-300 hover:text-white hover:bg-slate-900 rounded-lg p-2.5 flex items-center gap-2 cursor-pointer transition-colors"
+                                      >
+                                        <CalendarPlus className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                        <span>Add to Google Calendar</span>
+                                      </a>
+                                    </div>
+                                    <div className="bg-slate-900/60 p-2 rounded-xl mt-2 flex items-center gap-1.5 text-[9px] font-mono text-slate-500 leading-tight">
+                                      <Check className="w-3 h-3 text-emerald-400 shrink-0 animate-pulse" />
+                                      <span>Successfully saved to system calendar reminder registry.</span>
+                                    </div>
+                                  </motion.div>
+                                </>
+                              )}
+                            </AnimatePresence>
+                          </div>
+
                           {/* Favorite / RSVP Toggle */}
                           <button
                             onClick={() => toggleFavorite(item.id)}
@@ -972,7 +1351,7 @@ export default function Itinerary({
 
                           {/* Facebook */}
                           <a
-                            href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.origin + "/#itinerary-dispatch-" + item.id)}`}
+                            href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.origin + "/?event=" + item.id)}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="w-7 h-7 rounded-lg bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-500/10 flex items-center justify-center transition-all cursor-pointer"

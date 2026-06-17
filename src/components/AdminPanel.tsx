@@ -10,6 +10,8 @@ interface AdminPanelProps {
   onLogin: (passcode: string) => Promise<boolean>;
   onLogout: () => void;
   isAuthenticated: boolean;
+  googleAccessToken?: string | null;
+  onGoogleLogin?: () => void;
   inquiries: Inquiry[];
   onDeleteInquiry: (id: string) => void;
   onUpdateInquiryStatus: (id: string, status: string) => void;
@@ -33,6 +35,8 @@ export default function AdminPanel({
   onLogin,
   onLogout,
   isAuthenticated,
+  googleAccessToken = null,
+  onGoogleLogin = () => {},
   inquiries,
   onDeleteInquiry,
   onUpdateInquiryStatus,
@@ -59,10 +63,15 @@ export default function AdminPanel({
   const [resetMessage, setResetMessage] = useState("");
   const [resetErrorMsg, setResetErrorMsg] = useState("");
   const [resetCurrentPasscode, setResetCurrentPasscode] = useState("");
+  
+  const [isPasscodeVisible, setIsPasscodeVisible] = useState(false);
+  const [resetMethod, setResetMethod] = useState<'recovery' | 'current'>('recovery');
 
   const handleResetSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!resetNewPasscode || (!resetRecoveryKey && !resetCurrentPasscode)) return;
+    if (!resetNewPasscode) return;
+    if (resetMethod === 'recovery' && !resetRecoveryKey) return;
+    if (resetMethod === 'current' && !resetCurrentPasscode) return;
     setAuthLoading(true);
     setResetMessage("");
     setResetErrorMsg("");
@@ -99,7 +108,7 @@ export default function AdminPanel({
 
   // M-Pesa Config states
   const [mpesaTill, setMpesaTill] = useState("4119041");
-  const [mpesaName, setMpesaName] = useState("Kachok Ambassadors Chorus");
+  const [mpesaName, setMpesaName] = useState("Kachamba Chorus");
   const [mpesaImage, setMpesaImage] = useState("");
   const [mpesaType, setMpesaType] = useState("buy_goods");
   const [mpesaSaving, setMpesaSaving] = useState(false);
@@ -114,7 +123,7 @@ export default function AdminPanel({
           if (res.ok) {
             const data = await res.json();
             setMpesaTill(data.tillNumber || "4119041");
-            setMpesaName(data.tillName || "Kachok Ambassadors Chorus");
+            setMpesaName(data.tillName || "Kachamba Chorus");
             setMpesaImage(data.tillImage || "");
             setMpesaType(data.tillType || "buy_goods");
           }
@@ -202,6 +211,9 @@ export default function AdminPanel({
   });
 
   const [itiFileError, setItiFileError] = useState("");
+
+  const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
+  const [workspaceStatus, setWorkspaceStatus] = useState<{ type: 'info' | 'success' | 'error'; msg: string }>({ type: 'info', msg: '' });
 
   // Music Edit parameters
   const [musicForm, setMusicForm] = useState<MusicData>({
@@ -534,59 +546,173 @@ export default function AdminPanel({
 
         {/* LOCKED SCREEN GATE */}
         {!isAuthenticated ? (
-          <div className="flex-1 py-16 px-6 sm:px-12 flex flex-col items-center justify-center text-center">
-            <div className="bg-amber-500 text-slate-950 p-4 rounded-full shadow-lg shadow-amber-500/20 mb-6 font-bold">
-              <Lock className="w-8 h-8" />
-            </div>
+          <div className="flex-1 py-14 px-6 sm:px-12 flex flex-col items-center justify-center text-center bg-radial from-slate-900 via-slate-950 to-black relative">
             
-            <h2 className="font-sans font-extrabold text-3xl text-amber-400 max-w-md">
-              KACHAMBA LEADER PORTAL
-            </h2>
-            <p className="font-sans text-sm text-slate-400 max-w-sm mt-2 leading-relaxed">
-              Authorized SDA Choir leaders or Church Elders only. Unlock dynamic editing of activities, scheduling itineraries, and feedback viewing.
-            </p>
+            {/* Ambient Background Glow Accent */}
+            <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-amber-500/10 rounded-full blur-[80px] pointer-events-none" />
+            
+            <div className="relative z-10 flex flex-col items-center">
+              <motion.div 
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.3 }}
+                className="bg-amber-500/10 text-amber-400 p-4 rounded-2xl border border-amber-500/20 shadow-xl shadow-amber-500/5 mb-6"
+              >
+                <Lock className="w-8 h-8 animate-pulse" />
+              </motion.div>
+              
+              <h2 className="font-sans font-extrabold text-3xl tracking-tight text-white max-w-md">
+                KACHAMBA <span className="text-amber-400">LEADER</span> GATEWAY
+              </h2>
+              <p className="font-sans text-xs text-slate-400 max-w-sm mt-3.5 leading-relaxed">
+                Unlock editing privileges for scheduling itineraries, leadership cards, choir activities, and public communications.
+              </p>
+            </div>
+
+            {/* Error / Success Messages */}
+            <div className="w-full max-w-sm mt-6">
+              <AnimatePresence mode="wait">
+                {showResetUI ? (
+                  <>
+                    {resetErrorMsg && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        className="bg-red-500/10 border border-red-500/20 text-red-400 p-3.5 rounded-xl text-xs font-mono text-center flex items-center justify-center gap-2 mb-3"
+                      >
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>{resetErrorMsg}</span>
+                      </motion.div>
+                    )}
+                    {resetMessage && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-3.5 rounded-xl text-xs font-sans text-center flex items-center justify-center gap-2 mb-3 font-semibold"
+                      >
+                        <Check className="w-4 h-4 shrink-0" />
+                        <span>{resetMessage}</span>
+                      </motion.div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {errorMsg && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        className="bg-red-500/10 border border-red-500/20 text-red-400 p-3.5 rounded-xl text-xs font-mono text-center flex items-center justify-center gap-2 mb-3"
+                      >
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>{errorMsg}</span>
+                      </motion.div>
+                    )}
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
 
             {showResetUI ? (
-              <form onSubmit={handleResetSubmit} className="mt-8 max-w-sm w-full flex flex-col gap-3">
-                {resetErrorMsg && (
-                  <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg text-xs font-mono text-center flex items-center justify-center gap-1.5">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span>{resetErrorMsg}</span>
-                  </div>
-                )}
-                {resetMessage && (
-                  <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-3 rounded-lg text-xs font-mono text-center flex items-center justify-center gap-1.5">
-                    <Check className="w-4 h-4 shrink-0" />
-                    <span>{resetMessage}</span>
-                  </div>
-                )}
-                <div className="relative">
-                  <input 
-                    type="text"
-                    required
-                    value={resetRecoveryKey}
-                    onChange={(e) => setResetRecoveryKey(e.target.value)}
-                    placeholder="Enter Recovery Key (e.g. KACHAMBA2026)"
-                    className="w-full bg-slate-950 border border-slate-800 focus:border-amber-400 rounded-lg p-3 text-center outline-none text-xs tracking-widest placeholder-slate-500 transition-all font-mono"
-                  />
+              <form onSubmit={handleResetSubmit} className="max-w-sm w-full flex flex-col gap-3.5 relative z-10">
+                {/* Method selector tab */}
+                <div className="grid grid-cols-2 p-1 bg-slate-950 rounded-xl border border-slate-850">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResetMethod('recovery');
+                      setResetErrorMsg("");
+                      setResetMessage("");
+                    }}
+                    className={`py-2 text-[10px] font-bold tracking-wider uppercase rounded-lg transition-all cursor-pointer ${
+                      resetMethod === 'recovery'
+                        ? 'bg-slate-900 text-amber-400 border border-slate-805'
+                        : 'text-slate-500 hover:text-slate-350'
+                    }`}
+                  >
+                    Recovery Key
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResetMethod('current');
+                      setResetErrorMsg("");
+                      setResetMessage("");
+                    }}
+                    className={`py-2 text-[10px] font-bold tracking-wider uppercase rounded-lg transition-all cursor-pointer ${
+                      resetMethod === 'current'
+                        ? 'bg-slate-900 text-amber-400 border border-slate-805'
+                        : 'text-slate-500 hover:text-slate-350'
+                    }`}
+                  >
+                    Current Code
+                  </button>
                 </div>
+
+                {resetMethod === 'recovery' ? (
+                  <div className="relative">
+                    <input 
+                      type="text"
+                      required
+                      value={resetRecoveryKey}
+                      onChange={(e) => setResetRecoveryKey(e.target.value)}
+                      placeholder="Enter Recovery Key (e.g. KACHAMBA2026)"
+                      className="w-full bg-slate-950 border border-slate-850 hover:border-slate-800 focus:border-amber-400 rounded-xl p-3.5 text-center outline-none text-xs tracking-widest placeholder-slate-600 transition-all font-mono"
+                    />
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <input 
+                      type={isPasscodeVisible ? "text" : "password"}
+                      required
+                      value={resetCurrentPasscode}
+                      onChange={(e) => setResetCurrentPasscode(e.target.value)}
+                      placeholder="Enter Current Passcode"
+                      className="w-full bg-slate-950 border border-slate-850 hover:border-slate-800 focus:border-amber-400 rounded-xl p-3.5 text-center outline-none text-xs tracking-widest placeholder-slate-600 transition-all font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setIsPasscodeVisible(!isPasscodeVisible)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-350 cursor-pointer"
+                    >
+                      {isPasscodeVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                )}
+
                 <div className="relative">
                   <input 
-                    type="password"
+                    type={isPasscodeVisible ? "text" : "password"}
                     required
                     value={resetNewPasscode}
                     onChange={(e) => setResetNewPasscode(e.target.value)}
                     placeholder="Create New Admin Passcode"
-                    className="w-full bg-slate-950 border border-slate-800 focus:border-amber-400 rounded-lg p-3 text-center outline-none text-xs tracking-widest placeholder-slate-500 transition-all font-mono"
+                    className="w-full bg-slate-950 border border-slate-850 hover:border-slate-800 focus:border-amber-400 rounded-xl p-3.5 text-center outline-none text-xs tracking-widest placeholder-slate-600 transition-all font-mono"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setIsPasscodeVisible(!isPasscodeVisible)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-350 cursor-pointer"
+                  >
+                    {isPasscodeVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
+
                 <button
                   type="submit"
                   disabled={authLoading}
-                  className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-sans font-bold text-sm py-3 px-6 rounded-lg transition-colors cursor-pointer disabled:bg-slate-800 disabled:text-slate-500 shadow-lg shadow-emerald-500/5 mt-1"
+                  className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-sans font-extrabold text-xs uppercase tracking-wider py-4 px-6 rounded-xl transition-all cursor-pointer disabled:bg-slate-900 disabled:text-slate-600 shadow-xl shadow-emerald-500/10 mt-1 active:scale-[0.98]"
                 >
-                  {authLoading ? "Updating..." : "Reset Admin Passcode"}
+                  {authLoading ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                      <span>Updating Security Key...</span>
+                    </div>
+                  ) : "Save New Credentials"}
                 </button>
+                
                 <button
                   type="button"
                   onClick={() => {
@@ -594,52 +720,64 @@ export default function AdminPanel({
                     setResetErrorMsg("");
                     setResetMessage("");
                   }}
-                  className="text-xs text-slate-400 hover:text-white mt-2 font-sans font-bold transition-colors cursor-pointer"
+                  className="text-[10px] uppercase tracking-widest font-extrabold text-slate-500 hover:text-white mt-1 transition-colors cursor-pointer font-mono"
                 >
-                  Cancel
+                  Back to Sign In
                 </button>
               </form>
             ) : (
-              <form onSubmit={handleAuthSubmit} className="mt-8 max-w-sm w-full flex flex-col gap-3">
-                {errorMsg && (
-                  <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg text-xs font-mono text-center flex items-center justify-center gap-1.5">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span>{errorMsg}</span>
-                  </div>
-                )}
-                
+              <form onSubmit={handleAuthSubmit} className="mt-2 max-w-sm w-full flex flex-col gap-3.5 relative z-10">
                 <div className="relative">
                   <input 
-                    type="password"
+                    type={isPasscodeVisible ? "text" : "password"}
                     required
                     value={passcode}
                     onChange={(e) => setPasscode(e.target.value)}
-                    placeholder="Enter Passcode (e.g., SDA2026)"
-                    className="w-full bg-slate-950 border border-slate-800 focus:border-amber-400 rounded-lg p-3 text-center outline-none text-sm tracking-widest placeholder-slate-500 transition-all font-mono"
+                    placeholder="Enter Access Key (e.g., SDA2026)"
+                    className="w-full bg-slate-950 border border-slate-850 hover:border-slate-800 focus:border-amber-400 rounded-xl p-4 text-center outline-none text-sm tracking-widest placeholder-slate-600 transition-all font-mono"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setIsPasscodeVisible(!isPasscodeVisible)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-350 cursor-pointer"
+                  >
+                    {isPasscodeVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
 
                 <button
                   type="submit"
                   disabled={authLoading}
-                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-sans font-bold text-sm py-3 px-6 rounded-lg transition-colors cursor-pointer disabled:bg-slate-800 disabled:text-slate-500 shadow-lg shadow-amber-500/5 mt-1"
+                  className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-sans font-extrabold text-xs uppercase tracking-wider py-4 px-6 rounded-xl transition-all cursor-pointer disabled:bg-slate-900 disabled:text-slate-600 shadow-xl shadow-amber-500/10 active:scale-[0.98]"
                 >
-                  {authLoading ? "Verifying..." : "Authenticate Session"}
+                  {authLoading ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                      <span>Verifying Authority...</span>
+                    </div>
+                  ) : "Unlock Admin Dashboard"}
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setShowResetUI(true)}
-                  className="text-[11px] text-amber-500/70 hover:text-amber-400 mt-2 font-mono uppercase tracking-widest transition-colors cursor-pointer"
+                  className="text-[10px] text-amber-500/80 hover:text-amber-400 font-extrabold font-mono uppercase tracking-widest transition-colors cursor-pointer mt-1"
                 >
-                  Forgot Passcode? Reset Here
+                  Lockout Recovery & Passcode Reset
                 </button>
               </form>
             )}
 
-            <span className="font-mono text-[10px] text-slate-600 mt-6 uppercase tracking-wider">
-              Secret Key Auth • Demo Key: SDA2026 • Recovery Key: KACHAMBA2026
-            </span>
+            <div className="mt-8 border-t border-slate-900/60 pt-4 w-full max-w-xs flex flex-col items-center gap-2 relative z-10">
+              <span className="font-mono text-[9px] text-slate-600 uppercase tracking-wider">
+                Authority Sign-In Service
+              </span>
+              <div className="flex bg-slate-950/40 px-3 py-1.5 rounded-xl border border-slate-900 text-[8px] font-mono text-slate-500 gap-2 items-center">
+                <span>DEMO: <u className="text-amber-500 font-bold">SDA2026</u></span>
+                <span className="text-slate-800">•</span>
+                <span>RECOVERY: <u className="text-amber-500 font-bold">KACHAMBA2026</u></span>
+              </div>
+            </div>
           </div>
         ) : (
           
@@ -1035,6 +1173,170 @@ export default function AdminPanel({
                         className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400 resize-none"
                         placeholder="e.g. Sermon booklet supplied, dress code: White and Blue Uniform..."
                       />
+                    </div>
+
+                    {/* Google Workspace Integration Panel */}
+                    <div className="bg-slate-900/40 border border-slate-800 p-4 rounded-xl mt-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="w-2 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                        <h4 className="text-[10px] font-mono uppercase tracking-wider text-slate-300 font-bold">Google Workspace Automation</h4>
+                      </div>
+                      
+                      {!googleAccessToken ? (
+                        <div className="flex flex-col gap-2">
+                          <p className="text-[10px] text-slate-400">
+                            Connect with Google in the Admin panel to create real-time Google Meet schedule links, build event registration forms using Google Forms, and save posters to Google Drive!
+                          </p>
+                          <button
+                            type="button"
+                            onClick={onGoogleLogin}
+                            className="bg-slate-800 hover:bg-slate-750 text-white p-2 rounded text-[10px] font-bold uppercase tracking-wide cursor-pointer flex items-center justify-center gap-1.5 transition-colors"
+                          >
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+                              <path fill="#EA4335" d="M12.24 10.285V14.4h6.887c-.648 2.41-2.519 4.14-5.174 4.14-3.41 0-6.177-2.766-6.177-6.177s2.767-6.177 6.177-6.177c1.554 0 2.964.58 4.053 1.527l3.078-3.078C18.847 2.14 15.714 1 12.24 1 6.046 1 12.24s5.046 11.24 11.24 11.24c6.043 0 10.96-4.665 10.96-10.96 0-.742-.086-1.458-.232-2.235H12.24z"/>
+                            </svg>
+                            <span>Authorize Google Account</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-3">
+                          <p className="text-[10px] text-emerald-400 font-mono">
+                            ✓ Google APIs authorized successfully. Click to generate resource links:
+                          </p>
+                          
+                          <div className="grid grid-cols-2 gap-2">
+                            {/* Google Meet action */}
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  setIsWorkspaceLoading(true);
+                                  setWorkspaceStatus({ type: 'info', msg: 'Generating Google Meet Room...' });
+                                  const response = await fetch('/api/workspace/meet', {
+                                    method: 'POST',
+                                    headers: {
+                                      'Content-Type': 'application/json',
+                                      'Authorization': `Bearer ${googleAccessToken}`,
+                                      'X-Admin-Passcode': passcode || localStorage.getItem("kachamba_admin_passcode") || ""
+                                    }
+                                  });
+                                  const data = await response.json();
+                                  if (data.error) throw new Error(data.error);
+                                  
+                                  setItiForm(prev => ({
+                                    ...prev,
+                                    notes: `${prev.notes ? prev.notes + '\n\n' : ''}🎥 Friday Vesper Google Meet Room:\n${data.meetingUri}`
+                                  }));
+                                  
+                                  setWorkspaceStatus({ type: 'success', msg: 'Google Meet Created & Appended!' });
+                                  navigator.clipboard.writeText(data.meetingUri);
+                                } catch (err: any) {
+                                  setWorkspaceStatus({ type: 'error', msg: err?.message || 'Error occurred' });
+                                } finally {
+                                  setIsWorkspaceLoading(false);
+                                }
+                              }}
+                              disabled={isWorkspaceLoading}
+                              className="bg-emerald-950/40 border border-emerald-800 hover:bg-emerald-900/40 text-emerald-400 p-2 rounded text-[10px] font-bold flex flex-col items-center gap-1 cursor-pointer transition-colors"
+                            >
+                              <span>🎥 Create Google Meet</span>
+                            </button>
+                            
+                            {/* Google Forms action */}
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  setIsWorkspaceLoading(true);
+                                  setWorkspaceStatus({ type: 'info', msg: 'Generating Google Registration Form...' });
+                                  const response = await fetch('/api/workspace/form', {
+                                    method: 'POST',
+                                    headers: {
+                                      'Content-Type': 'application/json',
+                                      'Authorization': `Bearer ${googleAccessToken}`,
+                                      'X-Admin-Passcode': passcode || localStorage.getItem("kachamba_admin_passcode") || ""
+                                    },
+                                    body: JSON.stringify({
+                                      title: itiForm.event || 'Vesper Fellowship Registration'
+                                    })
+                                  });
+                                  const data = await response.json();
+                                  if (data.error) throw new Error(data.error);
+                                  
+                                  setItiForm(prev => ({
+                                    ...prev,
+                                    notes: `${prev.notes ? prev.notes + '\n\n' : ''}📝 Vesper RSVP/Prayer Request form:\n${data.responderUri}\n✏️ Edit Form Link:\n${data.editUrl}`
+                                  }));
+                                  
+                                  setWorkspaceStatus({ type: 'success', msg: 'Google Form registration form created!' });
+                                  navigator.clipboard.writeText(data.responderUri);
+                                } catch (err: any) {
+                                  setWorkspaceStatus({ type: 'error', msg: err?.message || 'Error occurred' });
+                                } finally {
+                                  setIsWorkspaceLoading(false);
+                                }
+                              }}
+                              disabled={isWorkspaceLoading}
+                              className="bg-purple-950/40 border border-purple-800 hover:bg-purple-900/40 text-purple-400 p-2 rounded text-[10px] font-bold flex flex-col items-center gap-1 cursor-pointer transition-colors"
+                            >
+                              <span>📝 Create Google Form</span>
+                            </button>
+                          </div>
+                          
+                          {/* Google Drive Poster Saver */}
+                          {itiForm.mediaUrl && itiForm.mediaUrl.startsWith('data:image/') && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  setIsWorkspaceLoading(true);
+                                  setWorkspaceStatus({ type: 'info', msg: 'Saving Poster in your Google Drive...' });
+                                  const response = await fetch('/api/workspace/drive/poster', {
+                                    method: 'POST',
+                                    headers: {
+                                      'Content-Type': 'application/json',
+                                      'Authorization': `Bearer ${googleAccessToken}`,
+                                      'X-Admin-Passcode': passcode || localStorage.getItem("kachamba_admin_passcode") || ""
+                                    },
+                                    body: JSON.stringify({
+                                      filename: `${itiForm.event.toLowerCase().replace(/[^a-z0-9]/g, '_')}_poster.png`,
+                                      base64: itiForm.mediaUrl
+                                    })
+                                  });
+                                  const data = await response.json();
+                                  if (data.error) throw new Error(data.error);
+                                  
+                                  setItiForm(prev => ({
+                                    ...prev,
+                                    mediaUrl: data.posterUrl,
+                                    mediaType: 'image'
+                                  }));
+                                  
+                                  setWorkspaceStatus({ type: 'success', msg: 'Success! Poster saved in Google Drive and public link embedded with direct download!' });
+                                } catch (err: any) {
+                                  setWorkspaceStatus({ type: 'error', msg: err?.message || 'Error occurred' });
+                                } finally {
+                                  setIsWorkspaceLoading(false);
+                                }
+                              }}
+                              disabled={isWorkspaceLoading}
+                              className="w-full bg-blue-950/40 border border-blue-900 hover:bg-blue-900/40 text-blue-400 p-2 rounded text-[10px] font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors mt-1"
+                            >
+                              <span>💾 Save Poster to Google Drive & Get Link</span>
+                            </button>
+                          )}
+                          
+                          {workspaceStatus.msg && (
+                            <div className={`p-2 rounded text-[10px] font-mono border ${
+                              workspaceStatus.type === 'success' ? 'bg-emerald-950/60 border-emerald-800 text-emerald-400 animate-pulse' :
+                              workspaceStatus.type === 'error' ? 'bg-rose-950/60 border-rose-800 text-rose-400' :
+                              'bg-slate-950 border-slate-800 text-slate-300'
+                            }`}>
+                              {workspaceStatus.msg}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <div>
