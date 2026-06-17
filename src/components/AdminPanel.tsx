@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { X, Lock, Eye, Check, ShieldCheck, Mail, Calendar, Sparkles, AlertCircle, Trash2, Plus, EyeOff, Music, Users } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { X, Lock, Eye, Check, ShieldCheck, Mail, Calendar, AlertCircle, Trash2, Plus, EyeOff, Music, Users, CreditCard } from "lucide-react";
 import { Inquiry, Activity, ItineraryItem, MusicData, Leader } from "../types";
 import ImageEditor from "./ImageEditor";
 import { motion, AnimatePresence } from "motion/react";
@@ -51,6 +51,112 @@ export default function AdminPanel({
   const [errorMsg, setErrorMsg] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
   const [submittingData, setSubmittingData] = useState(false);
+
+  // Reset UI states
+  const [showResetUI, setShowResetUI] = useState(false);
+  const [resetRecoveryKey, setResetRecoveryKey] = useState("");
+  const [resetNewPasscode, setResetNewPasscode] = useState("");
+  const [resetMessage, setResetMessage] = useState("");
+  const [resetErrorMsg, setResetErrorMsg] = useState("");
+  const [resetCurrentPasscode, setResetCurrentPasscode] = useState("");
+
+  const handleResetSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetNewPasscode || (!resetRecoveryKey && !resetCurrentPasscode)) return;
+    setAuthLoading(true);
+    setResetMessage("");
+    setResetErrorMsg("");
+
+    try {
+      const res = await fetch("/api/auth/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recoveryKey: resetRecoveryKey,
+          currentPasscode: resetCurrentPasscode,
+          newPasscode: resetNewPasscode
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setResetMessage("Passcode reset successfully! Check above to login.");
+        setTimeout(() => {
+          setShowResetUI(false);
+          setResetMessage("");
+          setResetRecoveryKey("");
+          setResetNewPasscode("");
+          setResetCurrentPasscode("");
+        }, 3000);
+      } else {
+        setResetErrorMsg(data.error || "Failed to reset passcode.");
+      }
+    } catch (err: any) {
+      setResetErrorMsg("Connection format error: " + err.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  // M-Pesa Config states
+  const [mpesaTill, setMpesaTill] = useState("4119041");
+  const [mpesaName, setMpesaName] = useState("Kachok Ambassadors Chorus");
+  const [mpesaImage, setMpesaImage] = useState("");
+  const [mpesaType, setMpesaType] = useState("buy_goods");
+  const [mpesaSaving, setMpesaSaving] = useState(false);
+  const [mpesaMessage, setMpesaMessage] = useState("");
+  const [mpesaError, setMpesaError] = useState("");
+
+  useEffect(() => {
+    if (isOpen && isAuthenticated) {
+      const fetchMpesaConfig = async () => {
+        try {
+          const res = await fetch("/api/mpesa/config");
+          if (res.ok) {
+            const data = await res.json();
+            setMpesaTill(data.tillNumber || "4119041");
+            setMpesaName(data.tillName || "Kachok Ambassadors Chorus");
+            setMpesaImage(data.tillImage || "");
+            setMpesaType(data.tillType || "buy_goods");
+          }
+        } catch (err) {
+          console.error("Failed to load mpesa config", err);
+        }
+      };
+      fetchMpesaConfig();
+    }
+  }, [isOpen, isAuthenticated]);
+
+  const handleSaveMpesa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMpesaSaving(true);
+    setMpesaMessage("");
+    setMpesaError("");
+    try {
+      const res = await fetch("/api/mpesa/config", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-passcode": passcode || localStorage.getItem("kachamba_admin_passcode") || ""
+        },
+        body: JSON.stringify({
+          tillNumber: mpesaTill,
+          tillName: mpesaName,
+          tillImage: mpesaImage,
+          tillType: mpesaType
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setMpesaMessage("M-Pesa Billing config saved successfully!");
+      } else {
+        setMpesaError(data.error || "Failed to save mpesa configurations.");
+      }
+    } catch (err: any) {
+      setMpesaError("Error saving: " + err.message);
+    } finally {
+      setMpesaSaving(false);
+    }
+  };
 
   // Forms states
   const [actForm, setActForm] = useState<{
@@ -122,6 +228,8 @@ export default function AdminPanel({
   const [ldrSaving, setLdrSaving] = useState(false);
   const [ldrError, setLdrError] = useState("");
   const [showLdrStudio, setShowLdrStudio] = useState(false);
+  const [showActStudio, setShowActStudio] = useState(false);
+  const [showItiStudio, setShowItiStudio] = useState(false);
 
   // Audio Snippet Trimmer parameter states
   const [audioFile, setAudioFile] = useState<File | null>(null);
@@ -438,36 +546,99 @@ export default function AdminPanel({
               Authorized SDA Choir leaders or Church Elders only. Unlock dynamic editing of activities, scheduling itineraries, and feedback viewing.
             </p>
 
-            <form onSubmit={handleAuthSubmit} className="mt-8 max-w-sm w-full flex flex-col gap-3">
-              {errorMsg && (
-                <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg text-xs font-mono text-center flex items-center justify-center gap-1.5">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{errorMsg}</span>
+            {showResetUI ? (
+              <form onSubmit={handleResetSubmit} className="mt-8 max-w-sm w-full flex flex-col gap-3">
+                {resetErrorMsg && (
+                  <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg text-xs font-mono text-center flex items-center justify-center gap-1.5">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{resetErrorMsg}</span>
+                  </div>
+                )}
+                {resetMessage && (
+                  <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-3 rounded-lg text-xs font-mono text-center flex items-center justify-center gap-1.5">
+                    <Check className="w-4 h-4 shrink-0" />
+                    <span>{resetMessage}</span>
+                  </div>
+                )}
+                <div className="relative">
+                  <input 
+                    type="text"
+                    required
+                    value={resetRecoveryKey}
+                    onChange={(e) => setResetRecoveryKey(e.target.value)}
+                    placeholder="Enter Recovery Key (e.g. KACHAMBA2026)"
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-amber-400 rounded-lg p-3 text-center outline-none text-xs tracking-widest placeholder-slate-500 transition-all font-mono"
+                  />
                 </div>
-              )}
-              
-              <div className="relative">
-                <input 
-                  type="password"
-                  required
-                  value={passcode}
-                  onChange={(e) => setPasscode(e.target.value)}
-                  placeholder="Enter Passcode (e.g., SDA2026)"
-                  className="w-full bg-slate-950 border border-slate-800 focus:border-amber-400 rounded-lg p-3 text-center outline-none text-sm tracking-widest placeholder-slate-500 transition-all font-mono"
-                />
-              </div>
+                <div className="relative">
+                  <input 
+                    type="password"
+                    required
+                    value={resetNewPasscode}
+                    onChange={(e) => setResetNewPasscode(e.target.value)}
+                    placeholder="Create New Admin Passcode"
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-amber-400 rounded-lg p-3 text-center outline-none text-xs tracking-widest placeholder-slate-500 transition-all font-mono"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-sans font-bold text-sm py-3 px-6 rounded-lg transition-colors cursor-pointer disabled:bg-slate-800 disabled:text-slate-500 shadow-lg shadow-emerald-500/5 mt-1"
+                >
+                  {authLoading ? "Updating..." : "Reset Admin Passcode"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowResetUI(false);
+                    setResetErrorMsg("");
+                    setResetMessage("");
+                  }}
+                  className="text-xs text-slate-400 hover:text-white mt-2 font-sans font-bold transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleAuthSubmit} className="mt-8 max-w-sm w-full flex flex-col gap-3">
+                {errorMsg && (
+                  <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg text-xs font-mono text-center flex items-center justify-center gap-1.5">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{errorMsg}</span>
+                  </div>
+                )}
+                
+                <div className="relative">
+                  <input 
+                    type="password"
+                    required
+                    value={passcode}
+                    onChange={(e) => setPasscode(e.target.value)}
+                    placeholder="Enter Passcode (e.g., SDA2026)"
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-amber-400 rounded-lg p-3 text-center outline-none text-sm tracking-widest placeholder-slate-500 transition-all font-mono"
+                  />
+                </div>
 
-              <button
-                type="submit"
-                disabled={authLoading}
-                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-sans font-bold text-sm py-3 px-6 rounded-lg transition-colors cursor-pointer disabled:bg-slate-800 disabled:text-slate-500 shadow-lg shadow-amber-500/5 mt-1"
-              >
-                {authLoading ? "Verifying..." : "Authenticate Session"}
-              </button>
-            </form>
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-sans font-bold text-sm py-3 px-6 rounded-lg transition-colors cursor-pointer disabled:bg-slate-800 disabled:text-slate-500 shadow-lg shadow-amber-500/5 mt-1"
+                >
+                  {authLoading ? "Verifying..." : "Authenticate Session"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowResetUI(true)}
+                  className="text-[11px] text-amber-500/70 hover:text-amber-400 mt-2 font-mono uppercase tracking-widest transition-colors cursor-pointer"
+                >
+                  Forgot Passcode? Reset Here
+                </button>
+              </form>
+            )}
 
             <span className="font-mono text-[10px] text-slate-600 mt-6 uppercase tracking-wider">
-              Secret Key Auth • Demo Key: SDA2026
+              Secret Key Auth • Demo Key: SDA2026 • Recovery Key: KACHAMBA2026
             </span>
           </div>
         ) : (
@@ -504,7 +675,7 @@ export default function AdminPanel({
               {(activityToEdit || itineraryToEdit || leaderToEdit) && (
                 <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex justify-between items-center text-amber-300 text-xs">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4" />
+                    <AlertCircle className="w-4 h-4 text-amber-400 animate-pulse" />
                     <span>Currently Editing: <strong>{activityToEdit ? `Activity: "${activityToEdit.title}"` : itineraryToEdit ? `Itinerary Tour: "${itineraryToEdit?.event}"` : `Leader Steward: "${leaderToEdit?.name}"`}</strong></span>
                   </div>
                   <button 
@@ -522,7 +693,7 @@ export default function AdminPanel({
                 {/* 1. Activities Form */}
                 <div className="bg-slate-950/40 border border-slate-800 p-6 rounded-2xl">
                   <div className="flex items-center gap-2 text-amber-400 mb-4 bg-slate-950 p-2 rounded-lg font-bold border border-slate-805 text-sm uppercase tracking-wide">
-                    <Sparkles className="w-4 h-4" />
+                    <Plus className="w-4 h-4" />
                     <span>{activityToEdit ? "Edit Ministry Program" : "Create Modern Ministry"}</span>
                   </div>
 
@@ -711,6 +882,47 @@ export default function AdminPanel({
                       {actForm.image && actForm.image.startsWith("data:") && (
                         <div className="mt-1 text-slate-400 text-[10px] font-mono bg-slate-950 p-2 rounded border border-slate-800">
                           Uploaded local file successfully!
+                        </div>
+                      )}
+
+                      {actForm.image && (!actForm.mediaType || actForm.mediaType === "image") && (
+                        <div className="mt-3 flex flex-col gap-2">
+                          <div className="flex items-center justify-between bg-slate-900/50 p-2 rounded-lg border border-slate-850">
+                            <span className="text-[10px] font-mono text-slate-450 uppercase font-semibold">Activity Crop Studio</span>
+                            <button
+                              type="button"
+                              onClick={() => setShowActStudio(!showActStudio)}
+                              className={`text-[9px] font-mono uppercase tracking-wider py-1 px-2.5 rounded border flex items-center gap-1 cursor-pointer transition-all ${
+                                showActStudio 
+                                  ? "bg-rose-500/10 border-rose-500/30 text-rose-450 hover:bg-rose-500 hover:text-white"
+                                  : "bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500 hover:text-slate-950 font-bold"
+                              }`}
+                            >
+                              {showActStudio ? "Close Studio [X]" : "🎨 Launch Photo Crop Studio"}
+                            </button>
+                          </div>
+
+                          <AnimatePresence mode="wait">
+                            {showActStudio ? (
+                              <motion.div 
+                                key="studio-act"
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                exit={{ opacity: 0, height: 0 }}
+                                transition={{ duration: 0.3, ease: "easeInOut" }}
+                                className="overflow-hidden mt-2"
+                              >
+                                <ImageEditor 
+                                  initialImage={actForm.image}
+                                  onSave={(newBase64) => {
+                                    setActForm({ ...actForm, image: newBase64, mediaType: 'image' });
+                                    setShowActStudio(false);
+                                  }}
+                                  onCancel={() => setShowActStudio(false)}
+                                />
+                              </motion.div>
+                            ) : null}
+                          </AnimatePresence>
                         </div>
                       )}
                     </div>
@@ -972,7 +1184,7 @@ export default function AdminPanel({
                             ⚠️ {itiFileError}
                           </div>
                         )}
-                        {itiForm.mediaUrl && (
+                         {itiForm.mediaUrl && (
                           <div className="mt-1 text-slate-400 text-[10px] flex items-center justify-between bg-slate-950 p-2 rounded border border-slate-800">
                             <span className="truncate max-w-[200px]">
                               {itiForm.mediaUrl.startsWith("data:") ? "Uploaded local file successfully!" : itiForm.mediaUrl}
@@ -986,6 +1198,47 @@ export default function AdminPanel({
                               <option value="image">Format: Photo</option>
                               <option value="video">Format: Video</option>
                             </select>
+                          </div>
+                        )}
+
+                        {itiForm.mediaUrl && (!itiForm.mediaType || itiForm.mediaType === "image") && (
+                          <div className="mt-3 flex flex-col gap-2">
+                            <div className="flex items-center justify-between bg-slate-900/50 p-2 rounded-lg border border-slate-850">
+                              <span className="text-[10px] font-mono text-slate-450 uppercase font-semibold">Itinerary Crop Studio</span>
+                              <button
+                                type="button"
+                                onClick={() => setShowItiStudio(!showItiStudio)}
+                                className={`text-[9px] font-mono uppercase tracking-wider py-1 px-2.5 rounded border flex items-center gap-1 cursor-pointer transition-all ${
+                                  showItiStudio 
+                                    ? "bg-rose-500/10 border-rose-500/30 text-rose-450 hover:bg-rose-500 hover:text-white"
+                                    : "bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500 hover:text-slate-950 font-bold"
+                                }`}
+                              >
+                                {showItiStudio ? "Close Studio [X]" : "🎨 Launch Photo Crop Studio"}
+                              </button>
+                            </div>
+
+                            <AnimatePresence mode="wait">
+                              {showItiStudio ? (
+                                <motion.div 
+                                  key="studio-iti"
+                                  initial={{ opacity: 0, height: 0 }}
+                                  animate={{ opacity: 1, height: "auto" }}
+                                  exit={{ opacity: 0, height: 0 }}
+                                  transition={{ duration: 0.3, ease: "easeInOut" }}
+                                  className="overflow-hidden mt-2"
+                                >
+                                  <ImageEditor 
+                                    initialImage={itiForm.mediaUrl}
+                                    onSave={(newBase64) => {
+                                      setItiForm({ ...itiForm, mediaUrl: newBase64, mediaType: 'image' });
+                                      setShowItiStudio(false);
+                                    }}
+                                    onCancel={() => setShowItiStudio(false)}
+                                  />
+                                </motion.div>
+                              ) : null}
+                            </AnimatePresence>
                           </div>
                         )}
                       </div>
@@ -1243,6 +1496,128 @@ export default function AdminPanel({
                 </form>
               </div>
 
+              {/* SECTION: MPESA BILLING CONFIGURATIONS */}
+              <div id="admin-mpesa-config" className="bg-slate-950/40 border border-slate-800 p-6 rounded-2xl mb-8">
+                <div className="flex items-center gap-2 text-amber-400 mb-4 bg-slate-950 p-2.5 rounded-lg border border-slate-805 text-sm font-bold uppercase tracking-wider">
+                  <CreditCard className="w-5 h-5 text-amber-500" />
+                  <span>M-Pesa Contribution Till Settings</span>
+                </div>
+
+                {mpesaMessage && (
+                  <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 p-3 rounded-lg text-xs font-mono mb-4">
+                    ✓ {mpesaMessage}
+                  </div>
+                )}
+                {mpesaError && (
+                  <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg text-xs font-mono mb-4">
+                    ⚠ {mpesaError}
+                  </div>
+                )}
+
+                <form onSubmit={handleSaveMpesa} className="flex flex-col gap-4 text-xs font-sans">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 col-gap-4">
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Till or Paybill Type</label>
+                      <select
+                        value={mpesaType}
+                        onChange={(e) => setMpesaType(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
+                      >
+                        <option value="buy_goods">Buy Goods (Till Number)</option>
+                        <option value="paybill">Paybill</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">M-Pesa Till/Paybill Number</label>
+                      <input
+                        type="text"
+                        required
+                        value={mpesaTill}
+                        onChange={(e) => setMpesaTill(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
+                        placeholder="e.g. 4119041"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Merchant / Account Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={mpesaName}
+                      onChange={(e) => setMpesaName(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
+                      placeholder="e.g. Kachok Ambassadors Chorus"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Till Poster Image / Media (Optional)</label>
+                    <p className="text-[10px] text-slate-500 mb-1.5 font-sans">
+                      Upload an official Poster or QR code sticker image for your Till Number. It will be shown to users as a media preview.
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={mpesaImage}
+                          onChange={(e) => setMpesaImage(e.target.value)}
+                          className="flex-1 bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
+                          placeholder="Paste image URL or upload below..."
+                        />
+                        {mpesaImage && (
+                          <button
+                            type="button"
+                            onClick={() => setMpesaImage("")}
+                            className="bg-red-500/10 hover:bg-red-500 hover:text-white text-red-400 p-2 rounded border border-red-500/20 text-[10px] transition-colors"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <label className="flex-1 bg-slate-800 border border-slate-700 p-2 rounded cursor-pointer text-center hover:bg-slate-750 transition-colors flex items-center justify-center gap-2 font-mono text-[10px] uppercase font-bold text-slate-350">
+                          <span>📁</span> Upload Till Poster Image
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onload = (event) => {
+                                  const dataUrl = event.target?.result as string;
+                                  setMpesaImage(dataUrl);
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  {mpesaImage && (
+                    <div className="mt-2 text-center">
+                      <p className="text-[10px] font-mono text-slate-500 mb-1">Poster Preview:</p>
+                      <img src={mpesaImage} alt="Till Poster Preview" className="max-h-48 mx-auto rounded border border-slate-800 object-contain bg-slate-900 p-1" />
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={mpesaSaving}
+                    className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-sans font-bold py-3 rounded-lg transition-colors cursor-pointer w-full text-center text-xs mt-2"
+                  >
+                    {mpesaSaving ? "Saving Config..." : "Save M-Pesa Till Configuration"}
+                  </button>
+                </form>
+              </div>
+
               {/* SECTION: MANAGE LEADERS / COUNCIL STEWARDS */}
               <div className="bg-slate-950/40 border border-slate-800 p-6 rounded-2xl">
                 <div className="flex items-center gap-2 text-amber-400 mb-4 bg-slate-950 p-2.5 rounded-lg border border-slate-805 text-sm font-bold uppercase tracking-wider">
@@ -1492,6 +1867,61 @@ export default function AdminPanel({
                     ))}
                   </div>
                 )}
+              </div>
+
+              {/* SECTION C: CHANGE ADMIN PASSCODE */}
+              <div className="bg-slate-950/40 border border-slate-800 p-6 rounded-2xl mb-8">
+                <div className="flex items-center gap-2 text-amber-400 mb-6 bg-slate-950 p-2.5 rounded-lg border border-slate-805 text-sm font-bold uppercase tracking-wider">
+                  <Lock className="w-5 h-5 text-amber-500" />
+                  <span>Update Admin Passcode</span>
+                </div>
+                
+                <form onSubmit={handleResetSubmit} className="flex flex-col gap-4 text-xs">
+                  {resetErrorMsg && (
+                    <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg text-xs font-mono text-center flex items-center justify-center gap-1.5">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{resetErrorMsg}</span>
+                    </div>
+                  )}
+                  {resetMessage && (
+                    <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-3 rounded-lg text-xs font-mono text-center flex items-center justify-center gap-1.5">
+                      <Check className="w-4 h-4 shrink-0" />
+                      <span>{resetMessage}</span>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Current Passcode</label>
+                      <input 
+                        type="password"
+                        required
+                        value={resetCurrentPasscode}
+                        onChange={(e) => setResetCurrentPasscode(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded p-2.5 text-white outline-none focus:border-amber-400 font-mono tracking-widest"
+                        placeholder="Current secret key..."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">New Passcode</label>
+                      <input 
+                        type="password"
+                        required
+                        value={resetNewPasscode}
+                        onChange={(e) => setResetNewPasscode(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded p-2.5 text-white outline-none focus:border-emerald-400 font-mono tracking-widest"
+                        placeholder="At least 4 characters..."
+                        minLength={4}
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={authLoading}
+                    className="bg-slate-800 hover:bg-slate-700 text-white font-sans font-bold py-3 rounded-lg transition-colors cursor-pointer w-full text-center text-xs mt-2 border border-slate-700"
+                  >
+                    {authLoading ? "Updating..." : "Save New Admin Passcode"}
+                  </button>
+                </form>
               </div>
 
             </div>

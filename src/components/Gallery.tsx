@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Image as ImageIcon, Sparkles, ZoomIn, X } from "lucide-react";
+import { Image as ImageIcon, ZoomIn, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 export default function Gallery() {

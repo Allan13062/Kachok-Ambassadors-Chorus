@@ -5,6 +5,8 @@
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { onAuthStateChanged, User as FirebaseUser, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
+import { auth, db } from "./lib/firebase";
 import Header from "./components/Header";
 import Hero from "./components/Hero";
 import Itinerary from "./components/Itinerary";
@@ -33,6 +35,33 @@ function FadeInSection({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  // Authentication state
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleGoogleLogin = async () => {
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (error) {
+      console.error("Login failed:", error);
+    }
+  };
+
+  const handleGoogleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
+  };
+
   // Database states loaded dynamically from server
   const [dbData, setDbData] = useState<{
     activities: Activity[];
@@ -466,6 +495,9 @@ export default function App() {
         activeSection={activeSection}
         theme={theme}
         onToggleTheme={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
+        user={user}
+        onGoogleLogin={handleGoogleLogin}
+        onGoogleLogout={handleGoogleLogout}
       />
 
       {/* Hero Welcome Unit */}
@@ -498,6 +530,8 @@ export default function App() {
             onBookSelect={(eventName) => {
               setBookingPrefill(eventName);
             }}
+            user={user}
+            onGoogleLogin={handleGoogleLogin}
           />
         </FadeInSection>
 

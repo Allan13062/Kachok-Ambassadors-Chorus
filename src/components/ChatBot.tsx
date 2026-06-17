@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { MessageSquare, X, Send, Bot, User, Minimize2, ArrowUpRight } from "lucide-react";
+import { MessageSquare, X, Send, Bot, User, Minimize2, ArrowUpRight, Search, MapPin, Zap } from "lucide-react";
 import { ChatMessage } from "../types";
 
 interface ChatBotProps {
@@ -19,6 +19,7 @@ export default function ChatBot({ isOpen, onClose, onOpen }: ChatBotProps) {
   ]);
   const [inputText, setInputText] = useState("");
   const [loading, setLoading] = useState(false);
+  const [aiMode, setAiMode] = useState<"lite" | "search" | "maps">("lite");
   const [isDismissed, setIsDismissed] = useState(() => {
     return localStorage.getItem("kachamba_inquiry_helper_dismissed") === "true";
   });
@@ -74,7 +75,7 @@ export default function ChatBot({ isOpen, onClose, onOpen }: ChatBotProps) {
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ messages: payloadMessages })
+        body: JSON.stringify({ messages: payloadMessages, feature: aiMode })
       });
       const data = await res.json();
 
@@ -261,23 +262,45 @@ export default function ChatBot({ isOpen, onClose, onOpen }: ChatBotProps) {
           )}
 
           {/* Inputs Panel */}
-          <div className="p-4 bg-slate-950 border-t border-slate-805 flex gap-2">
-            <input 
-              type="text"
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSendMessage(inputText)}
-              placeholder="Ask an Ambassador elder..."
-              disabled={loading}
-              className="flex-1 bg-slate-900 border border-slate-800 hover:border-slate-700 focus:border-amber-500 outline-none rounded-xl p-2.5 text-xs focus:ring-1 focus:ring-amber-500/10 placeholder-slate-500 transition-all text-white"
-            />
-            <button
-              onClick={() => handleSendMessage(inputText)}
-              disabled={!inputText.trim() || loading}
-              className="bg-amber-500 hover:bg-amber-400 text-slate-950 disabled:bg-slate-800 disabled:text-slate-500 p-2.5 rounded-xl transition-all font-sans font-bold cursor-pointer shrink-0"
-            >
-              <Send className="w-4 h-4" />
-            </button>
+          <div className="bg-slate-950 border-t border-slate-805 flex flex-col">
+            <div className="px-4 py-2 border-b border-slate-800/50 flex gap-2 overflow-x-auto scrollbar-none">
+              <button
+                onClick={() => setAiMode("lite")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wider uppercase transition-colors shrink-0 ${aiMode === 'lite' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200'}`}
+              >
+                <Zap className="w-3 h-3" /> Fast Responses
+              </button>
+              <button
+                onClick={() => setAiMode("search")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wider uppercase transition-colors shrink-0 ${aiMode === 'search' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200'}`}
+              >
+                <Search className="w-3 h-3" /> Web Grounded
+              </button>
+              <button
+                onClick={() => setAiMode("maps")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wider uppercase transition-colors shrink-0 ${aiMode === 'maps' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200'}`}
+              >
+                <MapPin className="w-3 h-3" /> Maps Grounded
+              </button>
+            </div>
+            <div className="p-4 flex gap-2">
+              <input 
+                type="text"
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSendMessage(inputText)}
+                placeholder="Ask an Ambassador elder..."
+                disabled={loading}
+                className="flex-1 bg-slate-900 border border-slate-800 hover:border-slate-700 focus:border-amber-500 outline-none rounded-xl p-2.5 text-xs focus:ring-1 focus:ring-amber-500/10 placeholder-slate-500 transition-all text-white"
+              />
+              <button
+                onClick={() => handleSendMessage(inputText)}
+                disabled={!inputText.trim() || loading}
+                className="bg-amber-500 hover:bg-amber-400 text-slate-950 disabled:bg-slate-800 disabled:text-slate-500 p-2.5 rounded-xl transition-all font-sans font-bold cursor-pointer shrink-0"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
         </div>

@@ -4,7 +4,7 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Space Grotesk", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-mono: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Custom modern scrollbars */
@@ -36,8 +36,23 @@ html.light, .light {
 }
 
 /* Base text overrides */
-.light .text-white {
+.light .text-white,
+.light .text-slate-50,
+.light .text-slate-100,
+.light .text-slate-200 {
   color: #0f172a !important;
+}
+.light .bg-slate-950,
+.light .bg-slate-900,
+.light .bg-slate-800 {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+.light .border-slate-800,
+.light .border-slate-850,
+.light .border-slate-700 {
+  border-color: #e2e8f0 !important;
 }
 .light .text-slate-350,
 .light .text-slate-300 {
@@ -262,6 +277,10 @@ html.light, .light {
   border-color: #cbd5e1 !important;
   color: #0f172a !important;
 }
+.light #join input::placeholder,
+.light #join textarea::placeholder {
+  color: #94a3b8 !important;
+}
 
 /* Contact section */
 .light #contact {
@@ -327,5 +346,79 @@ html.light, .light {
 }
 .light footer h4 {
   color: #b45309 !important;
+}
+
+/* ==========================================
+ * PRINT MEDIA QUERIES
+ * ========================================== */
+@media print {
+  /* Hide navigation, footers, background elements and interactive elements */
+  nav, footer, .chat-bot-window, video, button, .print-hidden, a[href^="http"]:after {
+    display: none !important;
+  }
+
+  body {
+    background: transparent !important;
+    color: black !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  * {
+    box-shadow: none !important;
+  }
+
+  /* Reset container widths and margins for clean printing */
+  main, section {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    background: transparent !important;
+  }
+
+  /* 
+   * To print the ITINERARY cleanly:
+   * We hide all sections on the page *except* #itinerary. 
+   */
+  body.print-mode-itinerary section:not(#itinerary) {
+    display: none !important;
+  }
+
+  /*
+   * To print the RECEIPT cleanly:
+   * We hide all sections except #join, and inside #join, hide everything but the receipt.
+   */
+  body.print-mode-receipt section:not(#join) {
+    display: none !important;
+  }
+  body.print-mode-receipt #join form,
+  body.print-mode-receipt #join .mb-5:not(#mpesa-receipt-container),
+  body.print-mode-receipt #join .flex:not(#mpesa-receipt-container *) {
+    display: none !important;
+  }
+  
+  body.print-mode-receipt #mpesa-receipt {
+    display: block !important;
+    color: #000 !important;
+  }
+  body.print-mode-receipt #mpesa-receipt * {
+    color: #000 !important;
+    background: transparent !important;
+  }
+
+  body.print-mode-itinerary #itinerary *,
+  body.print-mode-receipt #join * {
+    color: #000 !important;
+    background: transparent !important;
+    border-color: #ccc !important;
+  }
+  body.print-mode-itinerary .bg-slate-900,
+  body.print-mode-itinerary .bg-slate-950\/60,
+  body.print-mode-receipt .bg-slate-900 {
+    background: #fff !important;
+    border: 1px solid #ccc !important;
+  }
 }
 

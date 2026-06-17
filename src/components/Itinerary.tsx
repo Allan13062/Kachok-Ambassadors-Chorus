@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { ItineraryItem } from "../types";
 import { 
@@ -6,6 +6,10 @@ import {
   Minimize2, ZoomIn, Eye, ChevronRight, Upload, X, Check, Filter, 
   Newspaper, Camera, Film, AlertCircle, RefreshCw, Send, HelpCircle, Heart, Share2
 } from "lucide-react";
+
+import { User as FirebaseUser } from "firebase/auth";
+import { doc, getDoc, setDoc, arrayUnion, arrayRemove } from "firebase/firestore";
+import { db } from "../lib/firebase";
 
 interface ItineraryProps {
   items: ItineraryItem[];
@@ -16,6 +20,8 @@ interface ItineraryProps {
   onEdit: (item: ItineraryItem) => void;
   onDelete: (id: string) => void;
   onBookSelect: (eventName: string) => void;
+  user?: FirebaseUser | null;
+  onGoogleLogin?: () => void;
 }
 
 export default function Itinerary({ 
@@ -26,8 +32,54 @@ export default function Itinerary({
   onAdd, 
   onEdit, 
   onDelete, 
-  onBookSelect 
+  onBookSelect,
+  user,
+  onGoogleLogin
 }: ItineraryProps) {
+  // Favorites logic
+  const [favorites, setFavorites] = useState<string[]>([]);
+  
+  useEffect(() => {
+    if (user) {
+      const fetchFavorites = async () => {
+        try {
+          const docRef = doc(db, "users", user.uid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists() && docSnap.data().favorites) {
+            setFavorites(docSnap.data().favorites);
+          }
+        } catch (error) {
+          console.error("Error fetching favorites:", error);
+        }
+      };
+      fetchFavorites();
+    } else {
+      setFavorites([]);
+    }
+  }, [user]);
+
+  const toggleFavorite = async (id: string) => {
+    if (!user) {
+      if (onGoogleLogin) onGoogleLogin();
+      return;
+    }
+    
+    const isFav = favorites.includes(id);
+    const newFavs = isFav ? favorites.filter(f => f !== id) : [...favorites, id];
+    setFavorites(newFavs);
+
+    try {
+      const docRef = doc(db, "users", user.uid);
+      await setDoc(docRef, {
+        favorites: isFav ? arrayRemove(id) : arrayUnion(id)
+      }, { merge: true });
+    } catch (error) {
+      console.error("Error updating favorites:", error);
+      // Revert on fail
+      setFavorites(favorites);
+    }
+  };
+
   // Lighbox state
   const [activeMedia, setActiveMedia] = useState<{ url: string; type: 'image' | 'video' | ''; eventTitle: string } | null>(null);
   
@@ -52,7 +104,7 @@ export default function Itinerary({
   const [copiedItemId, setCopiedItemId] = useState<string | null>(null);
 
   const handleCopyItinerary = (id: string, eventName: string, date: string, location: string) => {
-    const shareableUrl = window.location.origin;
+    const shareableUrl = `${window.location.origin}/#itinerary-dispatch-${id}`;
     const textToCopy = `Kachamba Chorus Event Alert! 🎶\n\n📢 *${eventName}*\n🗓️ Date: ${formatFriendlyDate(date)}\n📍 Venue: ${location}\n\nJoin us for fellowship & worship! Learn more: ${shareableUrl}`;
     navigator.clipboard.writeText(textToCopy).then(() => {
       setCopiedItemId(id);
@@ -409,6 +461,17 @@ export default function Itinerary({
           </div>
 
           <div className="flex flex-wrap items-center gap-4">
+            <button
+              onClick={() => {
+                document.body.classList.add('print-mode-itinerary');
+                window.print();
+                setTimeout(() => { document.body.classList.remove('print-mode-itinerary'); }, 500);
+              }}
+              className="flex items-center gap-2 bg-slate-900 border border-slate-800 hover:border-slate-700 hover:bg-slate-800 text-slate-300 font-sans font-bold text-xs uppercase tracking-wider px-5 py-3.5 rounded-xl transition-all cursor-pointer"
+            >
+               <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+               <span>Print Schedule</span>
+            </button>
             {isAdmin && (
               <button
                 id="btn-add-itinerary-ga"
@@ -675,7 +738,7 @@ export default function Itinerary({
                 <div 
                   key={item.id}
                   id={`itinerary-dispatch-${item.id}`}
-                  className="group relative bg-slate-950 border border-slate-900 hover:border-slate-800 rounded-3xl overflow-hidden transition-all duration-300 shadow-xl flex flex-col lg:flex-row items-stretch"
+                  className="group relative bg-slate-950 border border-slate-900 hover:border-slate-800 rounded-3xl overflow-hidden transition-all duration-300 shadow-xl flex flex-col lg:flex-row items-stretch scroll-mt-24"
                 >
                   
                   {/* Column 1: Feature Photo/Video Panel (Editorial News Style) */}
@@ -864,10 +927,23 @@ export default function Itinerary({
                         <div className="flex items-center gap-1.5 border-l border-slate-850 pl-3">
                           <span className="text-[9px] font-mono text-slate-500 uppercase tracking-wider hidden sm:inline">Share:</span>
                           
+                          {/* Favorite / RSVP Toggle */}
+                          <button
+                            onClick={() => toggleFavorite(item.id)}
+                            className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all cursor-pointer ${
+                              favorites.includes(item.id)
+                                ? "bg-rose-500/10 text-rose-500 border-rose-500/20 hover:bg-rose-500/20"
+                                : "bg-slate-900 border-slate-800 text-slate-500 hover:text-rose-400 hover:border-rose-400/20"
+                            }`}
+                            title={favorites.includes(item.id) ? "Remove from Favorites" : "Save to Favorites"}
+                          >
+                            <Heart className={`w-3.5 h-3.5 ${favorites.includes(item.id) ? "fill-current" : ""}`} />
+                          </button>
+                          
                           {/* WhatsApp */}
                           <a
                             href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                              `Kachamba Chorus Event Alert! 🎶\n\n📢 *${item.event}*\n🗓️ Date: ${formatFriendlyDate(item.date)}\n🕒 Time: ${item.time || 'Schedule Pending'}\n📍 Venue: ${item.location}\n⛪ Host: ${item.host || 'Local SDA Church'}\n\nJoin us for fellowship & worship! Learn more: ${window.location.origin}`
+                              `Kachamba Chorus Event Alert! 🎶\n\n📢 *${item.event}*\n🗓️ Date: ${formatFriendlyDate(item.date)}\n🕒 Time: ${item.time || 'Schedule Pending'}\n📍 Venue: ${item.location}\n⛪ Host: ${item.host || 'Local SDA Church'}\n\nJoin us for fellowship & worship! Learn more: ${window.location.origin}/#itinerary-dispatch-${item.id}`
                             )}`}
                             target="_blank"
                             rel="noopener noreferrer"
@@ -882,7 +958,7 @@ export default function Itinerary({
                           {/* Twitter / X */}
                           <a
                             href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(
-                              `Kachamba Chorus Event Alert! 🎶\n\n📢 ${item.event}\n🗓️ Date: ${formatFriendlyDate(item.date)}\n📍 Venue: ${item.location}\n\nJoin us for fellowship & worship! Learn more: ${window.location.origin}`
+                              `Kachamba Chorus Event Alert! 🎶\n\n📢 ${item.event}\n🗓️ Date: ${formatFriendlyDate(item.date)}\n📍 Venue: ${item.location}\n\nJoin us for fellowship & worship! Learn more: ${window.location.origin}/#itinerary-dispatch-${item.id}`
                             )}`}
                             target="_blank"
                             rel="noopener noreferrer"
@@ -896,7 +972,7 @@ export default function Itinerary({
 
                           {/* Facebook */}
                           <a
-                            href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.origin)}`}
+                            href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.origin + "/#itinerary-dispatch-" + item.id)}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="w-7 h-7 rounded-lg bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-500/10 flex items-center justify-center transition-all cursor-pointer"

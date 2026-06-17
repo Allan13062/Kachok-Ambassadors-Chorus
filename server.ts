@@ -50,12 +50,38 @@ app.use("/uploads", (req, res, next) => {
   next();
 }, express.static(uploadsDir));
 
-// Authentication middleware using Cloud SQL Configuration
+// Fast In-Memory Passcode Cache to prevent Database slowness
+let cachedPasscode: string | null = null;
+let passcodeCacheTime: number = 0;
+
+async function getAdminPasscode(): Promise<string> {
+  // Ultra-fast response: If cached in memory, return instantly.
+  if (cachedPasscode) {
+    return cachedPasscode;
+  }
+  
+  if (!process.env.SQL_HOST) {
+    return "SDA2026";
+  }
+  
+  try {
+    const passcodeRecords = await db.select().from(adminConfig).where(eq(adminConfig.key, "passcode")).limit(1);
+    const dbPasscode = passcodeRecords && passcodeRecords.length > 0 ? passcodeRecords[0].value : "SDA2026";
+    
+    cachedPasscode = dbPasscode;
+    passcodeCacheTime = Date.now();
+    return dbPasscode;
+  } catch (error) {
+    // Silently fallback if DB is not configured or reachable.
+    return "SDA2026"; // Return fallback but do NOT cache it permanently!
+  }
+}
+
+// Authentication middleware using Cloud SQL Configuration with Caching
 async function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
   const code = req.headers["x-admin-passcode"] as string;
   try {
-    const passcodeRecords = await db.select().from(adminConfig).where(eq(adminConfig.key, "passcode")).limit(1);
-    const dbPasscode = passcodeRecords.length > 0 ? passcodeRecords[0].value : "SDA2026";
+    const dbPasscode = await getAdminPasscode();
     if (code && code === dbPasscode) {
       next();
     } else {
@@ -96,6 +122,15 @@ async function seedCloudSqlFromLocalDb() {
     const passcodeRecord = await db.select().from(adminConfig).where(eq(adminConfig.key, "passcode")).limit(1);
     if (passcodeRecord.length === 0) {
       await db.insert(adminConfig).values({ key: "passcode", value: "SDA2026" }).onConflictDoNothing();
+    }
+
+    // Seed default M-pesa billing configurations if empty
+    const mpesaTillRecord = await db.select().from(adminConfig).where(eq(adminConfig.key, "mpesa_till")).limit(1);
+    if (mpesaTillRecord.length === 0) {
+      await db.insert(adminConfig).values({ key: "mpesa_till", value: "4119041" }).onConflictDoNothing();
+      await db.insert(adminConfig).values({ key: "mpesa_name", value: "Kachok Ambassadors Chorus" }).onConflictDoNothing();
+      await db.insert(adminConfig).values({ key: "mpesa_type", value: "buy_goods" }).onConflictDoNothing();
+      await db.insert(adminConfig).values({ key: "mpesa_image", value: "" }).onConflictDoNothing();
     }
 
     // Check if we already have activities loaded
@@ -179,7 +214,7 @@ async function seedCloudSqlFromLocalDb() {
         }
         console.log("[Kachamba Cloud SQL] Seeded database tables successfully.");
       } else {
-        console.warn("[Kachamba Cloud SQL] Local JSON database not found. Seeding default configs...");
+        console.log("[Kachamba Cloud SQL] Local JSON database not found. Seeding default configs...");
       }
     }
 
@@ -211,17 +246,21 @@ app.get("/api/db", async (req, res) => {
   res.set("Expires", "-1");
   res.set("Pragma", "no-cache");
   try {
-    const passcodeRecords = await db.select().from(adminConfig).where(eq(adminConfig.key, "passcode")).limit(1);
-    const dbPasscode = passcodeRecords.length > 0 ? passcodeRecords[0].value : "SDA2026";
+    const dbPasscode = await getAdminPasscode();
     const isAdmin = req.headers["x-admin-passcode"] === dbPasscode;
 
-    // Fetch activities, itinerary, leaders, music config in parallel
-    const [allActs, allIti, allLdr, musicRecs] = await Promise.all([
+    // Fast-fail if DB is fully down to maintain high performance
+    const dbPromise = Promise.all([
       db.select().from(activities),
       db.select().from(itinerary),
       db.select().from(leaders),
       db.select().from(musicConfig).where(eq(musicConfig.id, 1)).limit(1)
     ]);
+
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("DB Load Timeout")), 12000));
+    
+    // @ts-ignore
+    const [allActs, allIti, allLdr, musicRecs] = await Promise.race([dbPromise, timeoutPromise]);
 
     // Keep activities sorted descendingly by id/timestamp
     allActs.sort((a, b) => (b.id || "").localeCompare(a.id || ""));
@@ -254,7 +293,49 @@ app.get("/api/db", async (req, res) => {
       inquiries: inquiriesList
     });
   } catch (error: any) {
-    res.status(500).json({ error: "Failed to read data: " + error.message });
+    if (fs.existsSync(DB_PATH)) {
+      try {
+        const localData = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+        
+        // Populate missing sections with empty arrays just in case
+        localData.activities = localData.activities || [];
+        localData.itinerary = localData.itinerary || [];
+        localData.leaders = localData.leaders || [];
+        localData.inquiries = localData.inquiries || [];
+        localData.music = localData.music || {
+          songTitle: "Umchukue Mwanao",
+          artistName: "Kachok Ambassadors Chorus",
+          albumName: "Sounds Of Togetherness",
+          audioUrl: "",
+          coverUrl: "https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png",
+          quoteText: "Let our voices unite, lifting the sound of hope to the clouds...",
+          label: "Live At Central",
+          lyrics: ""
+        };
+        
+        return res.json(localData);
+      } catch (jsonErr) {
+        // Fallthrough on local JSON parse error
+      }
+    }
+    
+    // Total failure fallback
+    res.json({
+      activities: [],
+      itinerary: [],
+      leaders: [],
+      inquiries: [],
+      music: {
+        songTitle: "Umchukue Mwanao",
+        artistName: "Kachok Ambassadors Chorus",
+        albumName: "Sounds Of Togetherness",
+        audioUrl: "",
+        coverUrl: "https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png",
+        quoteText: "Let our voices unite, lifting the sound of hope to the clouds...",
+        label: "Live At Central",
+        lyrics: ""
+      }
+    });
   }
 });
 
@@ -368,9 +449,28 @@ function proxyAudioWithRedirect(targetUrl: string, req: any, res: any, redirects
 
 // Endpoint to securely proxy audio links to bypass strict iFrame sandbox environment, CORS, and referrer blockages
 app.get("/api/proxy-audio", (req, res) => {
-  const targetUrl = req.query.url as string;
+  let targetUrl = req.query.url as string;
   if (!targetUrl) {
     return res.status(400).send("Missing target audio source URL");
+  }
+
+  // Automatic normalization for popular hosting domains
+  // 1. Normalize Dropbox links
+  if (targetUrl.includes("dropbox.com")) {
+    targetUrl = targetUrl
+      .replace("www.dropbox.com", "dl.dropboxusercontent.com")
+      .replace("?dl=0", "")
+      .replace("&dl=0", "")
+      .replace("?dl=1", "")
+      .replace("&dl=1", "");
+  }
+
+  // 2. Normalize Google Drive links to direct download/stream endpoints
+  if (targetUrl.includes("drive.google.com")) {
+    const driveIdMatch = targetUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || targetUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    if (driveIdMatch && driveIdMatch[1]) {
+      targetUrl = `https://docs.google.com/uc?export=download&id=${driveIdMatch[1]}`;
+    }
   }
 
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -388,8 +488,7 @@ app.get("/api/proxy-audio", (req, res) => {
 app.post("/api/auth", async (req, res) => {
   const { passcode } = req.body;
   try {
-    const passcodeRecords = await db.select().from(adminConfig).where(eq(adminConfig.key, "passcode")).limit(1);
-    const dbPasscode = passcodeRecords.length > 0 ? passcodeRecords[0].value : "SDA2026";
+    const dbPasscode = await getAdminPasscode();
     if (passcode === dbPasscode) {
       res.json({ success: true, message: "Welcome Elder/Ambassador Director!" });
     } else {
@@ -398,6 +497,236 @@ app.post("/api/auth", async (req, res) => {
   } catch (error: any) {
     res.status(500).json({ error: "Authentication failed: " + error.message });
   }
+});
+
+// Update passcode (Requires Admin or Recovery Key)
+app.post("/api/auth/reset", async (req, res) => {
+  const { newPasscode, recoveryKey, currentPasscode } = req.body;
+  
+  try {
+    const dbPasscode = await getAdminPasscode();
+
+    // Allow reset if they know the current passcode OR a recovery key ("KACHAMBA2026")
+    if (currentPasscode === dbPasscode || recoveryKey === "KACHAMBA2026") {
+      if (!newPasscode || newPasscode.length < 4) {
+        return res.status(400).json({ error: "New passcode must be at least 4 characters." });
+      }
+
+      await db.insert(adminConfig)
+        .values({ key: "passcode", value: newPasscode, updatedAt: new Date() })
+        .onConflictDoUpdate({
+          target: adminConfig.key,
+          set: { value: newPasscode, updatedAt: new Date() }
+        });
+
+      // Crucial: Update memory cache so next request is instantly validated
+      cachedPasscode = newPasscode;
+      passcodeCacheTime = Date.now();
+
+      return res.json({ success: true, message: "Passcode updated successfully!" });
+    } else {
+      return res.status(401).json({ error: "Invalid current passcode or recovery key." });
+    }
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to reset passcode: " + error.message });
+  }
+});
+
+// M-Pesa Integration Routes
+
+// GET M-Pesa Config (Public)
+app.get("/api/mpesa/config", async (req, res) => {
+  try {
+    const configs = await db.select().from(adminConfig);
+    const configMap = configs.reduce((acc, curr) => {
+      acc[curr.key] = curr.value;
+      return acc;
+    }, {} as Record<string, string>);
+
+    res.json({
+      tillNumber: configMap["mpesa_till"] || "4119041",
+      tillName: configMap["mpesa_name"] || "Kachok Ambassadors Chorus",
+      tillImage: configMap["mpesa_image"] || "",
+      tillType: configMap["mpesa_type"] || "buy_goods"
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to load M-pesa billing configurations: " + error.message });
+  }
+});
+
+// PUT M-Pesa Config (Requires Admin)
+app.put("/api/mpesa/config", requireAdmin, async (req, res) => {
+  const { tillNumber, tillName, tillImage, tillType } = req.body;
+  try {
+    const upsertConfig = async (key: string, value: string) => {
+      await db.insert(adminConfig)
+        .values({ key, value, updatedAt: new Date() })
+        .onConflictDoUpdate({
+          target: adminConfig.key,
+          set: { value, updatedAt: new Date() }
+        });
+    };
+
+    if (tillNumber !== undefined) await upsertConfig("mpesa_till", String(tillNumber));
+    if (tillName !== undefined) await upsertConfig("mpesa_name", String(tillName));
+    if (tillImage !== undefined) await upsertConfig("mpesa_image", String(tillImage));
+    if (tillType !== undefined) await upsertConfig("mpesa_type", String(tillType));
+
+    res.json({ success: true, message: "M-pesa billing configuration updated successfully." });
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to save M-pesa billing configurations: " + error.message });
+  }
+});
+
+// POST M-Pesa STK Push Request
+app.post("/api/mpesa/stkpush", async (req, res) => {
+  let { phone, amount } = req.body;
+  if (!phone || !amount) {
+    return res.status(400).json({ error: "Phone number and amount are required." });
+  }
+
+  // Standardize phone number format: must be 2547XXXXXXXX or 2541XXXXXXXX
+  let formattedPhone = phone.trim().replace(/\+/g, "");
+  if (formattedPhone.startsWith("0")) {
+    formattedPhone = "254" + formattedPhone.substring(1);
+  } else if (formattedPhone.startsWith("7") || formattedPhone.startsWith("1")) {
+    formattedPhone = "254" + formattedPhone;
+  }
+
+  // Validate phone number format (2547... or 2541...)
+  if (!/^254(7|1)\d{8}$/.test(formattedPhone)) {
+    return res.status(400).json({ error: "Invalid phone number format. Please provide a valid Kenyan number (e.g., 0712345678 or 254712345678)." });
+  }
+
+  const numericAmount = Math.round(Number(amount));
+  if (isNaN(numericAmount) || numericAmount <= 0) {
+    return res.status(400).json({ error: "Transaction amount must be a positive integer." });
+  }
+
+  // Read Safaricom M-Pesa credentials from process env
+  const mpesaConsumerKey = process.env.MPESA_CONSUMER_KEY;
+  const mpesaConsumerSecret = process.env.MPESA_CONSUMER_SECRET;
+  const mpesaPasskey = process.env.MPESA_PASSKEY;
+  
+  // Read till details from database
+  let databaseTill = "4119041";
+  let databaseType = "buy_goods";
+  try {
+    const records = await db.select().from(adminConfig);
+    const tillRecord = records.find(r => r.key === "mpesa_till");
+    const typeRecord = records.find(r => r.key === "mpesa_type");
+    if (tillRecord) databaseTill = tillRecord.value;
+    if (typeRecord) databaseType = typeRecord.value;
+  } catch (e) {
+    console.log("Could not read till config from DB, using fallback", e);
+  }
+
+  const mpesaShortCode = process.env.MPESA_SHORTCODE || databaseTill;
+
+  // Check if real keys are supplied to execute authentic request
+  const useRealMpesa = mpesaConsumerKey && mpesaConsumerKey !== "MY_MPESA_KEY" && mpesaConsumerSecret && mpesaPasskey;
+
+  if (useRealMpesa) {
+    try {
+      console.log(`[STK Push] Initiating real STK push for ${formattedPhone}, amount: KES ${numericAmount}`);
+      
+      // Step 1: Generate Access Token
+      const isProd = process.env.MPESA_ENV === "production";
+      const baseUrl = isProd ? "https://api.safaricom.co.ke" : "https://sandbox.safaricom.co.ke";
+      
+      const auth = Buffer.from(`${mpesaConsumerKey}:${mpesaConsumerSecret}`).toString("base64");
+      
+      const tokenResponse = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Basic ${auth}`
+        }
+      });
+
+      if (!tokenResponse.ok) {
+        const errMsg = await tokenResponse.text();
+        throw new Error("Failed Safaricom OAuth generation request: " + errMsg);
+      }
+
+      const tokenData = await tokenResponse.json() as any;
+      const accessToken = tokenData.access_token;
+
+      // Step 2: Trigger STK Push
+      const timestamp = new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14);
+      const password = Buffer.from(`${mpesaShortCode}${mpesaPasskey}${timestamp}`).toString("base64");
+      
+      // Paybill uses CustomerPayBillOnline (4887), Buy Goods (Till) uses CustomerBuyGoodsOnline (112)
+      const transactionType = databaseType === "paybill" ? "CustomerPayBillOnline" : "CustomerBuyGoodsOnline";
+      
+      const mpesaAppUrl = process.env.APP_URL || "https://example.com";
+      const callbackUrl = `${mpesaAppUrl.replace(/\/$/, "")}/api/mpesa/callback`;
+
+      const stkPayload = {
+        BusinessShortCode: mpesaShortCode,
+        Password: password,
+        Timestamp: timestamp,
+        TransactionType: transactionType,
+        Amount: numericAmount,
+        PartyA: formattedPhone,
+        PartyB: mpesaShortCode,
+        PhoneNumber: formattedPhone,
+        CallBackURL: callbackUrl,
+        AccountReference: "Kachamba Chorus",
+        TransactionDesc: "Choir Support Contribution"
+      };
+
+      const pushResponse = await fetch(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(stkPayload)
+      });
+
+      if (!pushResponse.ok) {
+        const pushErr = await pushResponse.text();
+        throw new Error("Safaricom processRequest failure: " + pushErr);
+      }
+
+      const pushResult = await pushResponse.json() as any;
+      console.log("[STK Push] Real push successfully executed:", pushResult);
+
+      return res.json({
+        success: true,
+        realApi: true,
+        message: "An STK Push has been sent to your phone! Please enter your M-pesa PIN to complete the contribution.",
+        merchantRequestId: pushResult.MerchantRequestID,
+        checkoutRequestId: pushResult.CheckoutRequestID,
+        responseDescription: pushResult.ResponseDescription
+      });
+
+    } catch (err: any) {
+      console.error("[STK Push Error] Real API failure:", err);
+      return res.status(502).json({
+        error: "Safaricom M-Pesa Link Error: " + err.message,
+        clarification: "Check if your MPESA Consumer Key, Secret, and Passkey are correct in Cloud environment variables."
+      });
+    }
+  } else {
+    // Graceful local/sandbox simulator (returns mock structure for immediate UI preview)
+    console.log(`[STK Push] Simulating Daraja STK Push for ${formattedPhone}, amount: KES ${numericAmount}`);
+    
+    return res.json({
+      success: true,
+      realApi: false,
+      message: "STK push stimulated successfully! A simulated STK push prompt of KES " + numericAmount + " has been sent to " + formattedPhone + ". (Since no API keys are configured, this is simulated).",
+      merchantRequestId: "ws_CO_" + Date.now().toString().slice(3),
+      checkoutRequestId: "ws_CH_" + Math.random().toString(36).substring(2, 10).toUpperCase(),
+      responseDescription: "Success. Request accepted for processing"
+    });
+  }
+});
+
+// dummy callback endpoint
+app.post("/api/mpesa/callback", (req, res) => {
+  console.log("[M-Pesa Callback Receipt]:", JSON.stringify(req.body));
+  res.json({ ResultCode: 0, ResultDesc: "Callback accepted successfully" });
 });
 
 // 3. Post a contact form inquiry (Public)
@@ -648,7 +977,7 @@ app.post("/api/chat", async (req, res) => {
   const ai = getGeminiClient();
 
   if (!ai) {
-    console.warn("GEMINI_API_KEY is not configured yet. Using fallback simulated AI responses.");
+    console.log("GEMINI_API_KEY is not configured yet. Using fallback simulated AI responses.");
     
     const userMsg = messages[messages.length - 1]?.text || "Hello";
     let fallbackText = "Greetings in Christ! " +
@@ -684,18 +1013,36 @@ app.post("/api/chat", async (req, res) => {
   }
 
   try {
-    const contents = messages.map(msg => ({
+    const contents = messages.map((msg: any) => ({
       role: msg.role === "assistant" ? "model" : "user",
       parts: [{ text: msg.text }]
     }));
 
+    let modelStr = "gemini-3.5-flash";
+    let tools: any[] = [];
+    
+    if (req.body.feature === 'lite') {
+      modelStr = "gemini-3.1-flash-lite";
+    } else if (req.body.feature === 'search') {
+      tools = [{ googleSearch: {} }];
+    } else if (req.body.feature === 'maps') {
+      tools = [{ googleMaps: {} }];
+    }
+
+    const config: any = {
+      systemInstruction: systemInstruction,
+      temperature: 0.7,
+    };
+    
+    // googleMaps tool cannot be combined with other built-in tools
+    if (tools.length > 0) {
+      config.tools = tools;
+    }
+
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: modelStr,
       contents: contents,
-      config: {
-        systemInstruction: systemInstruction,
-        temperature: 0.7,
-      }
+      config: config
     });
 
     res.json({ text: response.text });
@@ -866,9 +1213,19 @@ async function startServer() {
     // Production Mode serves static files from dist (Skipped on Vercel as it serves static files naturally)
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*", (req, res) => {
+  app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
+  }
+  
+  // WARM UP DATABASE CACHE: Fetch the passcode once before taking traffic
+  // This prevents the expensive DB connection cold start on the first user action
+  try {
+    console.log("[Kachamba Server] Warming up Database connection and Passcode Cache...");
+    await getAdminPasscode();
+    console.log("[Kachamba Server] Cache warm up complete. Lightning fast Mode Active.");
+  } catch (err: any) {
+    console.error("[Kachamba Server] Cache warm up skipped:", err.message);
   }
 
   app.listen(PORT, "0.0.0.0", () => {

@@ -1,6 +1,8 @@
 import React, { useState } from "react";
-import { Music, Lock, Users, Calendar, Image as ImageIcon, Sparkles, Sun, Moon, Menu, X } from "lucide-react";
+import { Music, Lock, Users, Calendar, Image as ImageIcon, Heart, Sun, Moon, Menu, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+
+import { User as FirebaseUser } from "firebase/auth";
 
 interface HeaderProps {
   isAdmin: boolean;
@@ -9,9 +11,12 @@ interface HeaderProps {
   activeSection: string;
   theme: "dark" | "light";
   onToggleTheme: () => void;
+  user?: FirebaseUser | null;
+  onGoogleLogin?: () => void;
+  onGoogleLogout?: () => void;
 }
 
-export default function Header({ isAdmin, onOpenAdmin, onLogout, activeSection, theme, onToggleTheme }: HeaderProps) {
+export default function Header({ isAdmin, onOpenAdmin, onLogout, activeSection, theme, onToggleTheme, user, onGoogleLogin, onGoogleLogout }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const scrollTo = (id: string) => {
@@ -48,7 +53,7 @@ export default function Header({ isAdmin, onOpenAdmin, onLogout, activeSection, 
     { label: "Leaders", id: "leadership", icon: Users },
     { label: "Music", id: "music", icon: Music },
     { label: "Gallery", id: "gallery", icon: ImageIcon },
-    { label: "Join Us", id: "join", icon: Sparkles },
+    { label: "Join Us", id: "join", icon: Heart },
     { label: "Contact", id: "contact", icon: null },
   ];
 
@@ -105,6 +110,25 @@ export default function Header({ isAdmin, onOpenAdmin, onLogout, activeSection, 
 
       {/* Action Buttons: Theme Toggle & Admin Module & Mobile Hamburger */}
       <div className="flex items-center gap-1.5 sm:gap-3">
+        {user ? (
+          <div className="flex items-center gap-2 mr-2">
+            <img src={user.photoURL || ""} alt={user.displayName || "User"} className="w-6 h-6 sm:w-8 sm:h-8 rounded-full border border-slate-700" title={user.displayName || "User Profile"} />
+            <button
+              onClick={onGoogleLogout}
+              className={`text-[10px] sm:text-xs font-semibold px-2 py-1 rounded transition-colors ${theme === "dark" ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-slate-900"}`}
+            >
+              Sign Out
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={onGoogleLogin}
+            className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer transition-all mr-2 ${theme === "dark" ? "bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-300" : "bg-slate-100 border-slate-300 hover:bg-slate-200 text-slate-700"}`}
+          >
+            Google Sign-In
+          </button>
+        )}
+
         {/* Modern Switch Toggle */}
         <button
           onClick={onToggleTheme}

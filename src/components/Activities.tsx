@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Activity } from "../types";
-import { MapPin, Calendar, Heart, Plus, Trash2, Edit, Sparkles, X, Check, Share2 } from "lucide-react";
+import { MapPin, Calendar, Heart, Plus, Trash2, Edit, X, Check, Share2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 interface ActivitiesProps {
@@ -16,7 +16,7 @@ export default function Activities({ items, isAdmin, onAdd, onEdit, onDelete }: 
   const [copiedItemId, setCopiedItemId] = useState<string | null>(null);
 
   const handleCopyActivity = (id: string, title: string, date: string, location: string) => {
-    const textToCopy = `Kachamba Chorus Ministry Details! ✨\n\n📢 *${title}*\n🗓️ Scheduled: ${date}\n📍 Location: ${location}\n\nLearn more and join us: ${window.location.origin}`;
+    const textToCopy = `Kachamba Chorus Ministry Details! ✨\n\n📢 *${title}*\n🗓️ Scheduled: ${date}\n📍 Location: ${location}\n\nLearn more and join us: ${window.location.origin}/#activities-ministry-${id}`;
     navigator.clipboard.writeText(textToCopy).then(() => {
       setCopiedItemId(id);
       setTimeout(() => setCopiedItemId(null), 2000);
@@ -36,7 +36,6 @@ export default function Activities({ items, isAdmin, onAdd, onEdit, onDelete }: 
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
           <div>
             <div className="flex items-center gap-2 text-amber-400 font-mono text-xs tracking-wider uppercase mb-2">
-              <Sparkles className="w-4 h-4" />
               <span>Choral Growth & Service</span>
             </div>
             <h2 className="font-sans font-extrabold text-3xl md:text-5xl tracking-tight text-white animate-fade-in">
@@ -80,12 +79,13 @@ export default function Activities({ items, isAdmin, onAdd, onEdit, onDelete }: 
             {items.map((act) => (
               <motion.div 
                 key={act.id}
+                id={`activities-ministry-${act.id}`}
                 variants={{
                   hidden: { opacity: 0, y: 25 },
                   visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 70, damping: 20 } }
                 }}
                 whileHover={{ y: -6, scale: 1.015, boxShadow: "0 15px 30px -5px rgba(245, 158, 11, 0.08)" }}
-                className="group relative flex flex-col bg-slate-900/80 border border-slate-800 hover:border-amber-400/40 rounded-2xl overflow-hidden transition-all shadow-lg"
+                className="group relative flex flex-col bg-slate-900/80 border border-slate-800 hover:border-amber-400/40 rounded-2xl overflow-hidden transition-all shadow-lg scroll-mt-24"
               >
                 
                 {/* Visual Cover */}
@@ -161,7 +161,7 @@ export default function Activities({ items, isAdmin, onAdd, onEdit, onDelete }: 
                         {/* WhatsApp */}
                         <a
                           href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                            `Kachamba Chorus Ministry Details! ✨\n\n📢 *${act.title}*\n🗓️ Scheduled: ${act.date}\n📍 Location: ${act.location}\n⭐ Category: ${act.category}\n\nJoin us on our journey of faith! Learn more: ${window.location.origin}`
+                            `Kachamba Chorus Ministry Details! ✨\n\n📢 *${act.title}*\n🗓️ Scheduled: ${act.date}\n📍 Location: ${act.location}\n⭐ Category: ${act.category}\n\nJoin us on our journey of faith! Learn more: ${window.location.origin}/#activities-ministry-${act.id}`
                           )}`}
                           target="_blank"
                           rel="noopener noreferrer"
@@ -176,7 +176,7 @@ export default function Activities({ items, isAdmin, onAdd, onEdit, onDelete }: 
                         {/* Twitter / X */}
                         <a
                           href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(
-                            `Kachamba Chorus Ministry Details! ✨\n\n📢 ${act.title}\n🗓️ Scheduled: ${act.date}\n📍 Location: ${act.location}\n\nLearn more and join us: ${window.location.origin}`
+                            `Kachamba Chorus Ministry Details! ✨\n\n📢 ${act.title}\n🗓️ Scheduled: ${act.date}\n📍 Location: ${act.location}\n\nLearn more and join us: ${window.location.origin}/#activities-ministry-${act.id}`
                           )}`}
                           target="_blank"
                           rel="noopener noreferrer"
@@ -190,7 +190,7 @@ export default function Activities({ items, isAdmin, onAdd, onEdit, onDelete }: 
 
                         {/* Facebook */}
                         <a
-                          href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.origin)}`}
+                          href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.origin + "/#activities-ministry-" + act.id)}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="w-7 h-7 rounded-lg bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-500/10 flex items-center justify-center transition-all cursor-pointer"
