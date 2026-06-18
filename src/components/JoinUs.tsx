@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Music, Star, Mic, CheckCircle, CreditCard, Smartphone, Coins, Eye, X, Info } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { jsPDF } from "jspdf";
 
 export default function JoinUs() {
   const [activeTab, setActiveTab] = useState<"audition" | "mpesa">("audition");
@@ -29,6 +30,7 @@ export default function JoinUs() {
   const [pushStatus, setPushStatus] = useState<{
     type: "idle" | "loading" | "success" | "error";
     message: string;
+    refNumber?: string;
   }>({ type: "idle", message: "" });
   const [showPosterModal, setShowPosterModal] = useState(false);
 
@@ -89,7 +91,8 @@ export default function JoinUs() {
       if (res.ok && data.success) {
         setPushStatus({
           type: "success",
-          message: data.message
+          message: data.message,
+          refNumber: data.checkoutRequestId || `ws_CO_${Date.now().toString().slice(3)}`
         });
 
         // Loop simulate response when testing in dev/sandbox with mock responses
@@ -97,7 +100,8 @@ export default function JoinUs() {
           setTimeout(() => {
             setPushStatus({
               type: "success",
-              message: "✓ Simulated contribution of KES " + finalAmount + " processed successfully! Thank you for supporting Kachamba Chorus ministry!"
+              message: "✓ Simulated contribution of KES " + finalAmount + " processed successfully! Thank you for supporting Kachamba Chorus ministry!",
+              refNumber: data.checkoutRequestId || `ws_CO_${Date.now().toString().slice(3)}`
             });
             setIsPushing(false);
           }, 5000);
@@ -117,6 +121,134 @@ export default function JoinUs() {
         message: "Connection failed: " + err.message
       });
       setIsPushing(false);
+    }
+  };
+
+  const downloadPdfReceipt = () => {
+    try {
+      const doc = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
+
+      const finalAmount = amount === "custom" ? customAmount : amount;
+      const refNumber = pushStatus.refNumber || `TXN-${Date.now().toString().slice(6)}`;
+      const paymentTime = new Date().toLocaleString("en-US", { 
+        month: "short", 
+        day: "numeric", 
+        year: "numeric", 
+        hour: "numeric", 
+        minute: "2-digit", 
+        hour12: true 
+      });
+
+      // 1. Sleek Top Header
+      doc.setFillColor(111, 60, 212);
+      doc.rect(0, 0, 210, 45, "F");
+
+      // Header Text
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(22);
+      doc.text("KACHAMBA CHORUS MINISTRY", 105, 18, { align: "center" });
+      
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.text("Seventh-day Adventist Ambassador Youth Ministry | Kisumu, Kenya", 105, 26, { align: "center" });
+      doc.setFontSize(9);
+      doc.text("Email: kachambachorus@gmail.com | Phone: +254 797 450 206", 105, 32, { align: "center" });
+
+      // 2. Receipt Container Frame
+      doc.setDrawColor(226, 232, 240); // Slate 200
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(25, 55, 160, 125, 6, 6, "FD");
+
+      // Success Indicator Icon (Circle with tick mark)
+      doc.setFillColor(240, 253, 250); // Mint 50
+      doc.ellipse(105, 75, 14, 14, "F");
+      
+      // Draw tick symbol
+      doc.setDrawColor(16, 185, 129); // Emerald 505
+      doc.setLineWidth(1.5);
+      doc.line(100, 75, 103, 78);
+      doc.line(103, 78, 111, 71);
+
+      // Status Title
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(18);
+      doc.setTextColor(30, 41, 59); // Slate 800
+      doc.text("Payment Successful", 105, 98, { align: "center" });
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139); // Slate 500
+      doc.text("Your transaction has been processed and verified.", 105, 104, { align: "center" });
+
+      // Transaction Amount Design Box
+      doc.setFillColor(248, 250, 252); // Slate 50
+      doc.roundedRect(40, 112, 130, 18, 3, 3, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(24);
+      doc.setTextColor(15, 23, 42); // Slate 900
+      doc.text(`KES ${Number(finalAmount).toLocaleString()}`, 105, 124, { align: "center" });
+
+      // Receipt Details Table
+      doc.setLineWidth(0.2);
+      doc.setDrawColor(241, 245, 249); // Slate 100
+
+      // Row 1: Reference Number
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      doc.text("Ref Number", 35, 144);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 41, 59);
+      doc.text(refNumber, 175, 144, { align: "right" });
+      doc.line(35, 148, 175, 148);
+
+      // Row 2: Payment Time
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100, 116, 139);
+      doc.text("Payment Time", 35, 156);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 41, 59);
+      doc.text(paymentTime, 175, 156, { align: "right" });
+      doc.line(35, 160, 175, 160);
+
+      // Row 3: Payment Method
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100, 116, 139);
+      doc.text("Payment Method", 35, 168);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 41, 59);
+      doc.text(`M-Pesa (+254 ***${phone.slice(-4)})`, 175, 168, { align: "right" });
+
+      // 3. Heartfelt Closing blessing
+      doc.setFont("helvetica", "medium");
+      doc.setFontSize(10);
+      doc.setTextColor(71, 85, 105); // Slate 600
+      doc.text("Thank you for your generous contribution!", 105, 195, { align: "center" });
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(9);
+      doc.setTextColor(148, 163, 184); // Slate 400
+      doc.text('"Every man according as he purposeth in his heart, so let him give" -- 2 Corinthians 9:7', 105, 201, { align: "center" });
+
+      // 4. Secure barcode or footer graphic lines
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.5);
+      doc.line(20, 265, 190, 265);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.text("This receipt certifies support for the missionary works of the Kachamba Chorus.", 105, 272, { align: "center" });
+      doc.text(`Verification Key: ${refNumber}-${Date.now().toString().slice(-4)}`, 105, 277, { align: "center" });
+
+      // Trigger download
+      doc.save(`Kachamba_Donation_Receipt_${refNumber}.pdf`);
+    } catch (err: any) {
+      console.error("PDF generation failed:", err);
     }
   };
 
@@ -313,209 +445,267 @@ export default function JoinUs() {
                   exit={{ opacity: 0, x: -10 }}
                   transition={{ duration: 0.25 }}
                 >
-                  <div className="mb-5">
-                    <h3 className="font-sans font-bold text-xl text-white">Support the Ministry</h3>
-                    <p className="font-sans text-xs text-slate-400 mt-1">
-                      Support us via Lipa Na M-Pesa. Choose an amount, enter your phone, and complete the STK prompt on your screen.
-                    </p>
-                  </div>
+                  {pushStatus.type === "success" ? (
+                    <div id="mpesa-receipt-container" className="flex flex-col items-center justify-center font-sans print:fixed print:inset-0 print:bg-slate-50 print:z-[9999] print:w-screen print:h-screen print:flex print:flex-col print:items-center print:justify-center">
+                      <div id="mpesa-receipt" className="bg-white rounded-[24px] p-8 pt-10 max-w-sm w-full mx-auto shadow-2xl relative print:shadow-none print:max-w-md print:border border-slate-100">
+                        
+                        <div className="flex justify-center mb-5">
+                          <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center">
+                            <div className="w-14 h-14 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                              <CheckCircle className="w-8 h-8 text-white" />
+                            </div>
+                          </div>
+                        </div>
 
-                  {/* Push feedback status indicators and Receipt Option */}
-                  {pushStatus.type !== "idle" && (
-                    <div id="mpesa-receipt-container" className={`p-4 rounded-xl text-xs mb-5 border leading-relaxed font-sans ${
-                      pushStatus.type === "loading" 
-                        ? "bg-amber-500/10 border-amber-500/20 text-amber-300 animate-pulse" 
-                        : pushStatus.type === "success" 
-                        ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" 
-                        : "bg-red-500/10 border-red-500/20 text-red-400"
-                    }`}>
-                      <div className="flex gap-2 items-start" id="mpesa-receipt">
-                        {pushStatus.type === "loading" && <div className="w-3.5 h-3.5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin shrink-0 mt-0.5 print-hidden" />}
-                        {pushStatus.type === "success" && <span className="text-emerald-400 shrink-0 print-hidden">✓</span>}
-                        {pushStatus.type === "error" && <span className="text-red-400 shrink-0 print-hidden">⚠</span>}
+                        <div className="text-center mb-6">
+                          <h4 className="text-2xl font-bold text-slate-800 mb-1">Payment Successful</h4>
+                          <p className="text-sm text-slate-500">Your STK transaction prompt has been sent.</p>
+                          <p className="text-[10px] text-emerald-600 font-bold mt-1">Please enter M-Pesa PIN on your phone to complete.</p>
+                        </div>
+
+                        <div className="text-center mb-8">
+                          <span className="text-4xl font-extrabold text-slate-900 tracking-tight">
+                            KES {amount === "custom" ? customAmount : amount}
+                          </span>
+                        </div>
+
+                        <div className="bg-slate-50 rounded-xl p-4 mb-8 border border-slate-100 text-sm">
+                          <div className="flex justify-between items-center py-2 border-b border-slate-200 border-dashed">
+                            <span className="text-slate-500">Ref Number</span>
+                            <span className="font-semibold text-slate-800 font-mono text-xs">{pushStatus.refNumber || `TXN-${Date.now().toString().slice(6)}`}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-2 border-b border-slate-200 border-dashed">
+                            <span className="text-slate-500">Payment Time</span>
+                            <span className="font-semibold text-slate-800 text-xs">
+                              {new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center py-2">
+                            <span className="text-slate-500">Payment Method</span>
+                            <span className="font-semibold text-slate-800 flex items-center gap-1.5 text-xs">
+                              <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
+                              M-Pesa ({phone.slice(-4)})
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="text-center print:hidden">
+                          <button
+                            onClick={downloadPdfReceipt}
+                            className="bg-[#6f3cd4] hover:bg-[#5b2ab9] text-white font-bold py-3.5 px-6 rounded-full w-full transition-all shadow-lg shadow-[#6f3cd4]/30 cursor-pointer flex justify-center items-center gap-2 animate-bounce"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            Download PDF Receipt
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              document.body.classList.add('print-mode-receipt');
+                              window.print();
+                              setTimeout(() => { document.body.classList.remove('print-mode-receipt'); }, 500);
+                            }}
+                            className="mt-3.5 text-xs text-slate-500 hover:text-[#6f3cd4] font-medium tracking-wide flex items-center justify-center gap-1 mx-auto transition-colors cursor-pointer"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4" />
+                            </svg>
+                            Print Receipt instead
+                          </button>
+                          
+                          <button 
+                            onClick={() => {
+                              setPushStatus({ type: "idle", message: "" });
+                              setPhone("");
+                            }}
+                            className="mt-4 text-sm text-slate-400 hover:text-slate-600 font-semibold cursor-pointer underline block w-full text-center"
+                          >
+                            Done
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mb-5">
+                        <h3 className="font-sans font-bold text-xl text-white">Support the Ministry</h3>
+                        <p className="font-sans text-xs text-slate-400 mt-1">
+                          Support us via Lipa Na M-Pesa. Choose an amount, enter your phone, and complete the STK prompt on your screen.
+                        </p>
+                      </div>
+
+                      {pushStatus.type !== "idle" && (
+                        <div id="mpesa-error-container" className={`p-4 rounded-xl text-xs mb-5 border leading-relaxed font-sans ${
+                          pushStatus.type === "loading" 
+                            ? "bg-amber-500/10 border-amber-500/20 text-amber-300 animate-pulse" 
+                            : "bg-red-500/10 border-red-500/20 text-red-400"
+                        }`}>
+                          <div className="flex gap-2 items-start">
+                            {pushStatus.type === "loading" && <div className="w-3.5 h-3.5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin shrink-0 mt-0.5" />}
+                            {pushStatus.type === "error" && <span className="text-red-400 shrink-0">⚠</span>}
+                            <span>{pushStatus.message}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      <form onSubmit={handleStkPushSubmit} className="flex flex-col gap-4 text-sm font-sans mb-6">
+                        {/* Phone field */}
                         <div>
-                          <span>{pushStatus.message}</span>
-                          {pushStatus.type === "success" && (
-                            <div className="mt-4 print-receipt hidden print:block border-t border-emerald-500/30 pt-3">
-                              <h4 className="font-bold text-lg text-slate-100 mb-2">Donation Receipt</h4>
-                              <p className="text-slate-300"><strong>Amount:</strong> KES {amount === "custom" ? customAmount : amount}</p>
-                              <p className="text-slate-300"><strong>Phone:</strong> +254 {phone}</p>
-                              <p className="text-slate-300"><strong>Date:</strong> {new Date().toLocaleString()}</p>
+                          <label className="block text-xs font-mono text-slate-400 mb-1.5 uppercase tracking-wide flex items-center gap-1">
+                            <Smartphone className="w-3.5 h-3.5 text-amber-500" />
+                            M-Pesa Phone Number
+                          </label>
+                          <div className="flex bg-slate-950 border border-slate-800 rounded-lg overflow-hidden focus-within:border-amber-500 transition-all focus-within:ring-1 focus-within:ring-amber-500/20">
+                            <div className="bg-slate-900 px-3.5 py-2.5 font-mono text-sm text-slate-400 border-r border-slate-800 flex items-center select-none">
+                              🇰🇪 +254
+                            </div>
+                            <input 
+                              type="text" 
+                              required
+                              value={phone}
+                              onChange={(e) => setPhone(e.target.value)}
+                              className="flex-1 bg-transparent p-2.5 outline-none font-mono text-sm text-white"
+                              placeholder="712345678"
+                            />
+                          </div>
+                          <p className="text-[10px] text-slate-500 mt-1 leading-normal font-sans">
+                            Enter your Safaricom mobile number (e.g. 0712345678 or 712345678)
+                          </p>
+                        </div>
+
+                        {/* Amount selectors */}
+                        <div>
+                          <label className="block text-xs font-mono text-slate-400 mb-1.5 uppercase tracking-wide flex items-center gap-1">
+                            <Coins className="w-3.5 h-3.5 text-amber-500" />
+                            Select Gift Amount (KES)
+                          </label>
+                          <div className="grid grid-cols-4 gap-2 mb-3">
+                            {["200", "500", "1000", "2500"].map((preset) => (
+                              <button
+                                key={preset}
+                                type="button"
+                                onClick={() => {
+                                  setAmount(preset);
+                                  setCustomAmount("");
+                                }}
+                                className={`py-2 rounded-lg text-xs font-mono font-bold border transition-all cursor-pointer ${
+                                  amount === preset 
+                                    ? "bg-amber-500 text-slate-950 border-amber-500 font-extrabold shadow" 
+                                    : "bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700"
+                                }`}
+                              >
+                                {preset}
+                              </button>
+                            ))}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setAmount("custom")}
+                            className={`w-full py-2.5 rounded-lg text-xs font-sans font-bold border transition-all cursor-pointer ${
+                              amount === "custom" 
+                                ? "bg-amber-500 text-slate-950 border-amber-500 font-extrabold shadow mb-2" 
+                                : "bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700 mb-0"
+                            }`}
+                          >
+                            Enter Custom Amount
+                          </button>
+
+                          {amount === "custom" && (
+                            <div className="relative mt-2">
+                              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-slate-450 font-bold text-xs select-none">KES</span>
+                              <input 
+                                type="number"
+                                required
+                                min="1"
+                                value={customAmount}
+                                onChange={(e) => setCustomAmount(e.target.value)}
+                                className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-lg p-2.5 pl-12 outline-none font-sans text-sm focus:ring-1 focus:ring-amber-500/20 text-white transition-all"
+                                placeholder="Type contribution amount..."
+                              />
                             </div>
                           )}
                         </div>
-                      </div>
-                      
-                      {pushStatus.type === "success" && (
+
                         <button
-                          onClick={() => {
-                            document.body.classList.add('print-mode-receipt');
-                            window.print();
-                            setTimeout(() => { document.body.classList.remove('print-mode-receipt'); }, 500);
-                          }}
-                          className="mt-4 px-4 py-2 border border-emerald-500/30 rounded-lg text-emerald-400 font-bold hover:bg-emerald-500/10 transition-colors cursor-pointer print-hidden flex items-center justify-center w-full shadow-lg shadow-emerald-500/5 hover:shadow-emerald-500/20"
+                          type="submit"
+                          disabled={isPushing}
+                          className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-sans font-bold py-3 px-6 rounded-xl shadow-lg transition-all cursor-pointer mt-2 flex items-center justify-center gap-2"
                         >
-                          Print Receipt
+                          {isPushing ? (
+                            <>
+                              <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                              Verifying & Prompting Pin...
+                            </>
+                          ) : (
+                            `Send Lipa Na M-Pesa Prompt (KES ${amount === "custom" ? customAmount || "0" : amount})`
+                          )}
                         </button>
-                      )}
-                    </div>
-                  )}
+                      </form>
 
-                  <form onSubmit={handleStkPushSubmit} className="flex flex-col gap-4 text-sm font-sans mb-6">
-                    {/* Phone field */}
-                    <div>
-                      <label className="block text-xs font-mono text-slate-400 mb-1.5 uppercase tracking-wide flex items-center gap-1">
-                        <Smartphone className="w-3.5 h-3.5 text-amber-500" />
-                        M-Pesa Phone Number
-                      </label>
-                      <div className="flex bg-slate-950 border border-slate-800 rounded-lg overflow-hidden focus-within:border-amber-500 transition-all focus-within:ring-1 focus-within:ring-amber-500/20">
-                        <div className="bg-slate-900 px-3.5 py-2.5 font-mono text-sm text-slate-400 border-r border-slate-800 flex items-center select-none">
-                          🇰🇪 +254
-                        </div>
-                        <input 
-                          type="text" 
-                          required
-                          value={phone}
-                          onChange={(e) => setPhone(e.target.value)}
-                          className="flex-1 bg-transparent p-2.5 outline-none font-mono text-sm text-white"
-                          placeholder="712345678"
-                        />
-                      </div>
-                      <p className="text-[10px] text-slate-500 mt-1 leading-normal font-sans">
-                        Enter your Safaricom mobile number (e.g. 0712345678 or 712345678)
-                      </p>
-                    </div>
+                      {/* SECTION: Media Preview of Till */}
+                      <div className="border-t border-slate-800 pt-5 mt-5">
+                        <p className="block text-xs font-mono text-slate-400 mb-2 uppercase tracking-wide flex items-center gap-1">
+                          <Eye className="w-3.5 h-3.5 text-amber-500" />
+                          Till Media Poster Preview
+                        </p>
 
-                    {/* Amount selectors */}
-                    <div>
-                      <label className="block text-xs font-mono text-slate-400 mb-1.5 uppercase tracking-wide flex items-center gap-1">
-                        <Coins className="w-3.5 h-3.5 text-amber-500" />
-                        Select Gift Amount (KES)
-                      </label>
-                      <div className="grid grid-cols-4 gap-2 mb-3">
-                        {["200", "500", "1000", "2500"].map((preset) => (
-                          <button
-                            key={preset}
-                            type="button"
-                            onClick={() => {
-                              setAmount(preset);
-                              setCustomAmount("");
-                            }}
-                            className={`py-2 rounded-lg text-xs font-mono font-bold border transition-all cursor-pointer ${
-                              amount === preset 
-                                ? "bg-amber-500 text-slate-950 border-amber-500 font-extrabold shadow" 
-                                : "bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700"
-                            }`}
+                        {mpesaConfig.tillImage ? (
+                          /* Loaded custom poster media file */
+                          <div 
+                            className="relative group cursor-pointer border border-slate-800 rounded-xl overflow-hidden aspect-video shadow-md bg-slate-950 p-2 flex items-center justify-center max-h-52" 
+                            onClick={() => setShowPosterModal(true)}
+                            title="Click to enlarge M-Pesa sticker"
                           >
-                            {preset}
-                          </button>
-                        ))}
+                            <img 
+                              src={mpesaConfig.tillImage} 
+                              alt="Lipa Na M-Pesa Till Poster Detail" 
+                              className="max-h-full max-w-full object-contain transition-all group-hover:scale-[1.02] duration-500" 
+                            />
+                            <div className="absolute inset-0 bg-slate-950/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center duration-300 gap-1.5">
+                              <Eye className="w-6 h-6 text-amber-400" />
+                              <span className="text-[10px] bg-amber-500 text-slate-955 font-mono font-bold uppercase tracking-wider px-3 py-1 rounded-full">
+                                Click to Expand
+                              </span>
+                            </div>
+                            <div className="absolute bottom-2 left-3 bg-slate-950/85 px-2.5 py-0.5 rounded border border-slate-800 text-[9px] font-mono font-semibold tracking-wider uppercase text-slate-400">
+                              Custom Poster
+                            </div>
+                          </div>
+                        ) : (
+                          /* Stylistic Realistic Safaricom Terminal card fallback */
+                          <div 
+                            className="relative group cursor-pointer bg-emerald-50 rounded-xl border-2 border-emerald-500 overflow-hidden text-slate-800 p-4 shadow-lg transition-transform hover:-translate-y-0.5 duration-300 select-none flex flex-col gap-3 font-sans"
+                            onClick={() => setShowPosterModal(true)}
+                            title="Click to show fullscreen helper modal"
+                          >
+                            <div className="bg-emerald-600 px-3 py-1 text-[10px] font-bold text-white uppercase tracking-wider flex justify-between items-center rounded">
+                              <span>Lipa Na M-Pesa</span>
+                              <span className="text-[8px] bg-emerald-800/40 px-1.5 py-0.5 rounded text-emerald-100">by Safaricom</span>
+                            </div>
+                            <div className="text-center py-2 bg-white/40 rounded-lg">
+                              <p className="text-[9px] uppercase font-mono tracking-widest text-slate-500 font-semibold">
+                                {mpesaConfig.tillType === "paybill" ? "Paybill Business No:" : "Buy Goods Till No:"}
+                              </p>
+                              <h4 className="text-3xl font-extrabold tracking-wider text-emerald-800 font-mono select-all">
+                                {mpesaConfig.tillNumber}
+                              </h4>
+                              <p className="text-[11px] text-slate-700 font-bold uppercase mt-1">
+                                {mpesaConfig.tillName}
+                              </p>
+                            </div>
+                            <div className="text-[9px] text-slate-500 font-mono border-t border-dashed border-slate-200.5 pt-2 flex justify-between">
+                              <span>CHARGES: NONE</span>
+                              <span className="text-emerald-700 font-bold flex items-center gap-0.5">
+                                🔍 TAP TO EXPAND
+                              </span>
+                            </div>
+                          </div>
+                        )}
                       </div>
-
-                      <button
-                        type="button"
-                        onClick={() => setAmount("custom")}
-                        className={`w-full py-2.5 rounded-lg text-xs font-sans font-bold border transition-all cursor-pointer ${
-                          amount === "custom" 
-                            ? "bg-amber-500 text-slate-950 border-amber-500 font-extrabold shadow mb-2" 
-                            : "bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700 mb-0"
-                        }`}
-                      >
-                        Enter Custom Amount
-                      </button>
-
-                      {amount === "custom" && (
-                        <div className="relative mt-2">
-                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-slate-450 font-bold text-xs select-none">KES</span>
-                          <input 
-                            type="number"
-                            required
-                            min="1"
-                            value={customAmount}
-                            onChange={(e) => setCustomAmount(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-lg p-2.5 pl-12 outline-none font-sans text-sm focus:ring-1 focus:ring-amber-500/20 text-white transition-all"
-                            placeholder="Type contribution amount..."
-                          />
-                        </div>
-                      )}
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={isPushing}
-                      className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-sans font-bold py-3 px-6 rounded-xl shadow-lg transition-all cursor-pointer mt-2 flex items-center justify-center gap-2"
-                    >
-                      {isPushing ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                          Verifying & Prompting Pin...
-                        </>
-                      ) : (
-                        `Send Lipa Na M-Pesa Prompt (KES ${amount === "custom" ? customAmount || "0" : amount})`
-                      )}
-                    </button>
-                  </form>
-
-                  {/* SECTION: Media Preview of Till */}
-                  <div className="border-t border-slate-800 pt-5 mt-5">
-                    <p className="block text-xs font-mono text-slate-400 mb-2 uppercase tracking-wide flex items-center gap-1">
-                      <Eye className="w-3.5 h-3.5 text-amber-500" />
-                      Till Media Poster Preview
-                    </p>
-
-                    {mpesaConfig.tillImage ? (
-                      /* Loaded custom poster media file */
-                      <div 
-                        className="relative group cursor-pointer border border-slate-800 rounded-xl overflow-hidden aspect-video shadow-md bg-slate-950 p-2 flex items-center justify-center max-h-52" 
-                        onClick={() => setShowPosterModal(true)}
-                        title="Click to enlarge M-Pesa sticker"
-                      >
-                        <img 
-                          src={mpesaConfig.tillImage} 
-                          alt="Lipa Na M-Pesa Till Poster Detail" 
-                          className="max-h-full max-w-full object-contain transition-all group-hover:scale-[1.02] duration-500" 
-                        />
-                        <div className="absolute inset-0 bg-slate-950/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center duration-300 gap-1.5">
-                          <Eye className="w-6 h-6 text-amber-400" />
-                          <span className="text-[10px] bg-amber-500 text-slate-955 font-mono font-bold uppercase tracking-wider px-3 py-1 rounded-full">
-                            Click to Expand
-                          </span>
-                        </div>
-                        <div className="absolute bottom-2 left-3 bg-slate-950/85 px-2.5 py-0.5 rounded border border-slate-800 text-[9px] font-mono font-semibold tracking-wider uppercase text-slate-400">
-                          Custom Poster
-                        </div>
-                      </div>
-                    ) : (
-                      /* Stylistic Realistic Safaricom Terminal card fallback */
-                      <div 
-                        className="relative group cursor-pointer bg-emerald-50 rounded-xl border-2 border-emerald-500 overflow-hidden text-slate-800 p-4 shadow-lg transition-transform hover:-translate-y-0.5 duration-300 select-none flex flex-col gap-3 font-sans"
-                        onClick={() => setShowPosterModal(true)}
-                        title="Click to show fullscreen helper modal"
-                      >
-                        <div className="bg-emerald-600 px-3 py-1 text-[10px] font-bold text-white uppercase tracking-wider flex justify-between items-center rounded">
-                          <span>Lipa Na M-Pesa</span>
-                          <span className="text-[8px] bg-emerald-800/40 px-1.5 py-0.5 rounded text-emerald-100">by Safaricom</span>
-                        </div>
-                        <div className="text-center py-2 bg-white/40 rounded-lg">
-                          <p className="text-[9px] uppercase font-mono tracking-widest text-slate-500 font-semibold">
-                            {mpesaConfig.tillType === "paybill" ? "Paybill Business No:" : "Buy Goods Till No:"}
-                          </p>
-                          <h4 className="text-3xl font-extrabold tracking-wider text-emerald-800 font-mono select-all">
-                            {mpesaConfig.tillNumber}
-                          </h4>
-                          <p className="text-[11px] text-slate-700 font-bold uppercase mt-1">
-                            {mpesaConfig.tillName}
-                          </p>
-                        </div>
-                        <div className="text-[9px] text-slate-500 font-mono border-t border-dashed border-slate-200.5 pt-2 flex justify-between">
-                          <span>CHARGES: NONE</span>
-                          <span className="text-emerald-700 font-bold flex items-center gap-0.5">
-                            🔍 TAP TO EXPAND
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                    </>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>

@@ -111,11 +111,16 @@ export default function Header({ isAdmin, onOpenAdmin, onLogout, activeSection, 
       {/* Action Buttons: Theme Toggle & Admin Module & Mobile Hamburger */}
       <div className="flex items-center gap-1.5 sm:gap-3">
         {user ? (
-          <div className="flex items-center gap-2 mr-2">
-            <img src={user.photoURL || ""} alt={user.displayName || "User"} className="w-6 h-6 sm:w-8 sm:h-8 rounded-full border border-slate-700" title={user.displayName || "User Profile"} />
+          <div className="flex items-center gap-2 mr-1 sm:mr-2">
+            <img 
+              src={user.photoURL || "https://api.dicebear.com/7.x/adventurer/svg?seed=Guest"} 
+              alt={user.displayName || "User"} 
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border border-amber-500/30" 
+              title={user.displayName || "User Profile"} 
+            />
             <button
               onClick={onGoogleLogout}
-              className={`text-[10px] sm:text-xs font-semibold px-2 py-1 rounded transition-colors ${theme === "dark" ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-slate-900"}`}
+              className={`text-[10px] sm:text-xs font-semibold px-2 py-1 rounded transition-colors ${theme === "dark" ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-slate-905"}`}
             >
               Sign Out
             </button>
@@ -123,9 +128,9 @@ export default function Header({ isAdmin, onOpenAdmin, onLogout, activeSection, 
         ) : (
           <button
             onClick={onGoogleLogin}
-            className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer transition-all mr-2 ${theme === "dark" ? "bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-300" : "bg-slate-100 border-slate-300 hover:bg-slate-200 text-slate-700"}`}
+            className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold cursor-pointer transition-all mr-2 ${theme === "dark" ? "bg-slate-800 border-slate-700 hover:bg-slate-705 text-amber-400 hover:text-amber-300" : "bg-slate-100 border-slate-300 hover:bg-slate-200 text-slate-700"}`}
           >
-            Google Sign-In
+            Sign In / Sign Up
           </button>
         )}
 
@@ -209,6 +214,44 @@ export default function Header({ isAdmin, onOpenAdmin, onLogout, activeSection, 
                 : "bg-white border-slate-200 text-slate-800"
             }`}
           >
+            {/* Mobile User Profiles or Quick Login Buttons */}
+            <div className={`p-2 border-b mb-1 flex items-center justify-between ${theme === "dark" ? "border-slate-800" : "border-slate-100"}`}>
+              {user ? (
+                <div className="flex items-center gap-2.5">
+                  <img 
+                    src={user.photoURL || "https://api.dicebear.com/7.x/adventurer/svg?seed=Guest"} 
+                    alt={user.displayName || "User"} 
+                    className="w-8 h-8 rounded-full border border-amber-500/30" 
+                  />
+                  <div>
+                    <p className="text-xs font-bold leading-tight">{user.displayName || "Ambassador Guest"}</p>
+                    <p className="text-[9px] text-slate-550 font-mono">{user.email || "support@kachamba.org"}</p>
+                  </div>
+                </div>
+              ) : (
+                <span className="text-[10px] font-mono tracking-wider text-slate-400 uppercase">Ambassador Portal Access</span>
+              )}
+
+              {user ? (
+                <button
+                  onClick={onGoogleLogout}
+                  className="text-xs bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white px-3 py-1.5 rounded-lg border border-red-500/20 font-sans font-semibold transition-all"
+                >
+                  Sign Out
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    if (onGoogleLogin) onGoogleLogin();
+                  }}
+                  className="text-xs bg-amber-500 text-slate-950 font-sans font-bold px-4 py-1.5 rounded-lg shadow-sm transition-all"
+                >
+                  Sign In
+                </button>
+              )}
+            </div>
+
             {navItems.map((item) => (
               <button
                 key={item.id}

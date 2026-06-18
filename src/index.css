@@ -352,73 +352,150 @@ html.light, .light {
  * PRINT MEDIA QUERIES
  * ========================================== */
 @media print {
-  /* Hide navigation, footers, background elements and interactive elements */
-  nav, footer, .chat-bot-window, video, button, .print-hidden, a[href^="http"]:after {
-    display: none !important;
-  }
-
-  body {
-    background: transparent !important;
-    color: black !important;
+  /* Global print defaults */
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
-  * {
+  /* Force full height and visibility for all scrollable parents, avoiding truncated pages */
+  #root,
+  main {
+    overflow: visible !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    position: static !important;
     box-shadow: none !important;
+    text-shadow: none !important;
   }
 
-  /* Reset container widths and margins for clean printing */
-  main, section {
-    width: 100% !important;
-    max-width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: none !important;
-    background: transparent !important;
+  /* Default print hides */
+  nav, 
+  header, 
+  footer, 
+  .sticky, 
+  .chat-bot-window, 
+  video, 
+  button, 
+  input, 
+  select, 
+  textarea, 
+  form, 
+  .print-hidden,
+  .print\:hidden {
+    display: none !important;
   }
 
   /* 
-   * To print the ITINERARY cleanly:
-   * We hide all sections on the page *except* #itinerary. 
+   * ITINERARY PRINT MODE 
+   * Isolate the #itinerary section by hiding all adjacent sections/elements under print-mode-itinerary
    */
-  body.print-mode-itinerary section:not(#itinerary) {
+  body.print-mode-itinerary #home,
+  body.print-mode-itinerary #activities,
+  body.print-mode-itinerary #leadership,
+  body.print-mode-itinerary #music,
+  body.print-mode-itinerary #gallery,
+  body.print-mode-itinerary #join,
+  body.print-mode-itinerary #contact,
+  body.print-mode-itinerary .sticky,
+  body.print-mode-itinerary header,
+  body.print-mode-itinerary footer,
+  body.print-mode-itinerary .chat-bot-window {
     display: none !important;
   }
 
-  /*
-   * To print the RECEIPT cleanly:
-   * We hide all sections except #join, and inside #join, hide everything but the receipt.
-   */
-  body.print-mode-receipt section:not(#join) {
+  body.print-mode-itinerary #itinerary {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    background: #ffffff !important;
+  }
+
+  body.print-mode-itinerary #itinerary * {
+    color: #000000 !important;
+    background: transparent !important;
+    border-color: #e2e8f0 !important;
+  }
+
+  /* Avoid splitting an itinerary/calendar entry across two physical sheets */
+  body.print-mode-itinerary [id^="itinerary-dispatch-"] {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    margin-bottom: 2rem !important;
+    padding: 1.5rem !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    background: #ffffff !important;
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 1.5rem !important;
+  }
+
+  /* Hide media preview icons, buttons status badges in dispatch item on print */
+  body.print-mode-itinerary [id^="itinerary-dispatch-"] button,
+  body.print-mode-itinerary [id^="itinerary-dispatch-"] .absolute.inset-x-2.bottom-2 {
     display: none !important;
   }
+
+  /* 
+   * RECEIPT PRINT MODE 
+   * Isolate the Join section and only expose the digital receipt
+   */
+  body.print-mode-receipt #home,
+  body.print-mode-receipt #itinerary,
+  body.print-mode-receipt #activities,
+  body.print-mode-receipt #leadership,
+  body.print-mode-receipt #music,
+  body.print-mode-receipt #gallery,
+  body.print-mode-receipt #contact,
+  body.print-mode-receipt .sticky,
+  body.print-mode-receipt header,
+  body.print-mode-receipt footer,
+  body.print-mode-receipt .chat-bot-window {
+    display: none !important;
+  }
+
+  body.print-mode-receipt #join {
+    display: block !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
   body.print-mode-receipt #join form,
   body.print-mode-receipt #join .mb-5:not(#mpesa-receipt-container),
   body.print-mode-receipt #join .flex:not(#mpesa-receipt-container *) {
     display: none !important;
   }
-  
-  body.print-mode-receipt #mpesa-receipt {
+
+  body.print-mode-receipt #mpesa-receipt-container {
     display: block !important;
-    color: #000 !important;
-  }
-  body.print-mode-receipt #mpesa-receipt * {
-    color: #000 !important;
-    background: transparent !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
-  body.print-mode-itinerary #itinerary *,
-  body.print-mode-receipt #join * {
-    color: #000 !important;
-    background: transparent !important;
-    border-color: #ccc !important;
+  body.print-mode-receipt #mpesa-receipt {
+    display: block !important;
+    margin: 1.5in auto !important;
+    padding: 2.5rem !important;
+    border: 2px solid #000000 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    max-width: 6.5in !important;
   }
-  body.print-mode-itinerary .bg-slate-900,
-  body.print-mode-itinerary .bg-slate-950\/60,
-  body.print-mode-receipt .bg-slate-900 {
-    background: #fff !important;
-    border: 1px solid #ccc !important;
+
+  body.print-mode-receipt #mpesa-receipt * {
+    color: #000000 !important;
+    background: transparent !important;
+    border-color: #000000 !important;
   }
 }
 

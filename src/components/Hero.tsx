@@ -1,5 +1,5 @@
 import React from "react";
-import { ChevronRight, Calendar, Volume2 } from "lucide-react";
+import { ChevronRight, Calendar, Volume2, ChevronDown } from "lucide-react";
 import { motion } from "motion/react";
 
 interface HeroProps {
@@ -183,6 +183,30 @@ export default function Hero({ onAskAI }: HeroProps) {
             <motion.div whileHover={{ scale: 1.1 }} className="text-3xl font-bold font-sans text-amber-400">100%</motion.div>
             <div className="text-xs font-sans text-slate-500 uppercase tracking-widest mt-1">SDA Youth Vocal</div>
           </div>
+        </motion.div>
+      </motion.div>
+
+      {/* Subtle Scroll Down Indicator */}
+      <motion.div 
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 1.8, duration: 1 }}
+        onClick={() => scrollTo("itinerary")}
+        className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-1.5 cursor-pointer group text-slate-400 hover:text-amber-400 transition-colors"
+      >
+        <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-slate-500 group-hover:text-amber-400 transition-colors select-none">
+          Scroll to Explore
+        </span>
+        <motion.div
+          animate={{ y: [0, 8, 0] }}
+          transition={{
+            duration: 1.8,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+          className="flex items-center justify-center bg-slate-900/60 p-1.5 rounded-full border border-slate-800/80 group-hover:border-amber-500/40 group-hover:bg-amber-500/10 transition-all shadow-lg"
+        >
+          <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-400 transition-colors" />
         </motion.div>
       </motion.div>
     </section>

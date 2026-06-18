@@ -11,6 +11,7 @@ import {
 import { User as FirebaseUser } from "firebase/auth";
 import { doc, getDoc, setDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { db } from "../lib/firebase";
+import { jsPDF } from "jspdf";
 
 interface ItineraryProps {
   items: ItineraryItem[];
@@ -363,6 +364,202 @@ export default function Itinerary({
     }
   };
 
+  // Generate and download premium quality vector PDF of the choral schedule
+  const downloadItineraryPDF = () => {
+    try {
+      const doc = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4"
+      });
+
+      const pageWidth = 210;
+      const pageHeight = 297;
+      const margin = 15;
+      const contentWidth = pageWidth - (margin * 2); // 180mm
+
+      let y = 20;
+
+      // Draw topmost accent bar
+      doc.setFillColor(15, 23, 42); // slate-900
+      doc.rect(margin, y, contentWidth, 3, "F");
+      y += 8;
+
+      // Header block
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(22);
+      doc.setTextColor(15, 23, 42); // slate-900
+      doc.text("KACHAMBA CHORUS", margin, y);
+      y += 7;
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(180, 83, 9); // Amber-700
+      doc.text("OFFICIAL CHORAL MISSIONS GAZETTE & ITINERARY", margin, y);
+      y += 5.5;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(100, 116, 139); // Slate-500
+      const filterLabel = activeTab.toUpperCase() + " MISSIONS";
+      const exportTime = new Date().toLocaleDateString("en-US", { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      doc.text(`W.K.U.C. Ministry Gazette  •  Status Filters: ${filterLabel}  •  Exported: ${exportTime}`, margin, y);
+      y += 5;
+
+      // Header divider line (thin card separators)
+      doc.setDrawColor(226, 232, 240); // slate-200
+      doc.setLineWidth(0.5);
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 10;
+
+      if (filteredItems.length === 0) {
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(11);
+        doc.setTextColor(100, 116, 139);
+        doc.text("No active itinerary matching this category selection details.", margin, y);
+      } else {
+        filteredItems.forEach((item, index) => {
+          const itemNotes = item.notes || "";
+          // Split notes to size to estimate height precisely
+          const noteTextLines: string[] = itemNotes 
+            ? doc.splitTextToSize(itemNotes, contentWidth - 20) 
+            : [];
+          
+          const titleTextLines: string[] = doc.splitTextToSize(item.event.toUpperCase(), contentWidth - 15);
+          const locationLines: string[] = doc.splitTextToSize(`Venue: ${item.location}`, contentWidth - 15);
+
+          // Height estimation:
+          // Padding top(6) + index line(5) + title lines(lineCount * 5.5) + location lines(locationCount * 5) + host line(5) + tag line(5) + note headers/lines(6 + lineCount * 4) + padding bottom(6)
+          let itemHeight = 32;
+          itemHeight += titleTextLines.length * 5.5;
+          itemHeight += locationLines.length * 5;
+          if (itemNotes) {
+            itemHeight += 10 + (noteTextLines.length * 4.5);
+          }
+
+          // Check if drawing this card overrides page margin limits
+          if (y + itemHeight > pageHeight - margin) {
+            doc.addPage();
+            y = 20;
+
+            // Header for next page
+            doc.setFillColor(15, 23, 42);
+            doc.rect(margin, y, contentWidth, 1.5, "F");
+            y += 5;
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(8);
+            doc.setTextColor(100, 116, 139);
+            doc.text(`KACHAMBA CHORUS MINISTER GAZETTE  •  Page ${doc.getNumberOfPages()}`, margin, y);
+            y += 4;
+
+            doc.setDrawColor(241, 245, 249);
+            doc.line(margin, y, pageWidth - margin, y);
+            y += 8;
+          }
+
+          const startY = y;
+
+          // Background card fill
+          doc.setFillColor(250, 250, 250); // slight gray panel
+          doc.rect(margin, y, contentWidth, itemHeight, "F");
+
+          // Sidebar left border accent
+          let r = 100, g = 116, b = 139; // grey (past)
+          if (item.status === "Confirmed") {
+            r = 217; g = 119; b = 6;  // amber-600
+          } else if (item.status === "Tentative") {
+            r = 225; g = 29; b = 72;  // rose-600
+          }
+          doc.setFillColor(r, g, b);
+          doc.rect(margin, y, 3, itemHeight, "F");
+
+          // Outer card border line
+          doc.setDrawColor(226, 232, 240); // slate-200
+          doc.setLineWidth(0.25);
+          doc.rect(margin, y, contentWidth, itemHeight, "S");
+
+          // Sequence Index and Status badge
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(9);
+          doc.setTextColor(r, g, b);
+          doc.text(`MISSION SECTOR #${index + 1}    [${item.status.toUpperCase()}]`, margin + 6, y + 6);
+
+          // Right aligned Date & Time
+          const dateStr = formatFriendlyDate(item.date);
+          const timeStr = item.time ? ` @ ${item.time}` : "";
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(9.5);
+          doc.setTextColor(51, 65, 85); // slate-700
+          doc.text(`${dateStr}${timeStr}`, pageWidth - margin - 6, y + 6, { align: "right" });
+
+          // Event Title Text drawing
+          y += 12;
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(11.5);
+          doc.setTextColor(15, 23, 42); // slate-900
+          titleTextLines.forEach((tLine) => {
+            doc.text(tLine, margin + 6, y);
+            y += 5.5;
+          });
+
+          // Venue Location
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(9.5);
+          doc.setTextColor(71, 85, 105); // slate-600
+          locationLines.forEach((lLine) => {
+            doc.text(lLine, margin + 6, y);
+            y += 5;
+          });
+
+          // Lead Host Body
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(9);
+          doc.setTextColor(100, 116, 139);
+          doc.text(`Lead Host: ${item.host || "Ministry Organizers"}`, margin + 6, y);
+          y += 5;
+
+          // Classification Tag
+          const classification = getCategoryTag(item).label;
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(8);
+          doc.setTextColor(r, g, b);
+          doc.text(`Classification: ${classification}`, margin + 6, y);
+
+          // Pastoral Song Directives notes
+          if (itemNotes) {
+            y += 5.5;
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(8.5);
+            doc.setTextColor(51, 65, 85);
+            doc.text("Worship Directives & Choir Directs:", margin + 6, y);
+            y += 4.5;
+
+            doc.setFont("helvetica", "italic");
+            doc.setFontSize(8.5);
+            doc.setTextColor(100, 116, 139);
+            noteTextLines.forEach((noteLine) => {
+              doc.text(`"${noteLine}"`, margin + 8, y);
+              y += 4.5;
+            });
+          }
+
+          // Advance cursor space to bottom of element
+          y = startY + itemHeight + 6;
+        });
+      }
+
+      doc.save(`Kachamba_Chorus_Schedule_${activeTab.toLowerCase()}.pdf`);
+    } catch (err) {
+      console.error("Failed to compile or generate PDF file download:", err);
+    }
+  };
+
   // Setup inline quick editing
   const startInlineEdit = (item: ItineraryItem) => {
     setEditingItemId(item.id);
@@ -616,7 +813,7 @@ export default function Itinerary({
       <div className="absolute bottom-10 right-10 w-[500px] h-[500px] bg-rose-600/[0.02] rounded-full blur-[120px] pointer-events-none" />
 
       {/* Live Dispatches Scrolling Ticker - News Inspired */}
-      <div className="max-w-6xl mx-auto mb-10 bg-slate-900/40 border border-slate-900 rounded-xl overflow-hidden py-3 px-4 flex items-center gap-4">
+      <div className="max-w-6xl mx-auto mb-10 bg-slate-900/40 border border-slate-900 rounded-xl overflow-hidden py-3 px-4 flex items-center gap-4 print:hidden">
         <span className="shrink-0 bg-rose-800 text-white text-[9px] font-sans font-bold uppercase tracking-widest px-2.5 py-1 rounded flex items-center gap-1.5 animate-pulse shadow-md shadow-rose-950/40">
           <Newspaper className="w-3.5 h-3.5" />
           <span>LATEST MINISTRY DISPATCHES</span>
@@ -652,7 +849,14 @@ export default function Itinerary({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4 print:hidden">
+            <button
+              onClick={downloadItineraryPDF}
+              className="flex items-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-450 hover:to-amber-550 text-slate-950 font-sans font-extrabold text-xs uppercase tracking-wider px-5 py-3.5 rounded-xl transition-all cursor-pointer shadow-lg shadow-amber-500/10 active:scale-95 duration-100"
+            >
+               <Download className="w-4 h-4 shrink-0 stroke-[2.5]" />
+               <span>Download PDF</span>
+            </button>
             <button
               onClick={() => {
                 document.body.classList.add('print-mode-itinerary');
@@ -679,108 +883,244 @@ export default function Itinerary({
 
         {/* Next Tour / Event Countdown Banner with 'Days Until' dynamic countdown timer */}
         {nextUpcomingEvent && timeLeft && (
-          <div className="mb-12 p-[1px] bg-gradient-to-r from-amber-500 via-rose-500 to-amber-600 rounded-3xl shadow-2xl shadow-amber-500/[0.05] animate-in fade-in duration-700">
-            <div className="bg-slate-950 rounded-[23px] p-6 md:p-8 flex flex-col lg:flex-row items-center justify-between gap-8">
-              
-              {/* Left Column: Event details, venue context, and admin quick edit shortcut */}
-              <div className="space-y-4 text-center lg:text-left flex-1 min-w-0">
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full text-amber-400 font-mono text-[9px] uppercase tracking-wider font-extrabold">
-                  <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-ping shrink-0" />
-                  <span>Next Upcoming Choral Destination</span>
-                </div>
-                
-                <h3 className="text-2xl md:text-3xl font-sans font-black text-white uppercase tracking-tight leading-none truncate max-w-full" title={nextUpcomingEvent.event}>
-                  {nextUpcomingEvent.event}
-                </h3>
-                
-                <div className="flex flex-wrap justify-center lg:justify-start items-center gap-x-4 gap-y-2 text-xs text-slate-400">
-                  <span className="flex items-center gap-1.5 min-w-0">
-                    <MapPin className="w-4 h-4 text-amber-500 shrink-0" />
-                    <span className="truncate">{nextUpcomingEvent.location}</span>
-                  </span>
-                  <span className="text-slate-800 hidden sm:inline">•</span>
-                  <span className="flex items-center gap-1.5 font-mono text-slate-300 shrink-0">
-                    <CalendarDays className="w-4 h-4 text-rose-500" />
-                    <span>{formatFriendlyDate(nextUpcomingEvent.date)}</span>
-                  </span>
-                  {nextUpcomingEvent.time && (
-                    <>
-                      <span className="text-slate-800">•</span>
-                      <span className="text-slate-300 font-mono">{nextUpcomingEvent.time}</span>
-                    </>
-                  )}
-                </div>
-                
-                {nextUpcomingEvent.notes && (
-                  <p className="text-xs text-slate-400 max-w-xl font-sans leading-relaxed line-clamp-2 italic border-l-2 border-slate-850 pl-3.5 py-0.5">
-                    "{nextUpcomingEvent.notes}"
-                  </p>
-                )}
-                
-                {/* Admin Quick Editor Portal toggle inside the countdown unit to guarantee Timeline is easily editable */}
-                {isAdmin && (
-                  <div className="pt-1 flex flex-wrap justify-center lg:justify-start gap-2 items-center">
-                    <span className="text-[10px] uppercase font-mono tracking-wider text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded flex items-center gap-1">
-                      <ShieldCheck className="w-3 h-3" />
-                      <span>Timeline Editor Mode</span>
+          <div className="mb-12 p-[1px] bg-gradient-to-r from-amber-500 via-rose-500 to-amber-600 rounded-3xl shadow-2xl shadow-amber-500/[0.05] animate-in fade-in duration-700 print:hidden">
+            <div className="bg-slate-950 rounded-[23px] p-6 md:p-8">
+              {editingItemId === nextUpcomingEvent.id && editForm ? (
+                <form onSubmit={handleInlineSave} className="space-y-6">
+                  <div className="flex items-center justify-between border-b border-slate-900 pb-4">
+                    <div className="flex items-center gap-2">
+                      <Edit className="w-5 h-5 text-amber-400 stroke-[2.5]" />
+                      <h4 className="font-sans font-black text-white uppercase tracking-tight text-lg">
+                        Edit Countdown Event Details
+                      </h4>
+                    </div>
+                    <span className="text-[9px] uppercase font-mono tracking-widest text-amber-500 font-extrabold bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded">
+                      Live Portal Editor
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => startInlineEdit(nextUpcomingEvent)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-sans font-black uppercase tracking-wider transition-all shadow-md shadow-amber-500/10 cursor-pointer"
-                      title="Directly edit dates and itinerary sequence parameters"
+                  </div>
+
+                  {saveError && (
+                    <div className="bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl p-3 text-xs flex items-center gap-2 font-sans">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{saveError}</span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-2 font-bold">Event & Core Title</label>
+                      <input 
+                        type="text" 
+                        required
+                        value={editForm.event}
+                        onChange={(e) => setEditForm({ ...editForm, event: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-amber-400 text-xs font-sans"
+                        placeholder="e.g. Sabbath Revival & Mission Concert"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-2 font-bold">Location / Venue</label>
+                      <input 
+                        type="text" 
+                        required
+                        value={editForm.location}
+                        onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-amber-400 text-xs font-sans"
+                        placeholder="e.g. Kisumu Central SDA Church"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-2 font-bold">Event Date</label>
+                      <input 
+                        type="date" 
+                        required
+                        value={editForm.date}
+                        onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-amber-300 outline-none focus:border-amber-400 text-xs font-sans font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-2 font-bold">Scheduled Time</label>
+                      <input 
+                        type="text" 
+                        value={editForm.time || ""}
+                        onChange={(e) => setEditForm({ ...editForm, time: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-amber-400 text-xs font-sans"
+                        placeholder="e.g. 09:00 AM - 05:00 PM"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-2 font-bold">Lead Host Body</label>
+                      <input 
+                        type="text" 
+                        required
+                        value={editForm.host || ""}
+                        onChange={(e) => setEditForm({ ...editForm, host: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-amber-400 text-xs font-sans"
+                        placeholder="e.g. SDA Central Choir"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-2 font-bold">Mission Status</label>
+                      <select 
+                        value={editForm.status}
+                        onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-amber-300 outline-none focus:border-amber-400 text-xs font-sans font-semibold"
+                      >
+                        <option value="Confirmed">Confirmed</option>
+                        <option value="Tentative">Tentative</option>
+                        <option value="Past">Past</option>
+                      </select>
+                    </div>
+
+                    <div className="md:col-span-2 lg:col-span-3">
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-2 font-bold">Pastoral Notes & Choral Directives</label>
+                      <textarea 
+                        rows={2}
+                        value={editForm.notes || ""}
+                        onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-amber-400 text-xs font-sans"
+                        placeholder="Song lists, dress codes, health directives..."
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-slate-900">
+                    <button 
+                      type="button" 
+                      onClick={cancelInlineEdit}
+                      className="px-4 py-2.5 rounded-xl border border-slate-850 text-slate-400 hover:text-white hover:bg-slate-900 text-xs font-sans font-bold uppercase tracking-wider transition-colors cursor-pointer"
                     >
-                      <Edit className="w-3.5 h-3.5" />
-                      <span>Timeline Quick-Edit</span>
+                      Nevermind
+                    </button>
+                    <button 
+                      type="submit" 
+                      disabled={savingId === editForm.id}
+                      className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-sans font-extrabold uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-lg shadow-amber-500/10"
+                    >
+                      {savingId === editForm.id ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Saving Changes...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-3.5 h-3.5 stroke-[3]" />
+                          <span>Publish Campaign</span>
+                        </>
+                      )}
                     </button>
                   </div>
-                )}
-              </div>
+                </form>
+              ) : (
+                <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-6 lg:gap-8 w-full">
+                  
+                  {/* Left Column: Event details, venue context, and admin quick edit shortcut */}
+                  <div className="space-y-4 text-center lg:text-left flex-1 min-w-0 w-full">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full text-amber-400 font-mono text-[9px] uppercase tracking-wider font-extrabold max-w-full">
+                      <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-ping shrink-0" />
+                      <span>Next Upcoming Choral Destination</span>
+                    </div>
+                    
+                    <h3 className="text-xl sm:text-2xl md:text-3xl font-sans font-black text-white uppercase tracking-tight leading-tight break-words" title={nextUpcomingEvent.event}>
+                      {nextUpcomingEvent.event}
+                    </h3>
+                    
+                    <div className="flex flex-wrap justify-center lg:justify-start items-center gap-x-3 gap-y-1.5 text-xs text-slate-400 w-full min-w-0">
+                      <span className="flex items-center gap-1.5 min-w-0 max-w-full">
+                        <MapPin className="w-4 h-4 text-amber-500 shrink-0" />
+                        <span className="break-words text-slate-300 font-medium text-left">{nextUpcomingEvent.location}</span>
+                      </span>
+                      <span className="text-slate-800 hidden sm:inline">•</span>
+                      <span className="flex items-center gap-1.5 font-mono text-slate-300 shrink-0">
+                        <CalendarDays className="w-4 h-4 text-rose-500" />
+                        <span>{formatFriendlyDate(nextUpcomingEvent.date)}</span>
+                      </span>
+                      {nextUpcomingEvent.time && (
+                        <>
+                          <span className="text-slate-800 hidden sm:inline">•</span>
+                          <span className="text-slate-350 font-mono text-xs shrink-0 font-semibold">{nextUpcomingEvent.time}</span>
+                        </>
+                      )}
+                    </div>
+                    
+                    {nextUpcomingEvent.notes && (
+                      <p className="text-xs text-slate-400 max-w-xl font-sans leading-relaxed break-words italic border-l-2 border-slate-800 pl-3.5 py-0.5 text-left lg:text-left">
+                        "{nextUpcomingEvent.notes}"
+                      </p>
+                    )}
+                    
+                    {/* Admin Quick Editor Portal toggle inside the countdown unit to guarantee Timeline is easily editable */}
+                    {isAdmin && (
+                      <div className="pt-1 flex flex-wrap justify-center lg:justify-start gap-2 items-center">
+                        <span className="text-[10px] uppercase font-mono tracking-wider text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded flex items-center gap-1">
+                          <ShieldCheck className="w-3 h-3" />
+                          <span>Timeline Editor Mode</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => startInlineEdit(nextUpcomingEvent)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-sans font-black uppercase tracking-wider transition-all shadow-md shadow-amber-500/10 cursor-pointer"
+                          title="Directly edit dates and itinerary sequence parameters"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                          <span>Timeline Quick-Edit</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
 
-              {/* Right Column: Beautiful animated digital countdown block */}
-              <div className="shrink-0 w-full lg:w-auto bg-slate-900/40 border border-slate-900/60 rounded-2xl p-6 flex items-center justify-center gap-4 sm:gap-6 shadow-xl relative overflow-hidden font-sans">
-                {/* Subtle visual lighting accent under the digital digits */}
-                <div className="absolute -inset-10 bg-amber-500/[0.03] rounded-full blur-2xl pointer-events-none" />
-                
-                {/* Years/Days countdown slot */}
-                <div className="flex flex-col items-center">
-                  <div className="text-3xl md:text-4xl font-extrabold font-mono text-white tracking-tight leading-none drop-shadow-md">
-                    {String(timeLeft.days).padStart(2, '0')}
+                  {/* Right Column: Beautiful animated digital countdown block - highly optimized and responsive avoiding text spills */}
+                  <div className="shrink-0 w-full lg:w-auto bg-slate-900/40 border border-slate-900/60 rounded-2xl p-4 sm:p-6 flex items-center justify-center gap-2 xs:gap-3 sm:gap-6 shadow-xl relative overflow-hidden font-sans">
+                    {/* Subtle visual lighting accent under the digital digits */}
+                    <div className="absolute -inset-10 bg-amber-500/[0.03] rounded-full blur-2xl pointer-events-none" />
+                    
+                    {/* Years/Days countdown slot */}
+                    <div className="flex flex-col items-center min-w-[42px] xs:min-w-[50px] sm:min-w-[60px] shrink-0">
+                      <div className="text-2xl xs:text-3xl sm:text-4xl font-extrabold font-mono text-white tracking-tight leading-none drop-shadow-md">
+                        {String(timeLeft.days).padStart(2, '0')}
+                      </div>
+                      <span className="text-[8px] sm:text-[9px] font-mono text-slate-500 uppercase tracking-widest mt-1.5 font-bold">Days</span>
+                    </div>
+                    
+                    <div className="text-lg sm:text-xl font-black font-mono text-amber-500/40 select-none -translate-y-1.5 shrink-0">:</div>
+                    
+                    {/* Hours countdown slot */}
+                    <div className="flex flex-col items-center min-w-[42px] xs:min-w-[50px] sm:min-w-[60px] shrink-0">
+                      <div className="text-2xl xs:text-3xl sm:text-4xl font-extrabold font-mono text-white tracking-tight leading-none drop-shadow-md">
+                        {String(timeLeft.hours).padStart(2, '0')}
+                      </div>
+                      <span className="text-[8px] sm:text-[9px] font-mono text-slate-500 uppercase tracking-widest mt-1.5 font-bold">Hours</span>
+                    </div>
+                    
+                    <div className="text-lg sm:text-xl font-black font-mono text-amber-500/40 select-none -translate-y-1.5 shrink-0">:</div>
+                    
+                    {/* Minutes countdown slot */}
+                    <div className="flex flex-col items-center min-w-[42px] xs:min-w-[50px] sm:min-w-[60px] shrink-0">
+                      <div className="text-2xl xs:text-3xl sm:text-4xl font-extrabold font-mono text-white tracking-tight leading-none drop-shadow-md">
+                        {String(timeLeft.minutes).padStart(2, '0')}
+                      </div>
+                      <span className="text-[8px] sm:text-[9px] font-mono text-slate-500 uppercase tracking-widest mt-1.5 font-bold">Mins</span>
+                    </div>
+                    
+                    <div className="text-lg sm:text-xl font-black font-mono text-amber-500/40 select-none -translate-y-1.5 shrink-0">:</div>
+                    
+                    {/* Seconds countdown slot with highlighted accent */}
+                    <div className="flex flex-col items-center min-w-[42px] xs:min-w-[50px] sm:min-w-[60px] shrink-0">
+                      <div className="text-2xl xs:text-3xl sm:text-4xl font-extrabold font-mono text-amber-400 tracking-tight leading-none drop-shadow-md animate-pulse">
+                        {String(timeLeft.seconds).padStart(2, '0')}
+                      </div>
+                      <span className="text-[8px] sm:text-[9px] font-mono text-amber-400 font-bold uppercase tracking-widest mt-1.5">Secs</span>
+                    </div>
                   </div>
-                  <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mt-1.5 font-bold">Days</span>
-                </div>
-                
-                <div className="text-xl font-black font-mono text-amber-500/40 select-none -translate-y-1.5">:</div>
-                
-                {/* Hours countdown slot */}
-                <div className="flex flex-col items-center">
-                  <div className="text-3xl md:text-4xl font-extrabold font-mono text-white tracking-tight leading-none drop-shadow-md">
-                    {String(timeLeft.hours).padStart(2, '0')}
-                  </div>
-                  <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mt-1.5 font-bold">Hours</span>
-                </div>
-                
-                <div className="text-xl font-black font-mono text-amber-500/40 select-none -translate-y-1.5">:</div>
-                
-                {/* Minutes countdown slot */}
-                <div className="flex flex-col items-center">
-                  <div className="text-3xl md:text-4xl font-extrabold font-mono text-white tracking-tight leading-none drop-shadow-md">
-                    {String(timeLeft.minutes).padStart(2, '0')}
-                  </div>
-                  <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mt-1.5 font-bold">Mins</span>
-                </div>
-                
-                <div className="text-xl font-black font-mono text-amber-500/40 select-none -translate-y-1.5">:</div>
-                
-                {/* Seconds countdown slot with highlighted accent */}
-                <div className="flex flex-col items-center">
-                  <div className="text-3xl md:text-4xl font-extrabold font-mono text-amber-400 tracking-tight leading-none drop-shadow-md animate-pulse">
-                    {String(timeLeft.seconds).padStart(2, '0')}
-                  </div>
-                  <span className="text-[9px] font-mono text-amber-400 font-bold uppercase tracking-widest mt-1.5">Secs</span>
-                </div>
-              </div>
 
+                </div>
+              )}
             </div>
           </div>
         )}

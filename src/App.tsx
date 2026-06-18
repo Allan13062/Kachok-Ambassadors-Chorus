@@ -18,6 +18,7 @@ import ContactUs from "./components/ContactUs";
 import ChatBot from "./components/ChatBot";
 import AdminPanel from "./components/AdminPanel";
 import Leaders from "./components/Leaders";
+import AuthModal from "./components/AuthModal";
 import { Activity, ItineraryItem, Inquiry, MusicData, Leader } from "./types";
 import { Music, Heart, Calendar, Compass, Star, Facebook, Youtube } from "lucide-react";
 
@@ -36,43 +37,56 @@ function FadeInSection({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   // Authentication state
-  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [user, setUser] = useState<any>(() => {
+    try {
+      const savedUser = localStorage.getItem("kachamba_portal_user");
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch {
+      return null;
+    }
+  });
+  
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(() => {
     return localStorage.getItem("kachamba_google_accessToken");
   });
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+      if (currentUser) {
+        const mappedUser = {
+          uid: currentUser.uid,
+          email: currentUser.email,
+          displayName: currentUser.displayName,
+          photoURL: currentUser.photoURL || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(currentUser.displayName || "Ambassador")}`,
+          providerId: "google"
+        };
+        setUser(mappedUser);
+        localStorage.setItem("kachamba_portal_user", JSON.stringify(mappedUser));
+      }
     });
     return () => unsubscribe();
   }, []);
 
-  const handleGoogleLogin = async () => {
-    const provider = new GoogleAuthProvider();
-    provider.addScope("https://www.googleapis.com/auth/meetings.space.created");
-    provider.addScope("https://www.googleapis.com/auth/forms.body");
-    provider.addScope("https://www.googleapis.com/auth/drive.file");
-    try {
-      const result = await signInWithPopup(auth, provider);
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      if (credential?.accessToken) {
-        setGoogleAccessToken(credential.accessToken);
-        localStorage.setItem("kachamba_google_accessToken", credential.accessToken);
-      }
-    } catch (error) {
-      console.error("Login failed:", error);
-    }
+  const handleGoogleLogin = () => {
+    setIsAuthModalOpen(true);
+  };
+
+  const handleAuthSuccess = (userData: any) => {
+    setUser(userData);
+    localStorage.setItem("kachamba_portal_user", JSON.stringify(userData));
   };
 
   const handleGoogleLogout = async () => {
     try {
       await signOut(auth);
-      setGoogleAccessToken(null);
-      localStorage.removeItem("kachamba_google_accessToken");
     } catch (error) {
-      console.error("Logout failed:", error);
+      console.warn("Firebase logout warning:", error);
     }
+    setUser(null);
+    setGoogleAccessToken(null);
+    localStorage.removeItem("kachamba_portal_user");
+    localStorage.removeItem("kachamba_google_accessToken");
   };
 
   // Database states loaded dynamically from server
@@ -882,6 +896,18 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* Modern Credentials and Multi-Social Authentications Modal */}
+      <AnimatePresence>
+        {isAuthModalOpen && (
+          <AuthModal 
+            isOpen={isAuthModalOpen} 
+            onClose={() => setIsAuthModalOpen(false)} 
+            onAuthSuccess={handleAuthSuccess}
+            theme={theme}
+          />
+        )}
+      </AnimatePresence>
 
     </div>
   );
