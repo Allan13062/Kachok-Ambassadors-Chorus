@@ -1,6 +1,9 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Mail, Lock, User, Eye, EyeOff, X, Facebook, AlertCircle, Check, ArrowRight, Shield, Music, Sparkles } from "lucide-react";
+import { auth, db } from "../lib/firebase";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, updateProfile, setPersistence, browserLocalPersistence, browserSessionPersistence } from "firebase/auth";
+import { doc, setDoc, getDoc } from "firebase/firestore";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -16,8 +19,10 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, theme }: Aut
   const [name, setName] = useState("");
   const [voicePart, setVoicePart] = useState("Listener");
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
 
   const [loading, setLoading] = useState(false);
+  const [socialLoading, setSocialLoading] = useState<"google" | "facebook" | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
@@ -42,72 +47,97 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, theme }: Aut
     setSuccessMsg("");
 
     try {
-      const endpoint = isSignUp ? "/api/auth/signup" : "/api/auth/login";
-      const payload = isSignUp 
-        ? { name, email, password, voicePart, provider: "email" }
-        : { email, password, provider: "email" };
-
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Authentication failed.");
+      await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
+      
+      let userCredential;
+      if (isSignUp) {
+        userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        await updateProfile(userCredential.user, { displayName: name });
+        // Save to Firestore
+        await setDoc(doc(db, "users", userCredential.user.uid), {
+          uid: userCredential.user.uid,
+          email,
+          name,
+          voicePart,
+          createdAt: new Date().toISOString(),
+        });
+      } else {
+        userCredential = await signInWithEmailAndPassword(auth, email, password);
       }
 
       setSuccessMsg(isSignUp ? "Account created successfully!" : "Logged in successfully!");
       
-      // Simulate pleasant progress
       setTimeout(() => {
-        onAuthSuccess(data.user);
+        onAuthSuccess({
+          uid: userCredential.user.uid,
+          email: userCredential.user.email,
+          name: userCredential.user.displayName,
+        });
         onClose();
         resetForm();
       }, 1500);
 
     } catch (err: any) {
-      setErrorMsg(err.message || "An unexpected error occurred.");
+      if (err.code === "auth/email-already-in-use") {
+        setErrorMsg("Email is already in use. Please sign in.");
+      } else if (err.code === "auth/invalid-credential") {
+        setErrorMsg("Incorrect email or password.");
+      } else {
+        setErrorMsg(err.message || "An unexpected error occurred.");
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  // Social authentications (with custom safe-consent fallback so they always login properly in web iframe)
   const handleSocialAuth = async (providerName: "google" | "facebook") => {
     setLoading(true);
+    setSocialLoading(providerName);
     setErrorMsg("");
     setSuccessMsg("");
 
     try {
-      // Direct fast login simulator for iframe env
-      const res = await fetch("/api/auth/social", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          provider: providerName,
-          email: `${providerName}.user@gmail.com`,
-          name: providerName === "google" ? "Ambassador Guest" : "Chorus Friend"
-        }),
-      });
+      await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
+      
+      if (providerName === "google") {
+        const provider = new GoogleAuthProvider();
+        const userCredential = await signInWithPopup(auth, provider);
+        
+        // Save user to Firestore if they don't exist
+        const userRef = doc(db, "users", userCredential.user.uid);
+        const userSnap = await getDoc(userRef);
+        if (!userSnap.exists()) {
+          await setDoc(userRef, {
+            uid: userCredential.user.uid,
+            email: userCredential.user.email,
+            name: userCredential.user.displayName,
+            voicePart: "Listener",
+            createdAt: new Date().toISOString(),
+          });
+        }
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Social authentication failed.");
+        setSuccessMsg(`Successfully authenticated via Google!`);
+        setTimeout(() => {
+          onAuthSuccess({
+            uid: userCredential.user.uid,
+            email: userCredential.user.email,
+            name: userCredential.user.displayName,
+          });
+          onClose();
+          resetForm();
+        }, 1500);
+      } else {
+        setErrorMsg("Facebook login is not implemented yet.");
       }
-
-      setSuccessMsg(`Successfully authenticated via ${providerName === "google" ? "Google" : "Facebook"}!`);
-      setTimeout(() => {
-        onAuthSuccess(data.user);
-        onClose();
-        resetForm();
-      }, 1500);
     } catch (err: any) {
-      setErrorMsg(`Failed to connect to ${providerName}: ` + err.message);
+      if (err.code === "auth/popup-closed-by-user") {
+        setErrorMsg("Google Sign-In was cancelled by the user.");
+      } else {
+        setErrorMsg(`Failed to connect to ${providerName}: ` + err.message);
+      }
     } finally {
       setLoading(false);
+      setSocialLoading(null);
     }
   };
 
@@ -237,10 +267,14 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, theme }: Aut
                         : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700"
                     }`}
                   >
-                    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-                      <path fill="#EA4335" d="M12.24 10.285V14.4h6.887c-.275 1.564-1.88 4.587-6.887 4.587-4.33 0-7.859-3.578-7.859-8s3.53-8 7.859-8c2.46 0 4.105 1.024 5.047 1.926l3.23-3.11c-2.074-1.928-4.912-3.111-8.277-3.111-6.627 0-12 5.373-12 11.999s5.373 12 12 12c6.914 0 11.512-4.856 11.512-11.727 0-.79-.085-1.391-.188-1.99h-11.334z"/>
-                    </svg>
-                    <span>Google</span>
+                    {socialLoading === "google" ? (
+                      <div className="w-4 h-4 rounded-full border-2 border-slate-400 border-t-slate-700 animate-spin"></div>
+                    ) : (
+                      <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                        <path fill="#EA4335" d="M12.24 10.285V14.4h6.887c-.275 1.564-1.88 4.587-6.887 4.587-4.33 0-7.859-3.578-7.859-8s3.53-8 7.859-8c2.46 0 4.105 1.024 5.047 1.926l3.23-3.11c-2.074-1.928-4.912-3.111-8.277-3.111-6.627 0-12 5.373-12 11.999s5.373 12 12 12c6.914 0 11.512-4.856 11.512-11.727 0-.79-.085-1.391-.188-1.99h-11.334z"/>
+                      </svg>
+                    )}
+                    <span>{socialLoading === "google" ? "Connecting..." : "Google"}</span>
                   </button>
 
                   {/* Facebook */}
@@ -250,8 +284,12 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, theme }: Aut
                     disabled={loading}
                     className="flex items-center justify-center gap-2 py-2 px-3 border border-[#1877F2]/20 rounded-xl text-xs font-bold cursor-pointer transition-all bg-[#1877F2]/10 hover:bg-[#1877F2]/15 text-[#1877F2]"
                   >
-                    <Facebook className="w-4 h-4 shrink-0 fill-current" />
-                    <span>Facebook</span>
+                    {socialLoading === "facebook" ? (
+                      <div className="w-4 h-4 rounded-full border-2 border-[#1877F2]/40 border-t-[#1877F2] animate-spin"></div>
+                    ) : (
+                      <Facebook className="w-4 h-4 shrink-0 fill-current" />
+                    )}
+                    <span>{socialLoading === "facebook" ? "Connecting..." : "Facebook"}</span>
                   </button>
                 </div>
 
@@ -357,6 +395,20 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, theme }: Aut
                         {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                       </button>
                     </div>
+                  </div>
+
+                  {/* Remember Me Toggle */}
+                  <div className="flex items-center gap-2 mt-1 px-1">
+                    <input 
+                      type="checkbox" 
+                      id="rememberMe" 
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className={`w-3.5 h-3.5 rounded border focus:ring-amber-500 cursor-pointer ${isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-300"}`}
+                    />
+                    <label htmlFor="rememberMe" className={`text-[11px] cursor-pointer ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                      Remember me
+                    </label>
                   </div>
 
                   {/* Error Notification */}

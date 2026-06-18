@@ -596,7 +596,18 @@ app.get("/api/mpesa/config", async (req, res) => {
       tillNumber: configMap["mpesa_till"] || "4119041",
       tillName: configMap["mpesa_name"] || "Kachok Ambassadors Chorus",
       tillImage: configMap["mpesa_image"] || "",
-      tillType: configMap["mpesa_type"] || "buy_goods"
+      tillType: configMap["mpesa_type"] || "buy_goods",
+      receiptTitle: configMap["mpesa_receipt_title"] || "",
+      receiptLogo: configMap["mpesa_receipt_logo"] || "https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png",
+      receiptExtraLogo: configMap["mpesa_receipt_extra_logo"] || "",
+      receiptMessage: configMap["mpesa_receipt_message"] || "We have received your generous gift. May God bless you abundantly.",
+      receiptLayout: configMap["mpesa_receipt_layout"] || "modern",
+      receiptHeaderSize: configMap["mpesa_receipt_header_size"] || "text-xl",
+      receiptHeaderColor: configMap["mpesa_receipt_header_color"] || "text-slate-800",
+      receiptBodySize: configMap["mpesa_receipt_body_size"] || "text-sm",
+      receiptBodyColor: configMap["mpesa_receipt_body_color"] || "text-slate-500",
+      receiptTextAlign: configMap["mpesa_receipt_text_align"] || "text-center",
+      receiptFontFamily: configMap["mpesa_receipt_font_family"] || "font-sans"
     });
   } catch (error: any) {
     res.status(500).json({ error: "Failed to load M-pesa billing configurations: " + error.message });
@@ -605,7 +616,7 @@ app.get("/api/mpesa/config", async (req, res) => {
 
 // PUT M-Pesa Config (Requires Admin)
 app.put("/api/mpesa/config", requireAdmin, async (req, res) => {
-  const { tillNumber, tillName, tillImage, tillType } = req.body;
+  const { tillNumber, tillName, tillImage, tillType, receiptTitle, receiptLogo, receiptExtraLogo, receiptMessage, receiptLayout, receiptHeaderSize, receiptHeaderColor, receiptBodySize, receiptBodyColor, receiptTextAlign, receiptFontFamily } = req.body;
   try {
     const upsertConfig = async (key: string, value: string) => {
       await db.insert(adminConfig)
@@ -620,6 +631,17 @@ app.put("/api/mpesa/config", requireAdmin, async (req, res) => {
     if (tillName !== undefined) await upsertConfig("mpesa_name", String(tillName));
     if (tillImage !== undefined) await upsertConfig("mpesa_image", String(tillImage));
     if (tillType !== undefined) await upsertConfig("mpesa_type", String(tillType));
+    if (receiptTitle !== undefined) await upsertConfig("mpesa_receipt_title", String(receiptTitle));
+    if (receiptLogo !== undefined) await upsertConfig("mpesa_receipt_logo", String(receiptLogo));
+    if (receiptExtraLogo !== undefined) await upsertConfig("mpesa_receipt_extra_logo", String(receiptExtraLogo));
+    if (receiptMessage !== undefined) await upsertConfig("mpesa_receipt_message", String(receiptMessage));
+    if (receiptLayout !== undefined) await upsertConfig("mpesa_receipt_layout", String(receiptLayout));
+    if (receiptHeaderSize !== undefined) await upsertConfig("mpesa_receipt_header_size", String(receiptHeaderSize));
+    if (receiptHeaderColor !== undefined) await upsertConfig("mpesa_receipt_header_color", String(receiptHeaderColor));
+    if (receiptBodySize !== undefined) await upsertConfig("mpesa_receipt_body_size", String(receiptBodySize));
+    if (receiptBodyColor !== undefined) await upsertConfig("mpesa_receipt_body_color", String(receiptBodyColor));
+    if (receiptTextAlign !== undefined) await upsertConfig("mpesa_receipt_text_align", String(receiptTextAlign));
+    if (receiptFontFamily !== undefined) await upsertConfig("mpesa_receipt_font_family", String(receiptFontFamily));
 
     res.json({ success: true, message: "M-pesa billing configuration updated successfully." });
   } catch (error: any) {
@@ -629,157 +651,158 @@ app.put("/api/mpesa/config", requireAdmin, async (req, res) => {
 
 // POST M-Pesa STK Push Request
 app.post("/api/mpesa/stkpush", async (req, res) => {
-  let { phone, amount } = req.body;
-  if (!phone || !amount) {
-    return res.status(400).json({ error: "Phone number and amount are required." });
-  }
-
-  // Standardize phone number format: must be 2547XXXXXXXX or 2541XXXXXXXX
-  let formattedPhone = phone.trim().replace(/\+/g, "");
-  if (formattedPhone.startsWith("0")) {
-    formattedPhone = "254" + formattedPhone.substring(1);
-  } else if (formattedPhone.startsWith("7") || formattedPhone.startsWith("1")) {
-    formattedPhone = "254" + formattedPhone;
-  }
-
-  // Validate phone number format (2547... or 2541...)
-  if (!/^254(7|1|2|5|9)\d{8}$/.test(formattedPhone)) {
-    return res.status(400).json({ error: "Invalid phone number format. Please provide a valid Kenyan number (e.g., 0712345678 or 254712345678)." });
-  }
-
-  const numericAmount = Math.round(Number(amount));
-  if (isNaN(numericAmount) || numericAmount <= 0) {
-    return res.status(400).json({ error: "Transaction amount must be a positive integer." });
-  }
-
-  // Read Safaricom M-Pesa credentials from process env
-  const mpesaConsumerKey = process.env.MPESA_CONSUMER_KEY;
-  const mpesaConsumerSecret = process.env.MPESA_CONSUMER_SECRET;
-  const mpesaPasskey = process.env.MPESA_PASSKEY;
-  const mpesaStoreNumber = process.env.MPESA_STORE_NUMBER || process.env.MPESA_SHORTCODE; // Explicitly map Store Number for Buy Goods
-  
-  // Read till details from database (used primarily for frontend display, but we can check if it's paybill/buygoods)
-  let databaseType = "buy_goods";
   try {
-    const records = await db.select().from(adminConfig);
-    const typeRecord = records.find(r => r.key === "mpesa_type");
-    if (typeRecord) databaseType = typeRecord.value;
-  } catch (e) {
-    console.log("[M-Pesa] Notice: Could not read till config from DB, using fallback.");
-  }
+    let { phone, amount } = req.body;
+    if (!phone || !amount) {
+      return res.status(400).json({ error: "Phone number and amount are required." });
+    }
 
-  // Check if real keys are supplied to execute authentic request
-  const useRealMpesa = mpesaConsumerKey && mpesaConsumerSecret && mpesaPasskey && mpesaStoreNumber;
+    // Standardize phone number format: must be 2547XXXXXXXX or 2541XXXXXXXX
+    let formattedPhone = String(phone).trim().replace(/\+/g, "");
+    if (formattedPhone.startsWith("0")) {
+      formattedPhone = "254" + formattedPhone.substring(1);
+    } else if (formattedPhone.startsWith("7") || formattedPhone.startsWith("1")) {
+      formattedPhone = "254" + formattedPhone;
+    }
 
-  if (useRealMpesa) {
+    // Validate phone number format (2547... or 2541...)
+    if (!/^254(7|1|2|5|9)\d{8}$/.test(formattedPhone)) {
+      return res.status(400).json({ error: "Invalid phone number format. Please provide a valid Kenyan number (e.g., 0712345678 or 254712345678)." });
+    }
+
+    const numericAmount = Math.round(Number(amount));
+    if (isNaN(numericAmount) || numericAmount <= 0) {
+      return res.status(400).json({ error: "Transaction amount must be a positive integer." });
+    }
+
+    // Read Safaricom M-Pesa credentials from process env
+    const mpesaConsumerKey = process.env.MPESA_CONSUMER_KEY;
+    const mpesaConsumerSecret = process.env.MPESA_CONSUMER_SECRET;
+    const mpesaPasskey = process.env.MPESA_PASSKEY;
+    const mpesaStoreNumber = process.env.MPESA_STORE_NUMBER || process.env.MPESA_SHORTCODE; // Explicitly map Store Number for Buy Goods
+    
+    // Read till details from database (used primarily for frontend display, but we can check if it's paybill/buygoods)
+    let databaseType = "buy_goods";
     try {
-      console.log(`[STK Push] Initiating real STK push for ${formattedPhone}, amount: KES ${numericAmount}`);
-      
-      // Step 1: Generate Access Token
-      const isProd = process.env.MPESA_ENV === "production";
-      const baseUrl = isProd ? "https://api.safaricom.co.ke" : "https://sandbox.safaricom.co.ke";
-      
-      const auth = Buffer.from(`${mpesaConsumerKey}:${mpesaConsumerSecret}`).toString("base64");
-      
-      const tokenResponse = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
-        method: "GET",
-        headers: {
-          "Authorization": `Basic ${auth}`
-        }
-      });
+      const records = await db.select().from(adminConfig);
+      const typeRecord = records.find(r => r.key === "mpesa_type");
+      if (typeRecord) databaseType = typeRecord.value;
+    } catch (e) {
+      console.log("[M-Pesa] Notice: Could not read till config from DB, using fallback.");
+    }
 
-      if (!tokenResponse.ok) {
-        const errMsg = await tokenResponse.text();
-        throw new Error("Failed Safaricom OAuth generation request: " + errMsg);
-      }
+    // Check if real keys are supplied to execute authentic request
+    const useRealMpesa = mpesaConsumerKey && mpesaConsumerSecret && mpesaPasskey && mpesaStoreNumber;
 
-      const tokenData = await tokenResponse.json() as any;
-      const accessToken = tokenData.access_token;
-
-      // Step 2: Generate Timestamp and Password
-      const now = new Date();
-      // Ensure strict YYYYMMDDHHMMSS format in East African Time generally, or server local time assuming correct timezone
-      // A more robust way to get Safaricom timestamp (YYYYMMDDHHMMSS)
-      const timestamp = now.getFullYear().toString() + 
-        (now.getMonth() + 1).toString().padStart(2, '0') + 
-        now.getDate().toString().padStart(2, '0') + 
-        now.getHours().toString().padStart(2, '0') + 
-        now.getMinutes().toString().padStart(2, '0') + 
-        now.getSeconds().toString().padStart(2, '0');
+    if (useRealMpesa) {
+      try {
+        console.log(`[STK Push] Initiating real STK push for ${formattedPhone}, amount: KES ${numericAmount}`);
         
-      const password = Buffer.from(`${mpesaStoreNumber}${mpesaPasskey}${timestamp}`).toString("base64");
-      
-      // Strict constraint implementation:
-      // Paybill uses CustomerPayBillOnline (4887), Buy Goods (Till) uses CustomerBuyGoodsOnline (112)
-      const transactionType = databaseType === "paybill" ? "CustomerPayBillOnline" : "CustomerBuyGoodsOnline";
-      
-      const mpesaAppUrl = process.env.APP_URL || "https://example.com";
-      const callbackUrl = `${mpesaAppUrl.replace(/\/$/, "")}/api/mpesa/callback`;
+        // Step 1: Generate Access Token
+        const isProd = process.env.MPESA_ENV === "production";
+        const baseUrl = isProd ? "https://api.safaricom.co.ke" : "https://sandbox.safaricom.co.ke";
+        
+        const auth = Buffer.from(`${mpesaConsumerKey}:${mpesaConsumerSecret}`).toString("base64");
+        
+        const tokenResponse = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
+          method: "GET",
+          headers: {
+            "Authorization": `Basic ${auth}`
+          }
+        });
 
-      // Crucial fix: For Buy Goods, BusinessShortCode and PartyB MUST be the Till's Store Number, NOT the Till Number itself.
-      const stkPayload = {
-        BusinessShortCode: mpesaStoreNumber,
-        Password: password,
-        Timestamp: timestamp,
-        TransactionType: transactionType,
-        Amount: numericAmount,
-        PartyA: formattedPhone, // Customer's phone number
-        PartyB: mpesaStoreNumber, // The Organization receiving the funds
-        PhoneNumber: formattedPhone,
-        CallBackURL: callbackUrl,
-        AccountReference: "KachambaChorus", // Max 12 alphanumeric characters
-        TransactionDesc: "Chorus Support"
-      };
+        if (!tokenResponse.ok) {
+          const errMsg = await tokenResponse.text();
+          throw new Error("Failed Safaricom OAuth generation request: " + errMsg);
+        }
 
-      const pushResponse = await fetch(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(stkPayload)
-      });
+        const tokenData = await tokenResponse.json() as any;
+        const accessToken = tokenData.access_token;
 
-      if (!pushResponse.ok) {
-        const pushErr = await pushResponse.text();
-        throw new Error("Safaricom processRequest failure: " + pushErr);
+        // Step 2: Generate Timestamp and Password
+        const now = new Date();
+        const timestamp = now.getFullYear().toString() + 
+          (now.getMonth() + 1).toString().padStart(2, '0') + 
+          now.getDate().toString().padStart(2, '0') + 
+          now.getHours().toString().padStart(2, '0') + 
+          now.getMinutes().toString().padStart(2, '0') + 
+          now.getSeconds().toString().padStart(2, '0');
+          
+        const password = Buffer.from(`${mpesaStoreNumber}${mpesaPasskey}${timestamp}`).toString("base64");
+        
+        // Always use CustomerPayBillOnline for sandbox testing as per tutorial
+        const transactionType = (!isProd) ? "CustomerPayBillOnline" : (databaseType === "paybill" ? "CustomerPayBillOnline" : "CustomerBuyGoodsOnline");
+        
+        const mpesaAppUrl = process.env.APP_URL || "https://example.com";
+        const callbackUrl = `${mpesaAppUrl.replace(/\/$/, "")}/api/mpesa/callback`;
+
+        const stkPayload = {
+          BusinessShortCode: mpesaStoreNumber,
+          Password: password,
+          Timestamp: timestamp,
+          TransactionType: transactionType,
+          Amount: numericAmount,
+          PartyA: formattedPhone, // Customer's phone number
+          PartyB: mpesaStoreNumber, // The Organization receiving the funds
+          PhoneNumber: formattedPhone,
+          CallBackURL: callbackUrl,
+          AccountReference: "KachambaChorus", // Max 12 alphanumeric characters
+          TransactionDesc: "Chorus Support"
+        };
+
+        const pushResponse = await fetch(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(stkPayload)
+        });
+
+        if (!pushResponse.ok) {
+          const pushErr = await pushResponse.text();
+          throw new Error("Safaricom processRequest failure: " + pushErr);
+        }
+
+        const pushResult = await pushResponse.json() as any;
+        console.log("[STK Push] Real push successfully executed:", pushResult);
+
+        if (pushResult.ResponseCode !== "0") {
+            throw new Error("Daraja API rejected the request: " + pushResult.ResponseDescription);
+        }
+
+        return res.json({
+          success: true,
+          realApi: true,
+          message: "An STK Push has been sent to your phone! Please enter your M-pesa PIN to complete the contribution.",
+          merchantRequestId: pushResult.MerchantRequestID,
+          checkoutRequestId: pushResult.CheckoutRequestID,
+          responseDescription: pushResult.ResponseDescription
+        });
+
+      } catch (err: any) {
+        console.error("[STK Push Error] Real API failure:", err);
+        return res.status(502).json({
+          error: "Safaricom M-Pesa Link Error: " + err.message,
+          clarification: "Check if your MPESA Consumer Key, Secret, Passkey, and Store Number are correctly configured."
+        });
       }
-
-      const pushResult = await pushResponse.json() as any;
-      console.log("[STK Push] Real push successfully executed:", pushResult);
-
-      if (pushResult.ResponseCode !== "0") {
-          throw new Error("Daraja API rejected the request: " + pushResult.ResponseDescription);
-      }
-
+    } else {
+      // Graceful local/sandbox simulator (returns mock structure for immediate UI preview)
+      console.log(`[STK Push] Simulating Daraja STK Push for ${formattedPhone}, amount: KES ${numericAmount}`);
+      
       return res.json({
         success: true,
-        realApi: true,
-        message: "An STK Push has been sent to your phone! Please enter your M-pesa PIN to complete the contribution.",
-        merchantRequestId: pushResult.MerchantRequestID,
-        checkoutRequestId: pushResult.CheckoutRequestID,
-        responseDescription: pushResult.ResponseDescription
-      });
-
-    } catch (err: any) {
-      console.error("[STK Push Error] Real API failure:", err);
-      return res.status(502).json({
-        error: "Safaricom M-Pesa Link Error: " + err.message,
-        clarification: "Check if your MPESA Consumer Key, Secret, Passkey, and Store Number are correctly configured."
+        realApi: false,
+        message: "STK push simulated ! (No actual API keys configured in environment).",
+        merchantRequestId: "ws_CO_" + Date.now().toString().slice(3),
+        checkoutRequestId: "ws_CH_" + Math.random().toString(36).substring(2, 10).toUpperCase(),
+        responseDescription: "Success. Request accepted for processing"
       });
     }
-  } else {
-    // Graceful local/sandbox simulator (returns mock structure for immediate UI preview)
-    console.log(`[STK Push] Simulating Daraja STK Push for ${formattedPhone}, amount: KES ${numericAmount}`);
-    
-    return res.json({
-      success: true,
-      realApi: false,
-      message: "STK push simulated ! (No actual API keys configured in environment).",
-      merchantRequestId: "ws_CO_" + Date.now().toString().slice(3),
-      checkoutRequestId: "ws_CH_" + Math.random().toString(36).substring(2, 10).toUpperCase(),
-      responseDescription: "Success. Request accepted for processing"
-    });
+  } catch (err: any) {
+    console.error("[STK Push Error] Backend Crash:", err);
+    return res.status(500).json({ error: "Backend server error: " + err.message });
   }
 });
 

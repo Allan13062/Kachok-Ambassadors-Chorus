@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Users, Phone, Shield, Edit, Trash2, Plus, MessageCircle, X, ExternalLink, Calendar, Award } from "lucide-react";
+import { Users, Phone, Shield, Edit, Trash2, Plus, MessageCircle, X, ExternalLink, Calendar, Award, Share2 } from "lucide-react";
 import { Leader } from "../types";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -26,6 +26,19 @@ export default function Leaders({ items, isAdmin, onAdd, onEdit, onDelete }: Lea
     }
   }, [items]);
 
+  // Deep linking for shared leader profile
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const leaderId = params.get("leader");
+    if (leaderId && items.length > 0 && !selectedLeader) {
+      const found = items.find(item => item.id === leaderId);
+      if (found) {
+        setSelectedLeader(found);
+      }
+    }
+  }, [items]);
+
+
   // Parse Kenya standard phone numbers for WhatsApp integration
   const getWhatsAppUrl = (phone: string) => {
     const cleaned = phone.replace(/[^\d]/g, "");
@@ -38,8 +51,42 @@ export default function Leaders({ items, isAdmin, onAdd, onEdit, onDelete }: Lea
     return `https://wa.me/${finalNo}`;
   };
 
+  const handleCloseProfile = () => {
+    setSelectedLeader(null);
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("leader")) {
+      window.history.pushState({}, "", window.location.origin);
+    }
+  };
+
   const getCleanPhone = (phone: string) => {
     return phone.replace(/[^\d+]/g, "");
+  };
+
+  const handleShareProfile = async (leader: Leader) => {
+    const shareUrl = `${window.location.origin}/?leader=${leader.id}`;
+    const textToCopy = `Meet ${leader.name}, ${leader.role} at Kachamba Chorus!\n\nView steward profile here: ${shareUrl}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Kachamba Chorus Steward - ${leader.name}`,
+          text: textToCopy,
+          url: shareUrl,
+        });
+        return;
+      } catch (err) {
+        console.error("Error sharing via Web Share API:", err);
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      alert("Leader profile link copied to clipboard!");
+    } catch (err) {
+      console.error("Failed to copy to clipboard:", err);
+      alert("Could not copy link.");
+    }
   };
 
   return (
@@ -151,6 +198,13 @@ export default function Leaders({ items, isAdmin, onAdd, onEdit, onDelete }: Lea
 
                   {/* Quick dial/chat row */}
                   <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => handleShareProfile(leader)}
+                      className="bg-slate-950 hover:bg-indigo-500 hover:text-white text-indigo-400 p-1.5 rounded-md border border-slate-800 hover:border-indigo-500/30 transition-all text-[10px] font-mono flex items-center gap-1 font-bold cursor-pointer"
+                      title="Share Profile"
+                    >
+                      <Share2 className="w-3 h-3" />
+                    </button>
                     <a
                       href={`tel:${getCleanPhone(leader.phone)}`}
                       className="bg-slate-950 hover:bg-amber-500 text-slate-400 hover:text-slate-950 p-1.5 rounded-md border border-slate-800 hover:border-amber-400 transition-all text-[10px] font-mono flex items-center gap-1 font-bold"
@@ -206,7 +260,7 @@ export default function Leaders({ items, isAdmin, onAdd, onEdit, onDelete }: Lea
             exit={{ opacity: 0 }}
             transition={{ duration: 0.5 }}
             className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-950/85 backdrop-blur-md p-0 sm:p-4 cursor-pointer"
-            onClick={() => setSelectedLeader(null)}
+            onClick={handleCloseProfile}
           >
             <motion.div 
               initial={{ opacity: 0, y: 50, scale: 0.93 }}
@@ -218,7 +272,7 @@ export default function Leaders({ items, isAdmin, onAdd, onEdit, onDelete }: Lea
             >
               {/* Header / Dismiss */}
               <button 
-                onClick={() => setSelectedLeader(null)}
+                onClick={handleCloseProfile}
                 className="absolute top-4 right-4 text-slate-400 hover:text-white bg-slate-950/50 p-1.5 rounded-full cursor-pointer hover:bg-slate-950 transition-colors z-20"
               >
                 <X className="w-4 h-4" />
@@ -283,6 +337,16 @@ export default function Leaders({ items, isAdmin, onAdd, onEdit, onDelete }: Lea
                       </div>
                     </div>
                   )}
+
+                  <div className="pt-2">
+                    <button
+                      onClick={() => handleShareProfile(selectedLeader)}
+                      className="w-full bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white border border-indigo-500/20 hover:border-indigo-500 font-sans text-xs font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer"
+                    >
+                      <Share2 className="w-4 h-4 shrink-0" />
+                      <span>Share Leader Profile link</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 

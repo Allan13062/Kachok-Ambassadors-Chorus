@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Music, Lock, Users, Calendar, Image as ImageIcon, Heart, Sun, Moon, Menu, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -18,6 +18,21 @@ interface HeaderProps {
 
 export default function Header({ isAdmin, onOpenAdmin, onLogout, activeSection, theme, onToggleTheme, user, onGoogleLogin, onGoogleLogout }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [scrollProgress, setScrollProgress] = useState(0);
+
+  useEffect(() => {
+    const computeScroll = () => {
+      const scrollY = window.scrollY;
+      const docHeight = document.documentElement.scrollHeight;
+      const winHeight = document.documentElement.clientHeight;
+      const maxScroll = docHeight - winHeight;
+      if (maxScroll <= 0) return setScrollProgress(0);
+      setScrollProgress((scrollY / maxScroll) * 100);
+    };
+
+    window.addEventListener("scroll", computeScroll);
+    return () => window.removeEventListener("scroll", computeScroll);
+  }, []);
 
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
@@ -58,13 +73,18 @@ export default function Header({ isAdmin, onOpenAdmin, onLogout, activeSection, 
   ];
 
   return (
-    <header className={`sticky top-0 z-40 w-full backdrop-blur-md border-b text-white py-3 px-4 md:px-12 flex justify-between items-center transition-all ${
+    <header className={`sticky top-0 z-40 w-full backdrop-blur-md border-b transition-all ${
       theme === "dark" 
-        ? "bg-slate-900/90 border-slate-800/80" 
+        ? "bg-slate-900/90 border-slate-800/80 text-white" 
         : "bg-white/90 border-slate-200 text-slate-900"
     }`}>
       <div 
-        onClick={() => scrollTo("home")}
+        className="absolute bottom-0 left-0 h-[2px] bg-gradient-to-r from-amber-400 to-amber-600 origin-left transition-all duration-150 ease-out z-50"
+        style={{ width: `${scrollProgress}%` }}
+      />
+      <div className="w-full py-3 px-4 md:px-12 flex justify-between items-center relative">
+        <div 
+          onClick={() => scrollTo("home")}
         className="flex items-center gap-2 sm:gap-3 cursor-pointer group shrink-0"
       >
         <div className="relative w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-hidden border border-amber-550/30 bg-slate-950 flex items-center justify-center shadow-lg shadow-amber-500/5 group-hover:scale-105 transition-transform">
@@ -273,6 +293,7 @@ export default function Header({ isAdmin, onOpenAdmin, onLogout, activeSection, 
           </motion.div>
         )}
       </AnimatePresence>
+      </div>
     </header>
   );
 }

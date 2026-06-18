@@ -364,8 +364,35 @@ export default function Itinerary({
     }
   };
 
+  // Helper to load image for pdf
+  const loadImageData = async (url: string): Promise<{ dataUrl: string, width: number, height: number } | null> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "Anonymous";
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          try {
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+            resolve({ dataUrl, width: img.width, height: img.height });
+          } catch (e) {
+            resolve(null);
+          }
+        } else {
+          resolve(null);
+        }
+      };
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+  };
+
   // Generate and download premium quality vector PDF of the choral schedule
-  const downloadItineraryPDF = () => {
+  const downloadItineraryPDF = async () => {
     try {
       const doc = new jsPDF({
         orientation: "portrait",
@@ -384,6 +411,11 @@ export default function Itinerary({
       doc.setFillColor(15, 23, 42); // slate-900
       doc.rect(margin, y, contentWidth, 3, "F");
       y += 8;
+
+      const logoData = await loadImageData("https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png");
+      if (logoData && logoData.dataUrl) {
+         doc.addImage(logoData.dataUrl, 'JPEG', pageWidth - margin - 20, 25, 20, 20);
+      }
 
       // Header block
       doc.setFont("helvetica", "bold");
@@ -423,8 +455,15 @@ export default function Itinerary({
         doc.setTextColor(100, 116, 139);
         doc.text("No active itinerary matching this category selection details.", margin, y);
       } else {
-        filteredItems.forEach((item, index) => {
+        for (let index = 0; index < filteredItems.length; index++) {
+          const item = filteredItems[index];
           const itemNotes = item.notes || "";
+          
+          let mediaData = null;
+          if (item.mediaUrl && item.mediaType === "image") {
+            mediaData = await loadImageData(item.mediaUrl);
+          }
+
           // Split notes to size to estimate height precisely
           const noteTextLines: string[] = itemNotes 
             ? doc.splitTextToSize(itemNotes, contentWidth - 20) 
@@ -434,12 +473,22 @@ export default function Itinerary({
           const locationLines: string[] = doc.splitTextToSize(`Venue: ${item.location}`, contentWidth - 15);
 
           // Height estimation:
-          // Padding top(6) + index line(5) + title lines(lineCount * 5.5) + location lines(locationCount * 5) + host line(5) + tag line(5) + note headers/lines(6 + lineCount * 4) + padding bottom(6)
           let itemHeight = 32;
           itemHeight += titleTextLines.length * 5.5;
           itemHeight += locationLines.length * 5;
           if (itemNotes) {
             itemHeight += 10 + (noteTextLines.length * 4.5);
+          }
+          let imgHeight = 0;
+          if (mediaData) {
+             // Calculate image size to fit width of contentWidth - 25, while maintaining aspect ratio
+             const maxImgW = contentWidth - 25;
+             imgHeight = (maxImgW * mediaData.height) / mediaData.width;
+             // Limit max height to 60 to prevent too large images
+             if (imgHeight > 60) {
+               imgHeight = 60;
+             }
+             itemHeight += imgHeight + 8;
           }
 
           // Check if drawing this card overrides page margin limits
@@ -549,9 +598,21 @@ export default function Itinerary({
             });
           }
 
+          if (mediaData) {
+            y += 4;
+            const maxImgW = contentWidth - 25;
+            let drawW = maxImgW;
+            let drawH = imgHeight;
+            // Draw centered slightly if width is smaller but we made maxImgW match our layout.
+            // Using maxImgW is fine. Actually, maintaining aspect ratio. 
+            drawW = (drawH * mediaData.width) / mediaData.height;
+            doc.addImage(mediaData.dataUrl, 'JPEG', margin + 6, y, drawW, drawH);
+            y += drawH + 4;
+          }
+
           // Advance cursor space to bottom of element
           y = startY + itemHeight + 6;
-        });
+        }
       }
 
       doc.save(`Kachamba_Chorus_Schedule_${activeTab.toLowerCase()}.pdf`);
@@ -830,8 +891,22 @@ export default function Itinerary({
 
       <div className="max-w-6xl mx-auto relative z-10">
         
+        {/* Print-Only Header Logo */}
+        <div className="hidden print:flex flex-col items-center justify-center mb-10 pb-6 border-b border-slate-300 gap-4">
+          <img 
+            src="https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png" 
+            alt="Kachamba Chorus Logo" 
+            className="w-24 h-24 object-contain"
+            referrerPolicy="no-referrer"
+          />
+          <div className="text-center">
+            <h1 className="text-3xl font-black uppercase text-black tracking-tight">Kachamba Chorus</h1>
+            <p className="text-sm font-bold text-gray-600 mt-1 uppercase tracking-widest">Official Choral Missions Gazette & Itinerary</p>
+          </div>
+        </div>
+
         {/* Newspaper Style Editorial Header */}
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 mb-12 border-b border-slate-900 pb-10">
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 mb-12 border-b border-slate-900 pb-10 print:hidden">
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <span className="h-[2px] w-8 bg-amber-500 block" />

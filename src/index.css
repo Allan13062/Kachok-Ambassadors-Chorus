@@ -7,6 +7,10 @@
   --font-mono: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 /* Custom modern scrollbars */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;

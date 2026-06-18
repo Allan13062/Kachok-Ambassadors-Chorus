@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { X, Lock, Eye, Check, ShieldCheck, Mail, Calendar, AlertCircle, Trash2, Plus, EyeOff, Music, Users, CreditCard } from "lucide-react";
+import { X, Lock, Eye, Check, ShieldCheck, Mail, Calendar, AlertCircle, Trash2, Plus, EyeOff, Music, Users, CreditCard, Smartphone, CheckCircle, Send, Barcode } from "lucide-react";
 import { Inquiry, Activity, ItineraryItem, MusicData, Leader } from "../types";
 import ImageEditor from "./ImageEditor";
 import { motion, AnimatePresence } from "motion/react";
@@ -111,9 +111,33 @@ export default function AdminPanel({
   const [mpesaName, setMpesaName] = useState("Kachamba Chorus");
   const [mpesaImage, setMpesaImage] = useState("");
   const [mpesaType, setMpesaType] = useState("buy_goods");
+  const [mpesaReceiptTitle, setMpesaReceiptTitle] = useState("");
+  const [mpesaReceiptLogo, setMpesaReceiptLogo] = useState("");
+  const [mpesaReceiptExtraLogo, setMpesaReceiptExtraLogo] = useState("");
+  const [mpesaReceiptMessage, setMpesaReceiptMessage] = useState("");
+  const [mpesaReceiptLayout, setMpesaReceiptLayout] = useState("modern");
+  const [mpesaReceiptHeaderSize, setMpesaReceiptHeaderSize] = useState("text-xl");
+  const [mpesaReceiptHeaderColor, setMpesaReceiptHeaderColor] = useState("text-slate-800");
+  const [mpesaReceiptBodySize, setMpesaReceiptBodySize] = useState("text-sm");
+  const [mpesaReceiptBodyColor, setMpesaReceiptBodyColor] = useState("text-slate-500");
+  const [mpesaReceiptTextAlign, setMpesaReceiptTextAlign] = useState("text-center");
+  const [mpesaReceiptFontFamily, setMpesaReceiptFontFamily] = useState("font-sans");
+  const [mpesaReceiptOrder, setMpesaReceiptOrder] = useState<string[]>(["successIcon", "header", "amount", "message", "details", "barcode"]);
   const [mpesaSaving, setMpesaSaving] = useState(false);
   const [mpesaMessage, setMpesaMessage] = useState("");
   const [mpesaError, setMpesaError] = useState("");
+
+  const dragItem = React.useRef<any>(null);
+  const dragOverItem = React.useRef<any>(null);
+
+  const handleSort = () => {
+    let orderCopy = [...mpesaReceiptOrder];
+    const draggedItemContent = orderCopy.splice(dragItem.current, 1)[0];
+    orderCopy.splice(dragOverItem.current, 0, draggedItemContent);
+    dragItem.current = null;
+    dragOverItem.current = null;
+    setMpesaReceiptOrder(orderCopy);
+  };
 
   useEffect(() => {
     if (isOpen && isAuthenticated) {
@@ -126,6 +150,25 @@ export default function AdminPanel({
             setMpesaName(data.tillName || "Kachamba Chorus");
             setMpesaImage(data.tillImage || "");
             setMpesaType(data.tillType || "buy_goods");
+            setMpesaReceiptTitle(data.receiptTitle || "");
+            setMpesaReceiptLogo(data.receiptLogo || "https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png");
+            setMpesaReceiptExtraLogo(data.receiptExtraLogo || "");
+            setMpesaReceiptMessage(data.receiptMessage || "We have received your generous gift. May God bless you abundantly.");
+            setMpesaReceiptLayout(data.receiptLayout || "modern");
+            setMpesaReceiptHeaderSize(data.receiptHeaderSize || "text-xl");
+            setMpesaReceiptHeaderColor(data.receiptHeaderColor || "text-slate-800");
+            setMpesaReceiptBodySize(data.receiptBodySize || "text-sm");
+            setMpesaReceiptBodyColor(data.receiptBodyColor || "text-slate-500");
+            setMpesaReceiptTextAlign(data.receiptTextAlign || "text-center");
+            setMpesaReceiptFontFamily(data.receiptFontFamily || "font-sans");
+            
+            if (data.receiptOrder) {
+              try {
+                setMpesaReceiptOrder(JSON.parse(data.receiptOrder));
+              } catch (e) {
+                console.error("Failed to parse receipt order", e);
+              }
+            }
           }
         } catch (err) {
           console.error("Failed to load mpesa config", err);
@@ -151,7 +194,19 @@ export default function AdminPanel({
           tillNumber: mpesaTill,
           tillName: mpesaName,
           tillImage: mpesaImage,
-          tillType: mpesaType
+          tillType: mpesaType,
+          receiptTitle: mpesaReceiptTitle,
+          receiptLogo: mpesaReceiptLogo,
+          receiptExtraLogo: mpesaReceiptExtraLogo,
+          receiptMessage: mpesaReceiptMessage,
+          receiptLayout: mpesaReceiptLayout,
+          receiptHeaderSize: mpesaReceiptHeaderSize,
+          receiptHeaderColor: mpesaReceiptHeaderColor,
+          receiptBodySize: mpesaReceiptBodySize,
+          receiptBodyColor: mpesaReceiptBodyColor,
+          receiptTextAlign: mpesaReceiptTextAlign,
+          receiptFontFamily: mpesaReceiptFontFamily,
+          receiptOrder: JSON.stringify(mpesaReceiptOrder)
         })
       });
       const data = await res.json();
@@ -1816,15 +1871,16 @@ export default function AdminPanel({
                   </div>
                 )}
 
-                <form onSubmit={handleSaveMpesa} className="flex flex-col gap-4 text-xs font-sans">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 col-gap-4">
-                    <div>
-                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Till or Paybill Type</label>
-                      <select
-                        value={mpesaType}
-                        onChange={(e) => setMpesaType(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
-                      >
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  <form onSubmit={handleSaveMpesa} className="flex flex-col gap-4 text-xs font-sans">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 col-gap-4">
+                      <div>
+                        <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Till or Paybill Type</label>
+                        <select
+                          value={mpesaType}
+                          onChange={(e) => setMpesaType(e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
+                        >
                         <option value="buy_goods">Buy Goods (Till Number)</option>
                         <option value="paybill">Paybill</option>
                       </select>
@@ -1910,6 +1966,166 @@ export default function AdminPanel({
                     </div>
                   )}
 
+                  <hr className="border-slate-800 my-4" />
+                  <div className="flex items-center gap-2 text-indigo-400 mb-2 font-bold uppercase tracking-wider text-[10px] font-mono">
+                    <CreditCard className="w-4 h-4" />
+                    <span>Transaction Receipt Layout Settings</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Receipt Layout Style</label>
+                      <select
+                        value={mpesaReceiptLayout}
+                        onChange={(e) => setMpesaReceiptLayout(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
+                      >
+                        <option value="modern">Modern Default Layout</option>
+                        <option value="classic">Classic Minimalist</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Receipt Organization Title</label>
+                      <input
+                        type="text"
+                        value={mpesaReceiptTitle}
+                        onChange={(e) => setMpesaReceiptTitle(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
+                        placeholder="e.g. Kachamba Chorus"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Receipt Top Logo URL (Optional)</label>
+                    <input
+                      type="text"
+                      value={mpesaReceiptLogo}
+                      onChange={(e) => setMpesaReceiptLogo(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
+                      placeholder="e.g. https://example.com/logo.png"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Receipt Custom Message</label>
+                    <textarea
+                      value={mpesaReceiptMessage}
+                      onChange={(e) => setMpesaReceiptMessage(e.target.value)}
+                      rows={2}
+                      className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-sans text-xs text-white"
+                      placeholder="e.g. We have received your generous gift. May God bless you abundantly."
+                    ></textarea>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Receipt Title Font Size</label>
+                      <select
+                        value={mpesaReceiptHeaderSize}
+                        onChange={(e) => setMpesaReceiptHeaderSize(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
+                      >
+                        <option value="text-sm">Small</option>
+                        <option value="text-base">Medium</option>
+                        <option value="text-lg">Large</option>
+                        <option value="text-xl">Extra Large</option>
+                        <option value="text-2xl">2XL</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Receipt Title Text Color</label>
+                      <select
+                        value={mpesaReceiptHeaderColor}
+                        onChange={(e) => setMpesaReceiptHeaderColor(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
+                      >
+                        <option value="text-slate-800">Slate 800 (Default)</option>
+                        <option value="text-slate-900">Slate 900 (Dark)</option>
+                        <option value="text-amber-500">Amber 500</option>
+                        <option value="text-amber-600">Amber 600</option>
+                        <option value="text-blue-600">Blue 600</option>
+                        <option value="text-emerald-600">Emerald 600</option>
+                        <option value="text-red-600">Red 600</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Receipt Body Size</label>
+                      <select
+                        value={mpesaReceiptBodySize}
+                        onChange={(e) => setMpesaReceiptBodySize(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
+                      >
+                        <option value="text-xs">Extra Small</option>
+                        <option value="text-sm">Small (Default)</option>
+                        <option value="text-base">Medium</option>
+                        <option value="text-lg">Large</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Receipt Body Text Color</label>
+                      <select
+                        value={mpesaReceiptBodyColor}
+                        onChange={(e) => setMpesaReceiptBodyColor(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
+                      >
+                        <option value="text-slate-500">Slate 500 (Default)</option>
+                        <option value="text-slate-600">Slate 600</option>
+                        <option value="text-slate-700">Slate 700</option>
+                        <option value="text-slate-800">Slate 800</option>
+                        <option value="text-amber-600">Amber 600</option>
+                        <option value="text-emerald-600">Emerald 600</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Receipt Secondary Logo URL (SDA)</label>
+                      <input
+                        type="text"
+                        value={mpesaReceiptExtraLogo}
+                        onChange={(e) => setMpesaReceiptExtraLogo(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
+                        placeholder="e.g. SDA Logo URL"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Receipt Text Alignment</label>
+                      <select
+                        value={mpesaReceiptTextAlign}
+                        onChange={(e) => setMpesaReceiptTextAlign(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
+                      >
+                        <option value="text-left">Left</option>
+                        <option value="text-center">Center</option>
+                        <option value="text-right">Right</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Receipt Font Family</label>
+                      <select
+                        value={mpesaReceiptFontFamily}
+                        onChange={(e) => setMpesaReceiptFontFamily(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
+                      >
+                        <option value="font-sans">Sans-Serif (Default)</option>
+                        <option value="font-serif">Serif (Official/Classic)</option>
+                        <option value="font-mono">Monospace</option>
+                      </select>
+                    </div>
+                  </div>
+
                   <button
                     type="submit"
                     disabled={mpesaSaving}
@@ -1918,6 +2134,139 @@ export default function AdminPanel({
                     {mpesaSaving ? "Saving Config..." : "Save M-Pesa Till Configuration"}
                   </button>
                 </form>
+
+                <div className="flex flex-col border border-slate-800 rounded-2xl bg-slate-900/50 overflow-hidden relative">
+                  <div className="bg-slate-950 p-2 font-mono text-[10px] text-slate-400 uppercase tracking-widest text-center border-b border-slate-800">
+                    Live Receipt Preview & Drag-to-Reorder Layout
+                  </div>
+                  <div className="flex-1 p-4 sm:p-6 flex items-center justify-center bg-slate-50 opacity-100 overflow-hidden" style={{ minHeight: "450px" }}>
+                    <div id="mpesa-receipt-preview" className={`bg-white rounded-[24px] p-6 pt-10 max-w-sm w-full mx-auto shadow-2xl relative border border-slate-100 ${mpesaReceiptLayout === 'classic' ? 'border' : ''} ${mpesaReceiptFontFamily || 'font-sans'} ${mpesaReceiptTextAlign || 'text-center'} scale-[0.8] sm:scale-95 origin-top`}>
+
+                      {mpesaReceiptLogo && (
+                        <div className={`absolute top-6 left-6 ${mpesaReceiptLayout === 'classic' ? 'relative top-0 left-0 mb-4 flex justify-center w-full' : ''}`}>
+                          <img 
+                            src={mpesaReceiptLogo} 
+                            alt="Organization Logo" 
+                            className={`w-12 h-12 rounded-full object-cover border border-slate-100 shadow-sm ${mpesaReceiptLayout === 'classic' ? 'mx-auto' : ''}`}
+                            referrerPolicy="no-referrer"
+                          />
+                        </div>
+                      )}
+
+                      {mpesaReceiptExtraLogo && (
+                        <div className={`absolute top-6 right-6 ${mpesaReceiptLayout === 'classic' ? 'hidden' : ''}`}>
+                          <img 
+                            src={mpesaReceiptExtraLogo} 
+                            alt="Official Symbol" 
+                            className={`w-12 h-12 object-contain drop-shadow-sm`}
+                            referrerPolicy="no-referrer"
+                          />
+                        </div>
+                      )}
+
+                      {mpesaReceiptOrder.map((block, index) => {
+                        const isDraggable = true;
+                        
+                        let content = null;
+                        switch (block) {
+                          case "successIcon":
+                            content = mpesaReceiptLayout === 'modern' ? (
+                              <div className={`mb-5 mt-2 flex ${mpesaReceiptTextAlign === 'text-left' ? 'justify-start' : mpesaReceiptTextAlign === 'text-right' ? 'justify-end' : 'justify-center'}`}>
+                                <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center relative">
+                                  <div className="w-14 h-14 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                                    <CheckCircle className="w-8 h-8 text-white" />
+                                  </div>
+                                </div>
+                              </div>
+                            ) : null;
+                            break;
+                          case "header":
+                            content = (
+                              <div className="mb-6 mt-4 relative z-10">
+                                {mpesaReceiptLayout === 'classic' && (
+                                  <div className={`mb-3 ${mpesaReceiptTextAlign === 'text-left' ? '' : mpesaReceiptTextAlign === 'text-right' ? 'flex justify-end' : 'flex justify-center'}`}>
+                                    <CheckCircle className="w-10 h-10 text-emerald-500" />
+                                  </div>
+                                )}
+                                <h4 className={`${mpesaReceiptHeaderSize || 'text-2xl'} font-bold ${mpesaReceiptHeaderColor || 'text-slate-800'} mb-1`}>
+                                  {mpesaReceiptTitle || mpesaName || "Kachamba Chorus"}
+                                </h4>
+                                <p className={`${mpesaReceiptBodySize || 'text-sm'} ${mpesaReceiptBodyColor || 'text-slate-500'}`}>Payment Successful</p>
+                              </div>
+                            );
+                            break;
+                          case "amount":
+                            content = (
+                              <div className="mb-6 mt-2 relative z-10">
+                                <span className={`${mpesaReceiptLayout === 'classic' ? 'text-3xl' : 'text-4xl'} font-extrabold text-slate-900 tracking-tight block`}>
+                                  KES 500
+                                </span>
+                              </div>
+                            );
+                            break;
+                          case "message":
+                            content = mpesaReceiptMessage ? (
+                              <div className="mb-6 px-2 relative z-10">
+                                <p className={`${mpesaReceiptBodySize || 'text-xs'} ${mpesaReceiptBodyColor || 'text-slate-600'} leading-relaxed font-medium italic`}>
+                                  "{mpesaReceiptMessage}"
+                                </p>
+                              </div>
+                            ) : null;
+                            break;
+                          case "details":
+                            content = (
+                              <div className="bg-slate-50 rounded-xl p-4 mb-4 border border-slate-100 text-sm relative z-10">
+                                <div className="flex justify-between items-center py-2 border-b border-slate-200 border-dashed">
+                                  <span className="text-slate-500">Ref Number</span>
+                                  <span className="font-semibold text-slate-800 font-mono text-xs">TXN-{Date.now().toString().slice(6)}</span>
+                                </div>
+                                <div className="flex justify-between items-center py-2 border-b border-slate-200 border-dashed">
+                                  <span className="text-slate-500">Payment Time</span>
+                                  <span className="font-semibold text-slate-800 text-xs text-right max-w-[120px]">
+                                    {new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between items-center py-2">
+                                  <span className="text-slate-500">Method</span>
+                                  <span className="font-semibold text-slate-800 flex items-center gap-1.5 text-xs">
+                                    <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
+                                    M-Pesa (0720)
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                            break;
+                          case "barcode":
+                            content = (
+                              <div className="flex justify-center mt-2 pb-2 opacity-60 mix-blend-multiply">
+                                <Barcode className="w-full max-w-[200px] h-10 text-slate-800" strokeWidth={1} />
+                              </div>
+                            );
+                            break;
+                        }
+
+                        if (!content) return null;
+
+                        return (
+                          <div
+                            key={block}
+                            draggable={isDraggable}
+                            onDragStart={() => (dragItem.current = index)}
+                            onDragEnter={() => (dragOverItem.current = index)}
+                            onDragEnd={handleSort}
+                            onDragOver={(e) => e.preventDefault()}
+                            className="cursor-move hover:outline hover:outline-2 hover:outline-dashed hover:outline-emerald-500 rounded p-1 transition-all"
+                            title="Drag to reorder"
+                          >
+                            {content}
+                          </div>
+                        );
+                      })}
+                      
+                    </div>
+                  </div>
+                </div>
+                </div>
               </div>
 
               {/* SECTION: MANAGE LEADERS / COUNCIL STEWARDS */}
