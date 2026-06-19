@@ -22,6 +22,7 @@ import AuthModal from "./components/AuthModal";
 import { Activity, ItineraryItem, Inquiry, MusicData, Leader, Subscriber, Broadcast, MemberSpotlight as MemberSpotlightType } from "./types";
 import MemberSpotlight from "./components/MemberSpotlight";
 import { Music, Heart, Calendar, Compass, Star, Facebook, Youtube } from "lucide-react";
+import { Analytics } from "@vercel/analytics/react";
 
 function FadeInSection({ children }: { children: React.ReactNode }) {
   return (
@@ -935,6 +936,9 @@ export default function App() {
           />
         )}
       </AnimatePresence>
+
+      {/* Vercel Web Analytics */}
+      <Analytics />
 
     </div>
   );
