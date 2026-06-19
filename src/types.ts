@@ -63,3 +63,27 @@ export interface Leader {
   bio?: string;
   phone?: string;
 }
+
+export interface Subscriber {
+  id: string;
+  email: string;
+  createdAt: string;
+}
+
+export interface Broadcast {
+  id: string;
+  subject: string;
+  body: string;
+  sentCount: number;
+  sentTo: string[];
+  createdAt: string;
+}
+
+export interface MemberSpotlight {
+  id: string;
+  memberName: string;
+  roleOrVoicePart: string;
+  quoteOrHighlight: string;
+  image?: string;
+  createdAt: string;
+}

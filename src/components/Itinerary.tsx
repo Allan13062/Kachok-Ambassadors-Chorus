@@ -12,6 +12,7 @@ import { User as FirebaseUser } from "firebase/auth";
 import { doc, getDoc, setDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { jsPDF } from "jspdf";
+import sdaLogo from "../assets/sda-logo.png";
 
 interface ItineraryProps {
   items: ItineraryItem[];
@@ -222,6 +223,7 @@ export default function Itinerary({
   
   // Category Filtering
   const [activeTab, setActiveTab] = useState<"all" | "upcoming" | "charity" | "revival" | "past">("all");
+  const [itinerarySearch, setItinerarySearch] = useState("");
   
   // In-place inline quick edits
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
@@ -256,6 +258,39 @@ export default function Itinerary({
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
 
   const [timeLeft, setTimeLeft] = useState<{ days: number, hours: number, minutes: number, seconds: number, total: number } | null>(null);
+
+  const [mpesaConfig, setMpesaConfig] = useState<any>({
+    tillNumber: "4119041",
+    tillName: "Kachok Ambassadors Chorus",
+    tillImage: "",
+    tillType: "buy_goods",
+    receiptTitle: "",
+    receiptLogo: "https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png",
+    receiptExtraLogo: "",
+    receiptMessage: "We have received your generous gift. May God bless you abundantly.",
+    receiptLayout: "modern",
+    receiptHeaderSize: "text-xl",
+    receiptHeaderColor: "text-slate-800",
+    receiptBodySize: "text-sm",
+    receiptBodyColor: "text-slate-500",
+    receiptTextAlign: "text-center",
+    receiptFontFamily: "font-sans"
+  });
+
+  useEffect(() => {
+    const loadMpesaConfig = async () => {
+      try {
+        const res = await fetch("/api/mpesa/config");
+        if (res.ok) {
+          const data = await res.json();
+          setMpesaConfig(data);
+        }
+      } catch (err) {
+        console.error("Failed to load configuration inside Itinerary component:", err);
+      }
+    };
+    loadMpesaConfig();
+  }, []);
 
   useEffect(() => {
     if (!nextUpcomingEvent) {
@@ -317,15 +352,34 @@ export default function Itinerary({
     return { label: "WORSHIP", color: "bg-blue-600 text-blue-50 border-blue-500/20" };
   };
 
-  // Filter items based on activeTab and sort chronologically
+  // Filter items based on activeTab, search query, and sort chronologically
   const filteredItems = items.filter(item => {
-    if (activeTab === "all") return true;
-    if (activeTab === "past") return item.status === "Past";
-    if (activeTab === "upcoming") return item.status !== "Past";
-    
-    const tag = getCategoryTag(item).label;
-    if (activeTab === "charity") return tag === "MEDICAL CHARITY";
-    if (activeTab === "revival") return tag === "SABBATH REVIVAL" || tag === "CHORAL WORSHIP";
+    let matchesTab = true;
+    if (activeTab === "past") {
+      matchesTab = item.status === "Past";
+    } else if (activeTab === "upcoming") {
+      matchesTab = item.status !== "Past";
+    } else if (activeTab !== "all") {
+      const tag = getCategoryTag(item).label;
+      if (activeTab === "charity") {
+        matchesTab = tag === "MEDICAL CHARITY";
+      } else if (activeTab === "revival") {
+        matchesTab = tag === "SABBATH REVIVAL" || tag === "CHORAL WORSHIP";
+      }
+    }
+
+    if (!matchesTab) return false;
+
+    if (itinerarySearch.trim() !== "") {
+      const q = itinerarySearch.toLowerCase();
+      const eventMatch = item.event.toLowerCase().includes(q);
+      const notesMatch = (item.notes || "").toLowerCase().includes(q);
+      const locationMatch = (item.location || "").toLowerCase().includes(q);
+      const hostMatch = (item.host || "").toLowerCase().includes(q);
+      const categoryMatch = getCategoryTag(item).label.toLowerCase().includes(q);
+      return eventMatch || notesMatch || locationMatch || hostMatch || categoryMatch;
+    }
+
     return true;
   }).sort((a, b) => {
     try {
@@ -392,7 +446,7 @@ export default function Itinerary({
   };
 
   // Generate and download premium quality vector PDF of the choral schedule
-  const downloadItineraryPDF = async () => {
+  const downloadItineraryPDF = async (downloadAll: boolean = false) => {
     try {
       const doc = new jsPDF({
         orientation: "portrait",
@@ -412,7 +466,8 @@ export default function Itinerary({
       doc.rect(margin, y, contentWidth, 3, "F");
       y += 8;
 
-      const logoData = await loadImageData("https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png");
+      const logoUrl = mpesaConfig.receiptLogo || "https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png";
+      const logoData = await loadImageData(logoUrl);
       if (logoData && logoData.dataUrl) {
          doc.addImage(logoData.dataUrl, 'JPEG', pageWidth - margin - 20, 25, 20, 20);
       }
@@ -421,7 +476,9 @@ export default function Itinerary({
       doc.setFont("helvetica", "bold");
       doc.setFontSize(22);
       doc.setTextColor(15, 23, 42); // slate-900
-      doc.text("KACHAMBA CHORUS", margin, y);
+      const dynTitle = (mpesaConfig.receiptTitle || mpesaConfig.tillName || "KACHAMBA CHORUS").toUpperCase();
+      doc.setFontSize(dynTitle.length > 22 ? 16 : 22);
+      doc.text(dynTitle, margin, y);
       y += 7;
 
       doc.setFontSize(10);
@@ -433,7 +490,7 @@ export default function Itinerary({
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8.5);
       doc.setTextColor(100, 116, 139); // Slate-500
-      const filterLabel = activeTab.toUpperCase() + " MISSIONS";
+      const filterLabel = downloadAll ? "COMPLETE FULL ITINERARY" : (activeTab.toUpperCase() + " MISSIONS");
       const exportTime = new Date().toLocaleDateString("en-US", { 
         weekday: 'long', 
         year: 'numeric', 
@@ -449,14 +506,16 @@ export default function Itinerary({
       doc.line(margin, y, pageWidth - margin, y);
       y += 10;
 
-      if (filteredItems.length === 0) {
+      const parentItems = downloadAll ? items : filteredItems;
+
+      if (parentItems.length === 0) {
         doc.setFont("helvetica", "italic");
         doc.setFontSize(11);
         doc.setTextColor(100, 116, 139);
         doc.text("No active itinerary matching this category selection details.", margin, y);
       } else {
-        for (let index = 0; index < filteredItems.length; index++) {
-          const item = filteredItems[index];
+        for (let index = 0; index < parentItems.length; index++) {
+          const item = parentItems[index];
           const itemNotes = item.notes || "";
           
           let mediaData = null;
@@ -501,15 +560,20 @@ export default function Itinerary({
             doc.rect(margin, y, contentWidth, 1.5, "F");
             y += 5;
 
+            // Ensure our logo appears in every print page
+            if (logoData && logoData.dataUrl) {
+              doc.addImage(logoData.dataUrl, 'JPEG', pageWidth - margin - 14, y - 2, 10, 10);
+            }
+
             doc.setFont("helvetica", "bold");
             doc.setFontSize(8);
             doc.setTextColor(100, 116, 139);
-            doc.text(`KACHAMBA CHORUS MINISTER GAZETTE  •  Page ${doc.getNumberOfPages()}`, margin, y);
+            doc.text(`${(mpesaConfig.receiptTitle || mpesaConfig.tillName || "KACHAMBA CHORUS").toUpperCase()} MINISTRY GAZETTE  •  Page ${doc.getNumberOfPages()}`, margin, y);
             y += 4;
 
             doc.setDrawColor(241, 245, 249);
             doc.line(margin, y, pageWidth - margin, y);
-            y += 8;
+            y += 10;
           }
 
           const startY = y;
@@ -615,7 +679,7 @@ export default function Itinerary({
         }
       }
 
-      doc.save(`Kachamba_Chorus_Schedule_${activeTab.toLowerCase()}.pdf`);
+      doc.save(`Kachamba_Chorus_Schedule_${downloadAll ? 'complete_itinerary' : activeTab.toLowerCase()}.pdf`);
     } catch (err) {
       console.error("Failed to compile or generate PDF file download:", err);
     }
@@ -891,17 +955,21 @@ export default function Itinerary({
 
       <div className="max-w-6xl mx-auto relative z-10">
         
-        {/* Print-Only Header Logo */}
-        <div className="hidden print:flex flex-col items-center justify-center mb-10 pb-6 border-b border-slate-300 gap-4">
+        {/* Printable Header - Repeating on every page via print css position: fixed */}
+        <div className="itinerary-print-header hidden print:flex items-center gap-4 border-b border-slate-350 pb-3 mb-8 w-full text-black">
           <img 
-            src="https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png" 
-            alt="Kachamba Chorus Logo" 
-            className="w-24 h-24 object-contain"
+            src={sdaLogo} 
+            alt="SDA Logo" 
+            className="w-14 h-14 object-contain shrink-0" 
             referrerPolicy="no-referrer"
           />
-          <div className="text-center">
-            <h1 className="text-3xl font-black uppercase text-black tracking-tight">Kachamba Chorus</h1>
-            <p className="text-sm font-bold text-gray-600 mt-1 uppercase tracking-widest">Official Choral Missions Gazette & Itinerary</p>
+          <div className="flex-1 text-left leading-none">
+            <h1 className="text-2xl font-black uppercase text-black font-archivoblack tracking-tight leading-none mb-1">
+              KACHAMBA CHORUS
+            </h1>
+            <p className="text-[10px] font-bold text-slate-700 uppercase tracking-widest font-glacial">
+              Official Seventh-day Adventist Choral Ministry & Missions Itinerary
+            </p>
           </div>
         </div>
 
@@ -924,13 +992,22 @@ export default function Itinerary({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-4 print:hidden">
+          <div className="flex flex-wrap items-center gap-3 print:hidden">
             <button
-              onClick={downloadItineraryPDF}
-              className="flex items-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-450 hover:to-amber-550 text-slate-950 font-sans font-extrabold text-xs uppercase tracking-wider px-5 py-3.5 rounded-xl transition-all cursor-pointer shadow-lg shadow-amber-500/10 active:scale-95 duration-100"
+              onClick={() => downloadItineraryPDF(false)}
+              className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-450 hover:to-amber-550 text-slate-950 font-sans font-extrabold text-[11px] uppercase tracking-wider px-4 py-3.5 rounded-xl transition-all cursor-pointer shadow-lg shadow-amber-500/10 active:scale-95 duration-100"
+              title="Download only the currently selected tab's itinerary"
             >
-               <Download className="w-4 h-4 shrink-0 stroke-[2.5]" />
-               <span>Download PDF</span>
+               <Download className="w-3.5 h-3.5 shrink-0 stroke-[2.5]" />
+               <span>Download Tab PDF</span>
+            </button>
+            <button
+              onClick={() => downloadItineraryPDF(true)}
+              className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 hover:bg-slate-800 text-slate-100 font-sans font-extrabold text-[11px] uppercase tracking-wider px-4 py-3.5 rounded-xl transition-all cursor-pointer shadow-lg active:scale-95 duration-100"
+              title="Download the complete itinerary"
+            >
+               <Download className="w-3.5 h-3.5 shrink-0 stroke-[2.5]" />
+               <span>Download Complete PDF</span>
             </button>
             <button
               onClick={() => {
@@ -938,10 +1015,10 @@ export default function Itinerary({
                 window.print();
                 setTimeout(() => { document.body.classList.remove('print-mode-itinerary'); }, 500);
               }}
-              className="flex items-center gap-2 bg-slate-900 border border-slate-800 hover:border-slate-700 hover:bg-slate-800 text-slate-300 font-sans font-bold text-xs uppercase tracking-wider px-5 py-3.5 rounded-xl transition-all cursor-pointer"
+              className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 hover:bg-slate-800 text-slate-300 font-sans font-bold text-[11px] uppercase tracking-wider px-4 py-3.5 rounded-xl transition-all cursor-pointer"
             >
-               <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-               <span>Print Schedule</span>
+               <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+               <span>Print View</span>
             </button>
             {isAdmin && (
               <button
@@ -1200,6 +1277,37 @@ export default function Itinerary({
           </div>
         )}
 
+        {/* Search & Filter bar for Itinerary events */}
+        <div className="mb-8 max-w-md animate-in fade-in duration-300">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search itinerary events, venues, keywords..."
+              value={itinerarySearch}
+              onChange={(e) => setItinerarySearch(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-800 focus:border-amber-500 rounded-xl py-3.5 pl-11 pr-10 text-xs text-white placeholder-slate-500 focus:outline-none transition-all shadow-inner"
+            />
+            <svg 
+              className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2.5"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            {itinerarySearch && (
+              <button
+                type="button"
+                onClick={() => setItinerarySearch("")}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-450 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Newspaper Section Style Filter Pills with Sliding active background */}
         <div className="flex flex-wrap gap-2 mb-10 pb-4 border-b border-slate-900/60 overflow-x-auto scrollbar-none relative">
           <motion.button 
@@ -1294,12 +1402,25 @@ export default function Itinerary({
 
         {/* Dynamic List Block */}
         {filteredItems.length === 0 ? (
-          <div className="text-center py-24 border border-dashed border-slate-900 rounded-3xl bg-slate-950/60 p-10">
+          <div className="text-center py-24 border border-dashed border-slate-900 rounded-3xl bg-slate-950/60 p-10 animate-in fade-in duration-300">
             <Newspaper className="w-12 h-12 text-slate-650 mx-auto mb-4 stroke-[1.5]" />
-            <h4 className="font-sans font-bold text-lg text-slate-200">No Publications Filed</h4>
+            <h4 className="font-sans font-bold text-lg text-slate-200">
+              {itinerarySearch ? "No Search Matches" : "No Publications Filed"}
+            </h4>
             <p className="text-slate-500 text-sm font-sans mt-2 max-w-sm mx-auto">
-              We couldn't find any active schedules in this news section right now. Choose another category or register one as administrative.
+              {itinerarySearch 
+                ? "No itinerary events match your keywords. Try checking other categories or clearing your search filter."
+                : "We couldn't find any active schedules in this news section right now. Choose another category or register one as administrative."}
             </p>
+            {itinerarySearch && (
+              <button
+                type="button"
+                onClick={() => setItinerarySearch("")}
+                className="mt-4 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold uppercase tracking-wider rounded-lg transition-colors cursor-pointer"
+              >
+                Clear Search Filter
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-8">

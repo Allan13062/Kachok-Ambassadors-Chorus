@@ -327,12 +327,27 @@ app.get("/api/db", async (req, res) => {
       inquiriesList.sort((a, b) => (b.id || "").localeCompare(a.id || ""));
     }
 
+    let subscribersList: any[] = [];
+    let broadcastsList: any[] = [];
+    let memberSpotlightsList: any[] = [];
+    if (fs.existsSync(DB_PATH)) {
+      try {
+        const localData = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+        subscribersList = localData.subscribers || [];
+        broadcastsList = localData.broadcasts || [];
+        memberSpotlightsList = localData.memberSpotlights || [];
+      } catch (e) {}
+    }
+
     res.json({
       activities: allActs,
       itinerary: allIti,
       music,
       leaders: allLdr,
-      inquiries: inquiriesList
+      inquiries: inquiriesList,
+      subscribers: subscribersList,
+      broadcasts: broadcastsList,
+      memberSpotlights: memberSpotlightsList
     });
   } catch (error: any) {
     if (fs.existsSync(DB_PATH)) {
@@ -344,6 +359,9 @@ app.get("/api/db", async (req, res) => {
         localData.itinerary = localData.itinerary || [];
         localData.leaders = localData.leaders || [];
         localData.inquiries = localData.inquiries || [];
+        localData.subscribers = localData.subscribers || [];
+        localData.broadcasts = localData.broadcasts || [];
+        localData.memberSpotlights = localData.memberSpotlights || [];
         localData.music = localData.music || {
           songTitle: "Umchukue Mwanao",
           artistName: "Kachok Ambassadors Chorus",
@@ -367,6 +385,9 @@ app.get("/api/db", async (req, res) => {
       itinerary: [],
       leaders: [],
       inquiries: [],
+      subscribers: [],
+      broadcasts: [],
+      memberSpotlights: [],
       music: {
         songTitle: "Umchukue Mwanao",
         artistName: "Kachok Ambassadors Chorus",
@@ -378,6 +399,152 @@ app.get("/api/db", async (req, res) => {
         lyrics: ""
       }
     });
+  }
+});
+
+// Public Newsletter Subscription
+app.post("/api/subscribers", async (req, res) => {
+  const { email } = req.body;
+  if (!email || !email.includes("@")) {
+    return res.status(400).json({ error: "A valid email address is required." });
+  }
+
+  try {
+    let localDb: any = { subscribers: [] };
+    if (fs.existsSync(DB_PATH)) {
+      localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+    }
+    localDb.subscribers = localDb.subscribers || [];
+
+    const normalized = email.trim().toLowerCase();
+    const alreadySubscribed = localDb.subscribers.some((s: any) => s.email === normalized);
+    if (alreadySubscribed) {
+      return res.json({ success: true, message: "You are already subscribed to alerts!" });
+    }
+
+    const newSub = {
+      id: "sub-" + Date.now(),
+      email: normalized,
+      createdAt: new Date().toISOString()
+    };
+
+    localDb.subscribers.push(newSub);
+    fs.writeFileSync(DB_PATH, JSON.stringify(localDb, null, 2), "utf-8");
+
+    res.json({ success: true, message: "Subscribed successfully! Thank you for supporting our ministry." });
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to register subscription: " + error.message });
+  }
+});
+
+// Delete Subscriber (Admin)
+app.post("/api/subscribers/delete", requireAdmin, async (req, res) => {
+  const { id } = req.body;
+  if (!id) {
+    return res.status(400).json({ error: "Subscriber ID is required." });
+  }
+  try {
+    if (fs.existsSync(DB_PATH)) {
+      const localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+      localDb.subscribers = (localDb.subscribers || []).filter((s: any) => s.id !== id);
+      fs.writeFileSync(DB_PATH, JSON.stringify(localDb, null, 2), "utf-8");
+    }
+    res.json({ success: true, message: "Subscriber removed successfully." });
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to delete subscriber: " + error.message });
+  }
+});
+
+// Add admin custom broadcast (Admin)
+app.post("/api/broadcasts", requireAdmin, async (req, res) => {
+  const { subject, body } = req.body;
+  if (!subject || !body) {
+    return res.status(400).json({ error: "Subject and Body text are required for broadcast emails." });
+  }
+
+  try {
+    let localDb: any = { subscribers: [], broadcasts: [] };
+    if (fs.existsSync(DB_PATH)) {
+      localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+    }
+    localDb.subscribers = localDb.subscribers || [];
+    localDb.broadcasts = localDb.broadcasts || [];
+
+    const subscribersCount = localDb.subscribers.length;
+    const emailsList = localDb.subscribers.map((s: any) => s.email);
+
+    const newBroadcast = {
+      id: "broad-" + Date.now(),
+      subject,
+      body,
+      sentCount: subscribersCount,
+      sentTo: emailsList,
+      createdAt: new Date().toISOString()
+    };
+
+    localDb.broadcasts.push(newBroadcast);
+    fs.writeFileSync(DB_PATH, JSON.stringify(localDb, null, 2), "utf-8");
+
+    // Print massive styled bulletin simulation box to console
+    console.log("\n======================================================================");
+    console.log(`📡 BROADCAST DISPATCHED TO ALL SUBSCRIBERS (${subscribersCount} recipients)`);
+    console.log(`📧 SUBJECT: ${subject}`);
+    console.log(`📝 BODY SUMMARY:\n${body}`);
+    console.log("======================================================================\n");
+
+    res.json({ success: true, data: newBroadcast });
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to dispatch broadcast email: " + error.message });
+  }
+});
+
+// Create Member Spotlight (Admin)
+app.post("/api/member-spotlights", requireAdmin, async (req, res) => {
+  const { memberName, roleOrVoicePart, quoteOrHighlight, image } = req.body;
+  if (!memberName || !quoteOrHighlight) {
+    return res.status(400).json({ error: "Member name and highlight quote are required." });
+  }
+
+  try {
+    let localDb: any = { memberSpotlights: [] };
+    if (fs.existsSync(DB_PATH)) {
+      localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+    }
+    localDb.memberSpotlights = localDb.memberSpotlights || [];
+
+    const newSpotlight = {
+      id: "spot-" + Date.now(),
+      memberName,
+      roleOrVoicePart: roleOrVoicePart || "Chorus Member",
+      quoteOrHighlight,
+      image: image || "",
+      createdAt: new Date().toISOString()
+    };
+
+    localDb.memberSpotlights.push(newSpotlight);
+    fs.writeFileSync(DB_PATH, JSON.stringify(localDb, null, 2), "utf-8");
+
+    res.json({ success: true, data: newSpotlight });
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to add Member Spotlight: " + error.message });
+  }
+});
+
+// Delete Member Spotlight (Admin)
+app.post("/api/member-spotlights/delete", requireAdmin, async (req, res) => {
+  const { id } = req.body;
+  if (!id) {
+    return res.status(400).json({ error: "Spotlight ID is required." });
+  }
+  try {
+    if (fs.existsSync(DB_PATH)) {
+      const localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+      localDb.memberSpotlights = (localDb.memberSpotlights || []).filter((s: any) => s.id !== id);
+      fs.writeFileSync(DB_PATH, JSON.stringify(localDb, null, 2), "utf-8");
+    }
+    res.json({ success: true, message: "Member spotlight deleted successfully." });
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to delete member spotlight: " + error.message });
   }
 });
 
@@ -1073,7 +1240,7 @@ app.delete("/api/activities/:id", requireAdmin, async (req, res) => {
 
 // 9. Create itinerary item (Admin)
 app.post("/api/itinerary", requireAdmin, async (req, res) => {
-  const { event, date, time, location, host, status, notes, mediaUrl, mediaType } = req.body;
+  const { event, date, time, location, host, status, notes, mediaUrl, mediaType, sendBroadcast } = req.body;
   if (!event || !date || !location) {
     return res.status(400).json({ error: "Event name, Date and Location are required." });
   }
@@ -1101,6 +1268,45 @@ app.post("/api/itinerary", requireAdmin, async (req, res) => {
       }
     } catch (pgErr: any) {
       console.warn("[Cloud SQL Sync Warning] Could not insert itinerary in Postgres, saved locally");
+    }
+
+    // Trigger automated email broadcast if requested
+    if (sendBroadcast) {
+      try {
+        let localDb: any = { subscribers: [], broadcasts: [] };
+        if (fs.existsSync(DB_PATH)) {
+          localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+        }
+        localDb.subscribers = localDb.subscribers || [];
+        localDb.broadcasts = localDb.broadcasts || [];
+
+        if (localDb.subscribers.length > 0) {
+          const subscribersCount = localDb.subscribers.length;
+          const emailsList = localDb.subscribers.map((s: any) => s.email);
+
+          const subject = `🔔 NEW CONCERT ALERT: ${event}`;
+          const body = `Dearest Subscriber,\n\nWe are overjoyed to announce a new choral tour & worship crusade schedule!\n\n📍 Event: ${event}\n📅 Date: ${date}\n⏰ Time: ${time || "TBD"}\n⛪ Location: ${location}\n🎙️ Host: ${host || "Local SDA Church"}\n\nNotes from our directors:\n"${notes || "Prepare your hearts and voices to fellowship with us in song."}"\n\nWe look forward to praising together. Secure travel schedules in advance!\n\nYours in Ministry,\nKachamba Chorus`;
+
+          const autoBroadcast = {
+            id: "broad-" + Date.now(),
+            subject,
+            body,
+            sentCount: subscribersCount,
+            sentTo: emailsList,
+            createdAt: new Date().toISOString()
+          };
+
+          localDb.broadcasts.push(autoBroadcast);
+          fs.writeFileSync(DB_PATH, JSON.stringify(localDb, null, 2), "utf-8");
+
+          console.log("\n======================================================================");
+          console.log(`📡 AUTOMATIC CHORAL DISPATCH SENT TO ${subscribersCount} RECIPIENTS`);
+          console.log(`📧 SUBJECT: ${subject}`);
+          console.log("======================================================================\n");
+        }
+      } catch (broadcastErr: any) {
+        console.warn("[Broadcast Warning] Failed automatic newsletter broadcast:", broadcastErr.message);
+      }
     }
     
     res.json({ success: true, data: newIti });

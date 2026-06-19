@@ -14,6 +14,15 @@ interface ActivitiesProps {
 export default function Activities({ items, isAdmin, onAdd, onEdit, onDelete }: ActivitiesProps) {
   const [activeMedia, setActiveMedia] = useState<{ url: string; type: 'image' | 'video' | ''; title: string } | null>(null);
   const [copiedItemId, setCopiedItemId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredItems = items.filter(
+    (act) =>
+      act.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      act.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      act.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      act.category.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const handleCopyActivity = (id: string, title: string, date: string, location: string) => {
     const textToCopy = `Kachamba Chorus Ministry Details! ✨\n\n📢 *${title}*\n🗓️ Scheduled: ${date}\n📍 Location: ${location}\n\nLearn more and join us: ${window.location.origin}/#activities-ministry-${id}`;
@@ -57,10 +66,47 @@ export default function Activities({ items, isAdmin, onAdd, onEdit, onDelete }: 
           )}
         </div>
 
+        {/* Search Filter Box */}
+        {items.length > 0 && (
+          <div className="mb-10 max-w-md animate-in fade-in duration-300">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search ministries page, location, and keywords..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-800 focus:border-amber-500 rounded-xl py-3 pl-11 pr-10 text-sm text-white placeholder-slate-500 focus:outline-none transition-all shadow-inner"
+              />
+              <svg 
+                className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-500" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2.5"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-450 hover:text-white transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Activities Grid */}
         {items.length === 0 ? (
           <div className="text-center py-12 border border-dashed border-slate-850 rounded-2xl bg-slate-900/20">
             <p className="text-slate-400 text-sm">No ministry programs recorded at this time.</p>
+          </div>
+        ) : filteredItems.length === 0 ? (
+          <div className="text-center py-12 border border-dashed border-slate-850 rounded-2xl bg-slate-900/20">
+            <p className="text-slate-400 text-sm">No ministry programs match your search filter.</p>
           </div>
         ) : (
           <motion.div 
@@ -71,12 +117,12 @@ export default function Activities({ items, isAdmin, onAdd, onEdit, onDelete }: 
               hidden: { opacity: 0 },
               visible: {
                 opacity: 1,
-                transition: { staggerChildren: 0.2 }
+                transition: { staggerChildren: 0.15 }
               }
             }}
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
           >
-            {items.map((act) => (
+            {filteredItems.map((act) => (
               <motion.div 
                 key={act.id}
                 id={`activities-ministry-${act.id}`}

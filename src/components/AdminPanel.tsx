@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { X, Lock, Eye, Check, ShieldCheck, Mail, Calendar, AlertCircle, Trash2, Plus, EyeOff, Music, Users, CreditCard, Smartphone, CheckCircle, Send, Barcode } from "lucide-react";
-import { Inquiry, Activity, ItineraryItem, MusicData, Leader } from "../types";
+import { X, Lock, Eye, Check, ShieldCheck, Mail, Calendar, AlertCircle, Trash2, Plus, EyeOff, Music, Users, CreditCard, Smartphone, CheckCircle, Send, Barcode, Copy, RefreshCw, Key, HelpCircle, Sliders, ChevronUp, ChevronDown, Sparkles, DollarSign, MessageSquare as MessageSquareIcon, Layout, UploadCloud, Film, FileText } from "lucide-react";
+import { Inquiry, Activity, ItineraryItem, MusicData, Leader, Subscriber, Broadcast, MemberSpotlight as MemberSpotlightType } from "../types";
 import ImageEditor from "./ImageEditor";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -27,6 +27,270 @@ interface AdminPanelProps {
   leaderToEdit: Leader | null;
   music: MusicData;
   onClearEdits: () => void;
+
+  itinerary: ItineraryItem[];
+
+  // Real data lists for broadcasts, newsletters, spotlights
+  subscribers: Subscriber[];
+  broadcasts: Broadcast[];
+  memberSpotlights: MemberSpotlightType[];
+  onRefresh: () => void;
+}
+
+interface AdvancedMediaDropzoneProps {
+  label: string;
+  value: string;
+  mediaType: "image" | "video" | "dual" | "";
+  error: string;
+  onClear: () => void;
+  onFileSelect: (dataUrl: string, type: "image" | "video", fileName: string, size: number) => void;
+  onError: (msg: string) => void;
+  acceptedTypes?: string;
+}
+
+function AdvancedMediaDropzone({
+  label,
+  value,
+  mediaType,
+  error,
+  onClear,
+  onFileSelect,
+  onError,
+  acceptedTypes = "image/*,video/*"
+}: AdvancedMediaDropzoneProps) {
+  const [isDragActive, setIsDragActive] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setIsDragActive(true);
+    } else if (e.type === "dragleave") {
+      setIsDragActive(false);
+    }
+  };
+
+  const processFile = (file: File) => {
+    onError("");
+    if (!file) return;
+
+    if (file.size > 100 * 1024 * 1024) {
+      onError("File too large. Maximum size is 100MB.");
+      return;
+    }
+
+    const type = file.type.startsWith("video") ? "video" : "image";
+    
+    setUploadProgress(10);
+    const interval = setInterval(() => {
+      setUploadProgress((prev) => {
+        if (prev === null) {
+          clearInterval(interval);
+          return null;
+        }
+        if (prev >= 90) {
+          clearInterval(interval);
+          return prev;
+        }
+        return prev + 15;
+      });
+    }, 100);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      if (!dataUrl) {
+         onError("Failed to read file.");
+         setUploadProgress(null);
+         clearInterval(interval);
+         return;
+      }
+      
+      if (type === "image") {
+        const image = document.createElement("img");
+        image.onload = () => {
+          try {
+            const canvas = document.createElement("canvas");
+            const maxWidth = 3840;
+            const maxHeight = 3840;
+            let width = image.width;
+            let height = image.height;
+            if (width > height) {
+              if (width > maxWidth) {
+                height = Math.round((height * maxWidth) / width);
+                width = maxWidth;
+              }
+            } else {
+              if (height > maxHeight) {
+                width = Math.round((width * maxHeight) / height);
+                height = maxHeight;
+              }
+            }
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) {
+              setUploadProgress(100);
+              setTimeout(() => {
+                onFileSelect(dataUrl, "image", file.name, file.size);
+                setUploadProgress(null);
+              }, 200);
+              return;
+            }
+            ctx.drawImage(image, 0, 0, width, height);
+            const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.95);
+            setUploadProgress(100);
+            setTimeout(() => {
+              onFileSelect(compressedDataUrl, "image", file.name, file.size);
+              setUploadProgress(null);
+            }, 200);
+          } catch (err) {
+            setUploadProgress(100);
+            setTimeout(() => {
+              onFileSelect(dataUrl, "image", file.name, file.size);
+              setUploadProgress(null);
+            }, 200);
+          }
+        };
+        image.onerror = () => {
+          setUploadProgress(100);
+          setTimeout(() => {
+            onFileSelect(dataUrl, "image", file.name, file.size);
+            setUploadProgress(null);
+          }, 200);
+        };
+        image.src = dataUrl;
+      } else {
+        setUploadProgress(100);
+        setTimeout(() => {
+          onFileSelect(dataUrl, "video", file.name, file.size);
+          setUploadProgress(null);
+        }, 200);
+      }
+    };
+    reader.onerror = () => {
+      onError("Failed to load file.");
+      setUploadProgress(null);
+      clearInterval(interval);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      processFile(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      processFile(e.target.files[0]);
+    }
+  };
+
+  const isLocalBase64 = value && value.startsWith("data:");
+  const isVideo = mediaType === "video" || (value && (value.includes("video") || value.match(/\.(mp4|webm|mov)$/i)));
+
+  return (
+    <div className="space-y-2">
+      <div
+        onDragEnter={handleDrag}
+        onDragOver={handleDrag}
+        onDragLeave={handleDrag}
+        onDrop={handleDrop}
+        className={`relative border-2 border-dashed rounded-xl p-6 text-center transition-all flex flex-col items-center justify-center min-h-[140px] cursor-pointer ${
+          isDragActive
+            ? "border-amber-400 bg-amber-500/10 scale-[1.01]"
+            : value
+            ? "border-emerald-500/30 bg-slate-900/40"
+            : "border-slate-850 bg-slate-950/60 hover:border-slate-800 hover:bg-slate-950/80"
+        }`}
+      >
+        <input
+          type="file"
+          accept={acceptedTypes}
+          onChange={handleFileInput}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          title=""
+        />
+
+        {uploadProgress !== null ? (
+          <div className="w-full max-w-[200px] flex flex-col items-center gap-2">
+            <RefreshCw className="w-8 h-8 text-amber-500 animate-spin" />
+            <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest font-bold">Processing file...</span>
+            <div className="w-full bg-slate-950 h-1.5 rounded-full overflow-hidden border border-slate-800">
+              <div
+                className="bg-gradient-to-r from-amber-500 to-amber-600 h-full transition-all duration-150"
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+            <span className="text-[9px] font-mono text-amber-400">{uploadProgress}%</span>
+          </div>
+        ) : value ? (
+          <div className="flex flex-col items-center gap-3 w-full relative z-10" onClick={(e) => e.stopPropagation()}>
+            {isVideo ? (
+              <div className="w-16 h-16 bg-blue-500/10 rounded-xl flex items-center justify-center border border-blue-500/20">
+                <Film className="w-8 h-8 text-blue-400" />
+              </div>
+            ) : (
+              <div className="relative group/thumb">
+                <img
+                  src={value}
+                  alt="Thumbnail"
+                  className="w-20 h-20 rounded-xl object-cover border border-slate-700 shadow-md p-0.5 bg-slate-800"
+                />
+                <div className="absolute inset-0 bg-black/60 rounded-xl opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity">
+                  <Check className="w-6 h-6 text-emerald-400 font-bold" />
+                </div>
+              </div>
+            )}
+            
+            <div className="text-center">
+              <span className="inline-flex items-center gap-1 bg-emerald-500/15 border border-emerald-500/20 px-2.5 py-0.5 rounded text-[9px] font-mono uppercase font-black text-emerald-400 tracking-wider">
+                <Check className="w-3 h-3 stroke-[3]" /> Encoded Successfully
+              </span>
+              <p className="text-[10px] font-mono text-slate-400 mt-1 truncate max-w-[240px] mx-auto">
+                {isLocalBase64 ? "Buffered Local Memory" : value}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={onClear}
+              className="px-3 py-1 bg-red-500/10 hover:bg-red-500 hover:text-white border border-red-500/20 rounded-lg text-[9px] font-mono text-red-400 uppercase tracking-wider transition-all"
+            >
+              Remove File
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-2 pointer-events-none">
+            <div className="p-3 bg-slate-900 rounded-full border border-slate-850 text-slate-400">
+              <UploadCloud className="w-6 h-6 text-slate-400" />
+            </div>
+            <div>
+              <span className="text-[11px] font-sans font-bold text-slate-350">
+                Drag & Drop or <span className="text-amber-400">Browse</span>
+              </span>
+              <p className="text-[9px] font-mono text-slate-500 mt-1 uppercase tracking-widest leading-none">
+                Supports image or video clips
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {error && (
+        <div className="text-[10px] text-red-400 font-mono bg-red-950/20 border border-red-900/30 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function AdminPanel({
@@ -48,13 +312,25 @@ export default function AdminPanel({
   itineraryToEdit,
   leaderToEdit,
   music,
-  onClearEdits
+  onClearEdits,
+  itinerary,
+  subscribers,
+  broadcasts,
+  memberSpotlights,
+  onRefresh
 }: AdminPanelProps) {
   
   const [passcode, setPasscode] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
   const [submittingData, setSubmittingData] = useState(false);
+
+  // GitHub Webhook Guide Modal states
+  const [isGitWebhookModalOpen, setIsGitWebhookModalOpen] = useState(false);
+  const [gitActiveStep, setGitActiveStep] = useState(1);
+  const [gitWebhookSecret, setGitWebhookSecret] = useState("KachambaSync_Secret2026");
+  const [isSecretCopied, setIsSecretCopied] = useState(false);
+  const [isPayloadCopied, setIsPayloadCopied] = useState(false);
 
   // Reset UI states
   const [showResetUI, setShowResetUI] = useState(false);
@@ -253,6 +529,7 @@ export default function AdminPanel({
     notes: string;
     mediaUrl: string;
     mediaType: 'image' | 'video' | '';
+    sendBroadcast: boolean;
   }>({
     event: "",
     date: "",
@@ -262,7 +539,8 @@ export default function AdminPanel({
     status: "Confirmed",
     notes: "",
     mediaUrl: "",
-    mediaType: ""
+    mediaType: "",
+    sendBroadcast: true
   });
 
   const [itiFileError, setItiFileError] = useState("");
@@ -293,6 +571,31 @@ export default function AdminPanel({
     phone: ""
   });
   const [ldrSaving, setLdrSaving] = useState(false);
+
+  // Manual Choral Broadcast notification states
+  const [broadForm, setBroadForm] = useState({ subject: "", body: "" });
+  const [broadSaving, setBroadSaving] = useState(false);
+  const [broadMsg, setBroadMsg] = useState("");
+  const [broadErr, setBroadErr] = useState("");
+
+  // Member Spotlight highlights states
+  const [spotForm, setSpotForm] = useState({ memberName: "", roleOrVoicePart: "", quoteOrHighlight: "", image: "" });
+  const [spotSaving, setSpotSaving] = useState(false);
+  const [spotMsg, setSpotMsg] = useState("");
+  const [spotErr, setSpotErr] = useState("");
+  const [spotFileError, setSpotFileError] = useState("");
+  const [showSpotStudio, setShowSpotStudio] = useState(false);
+
+  // Print Preview Arranger Studio States
+  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
+  const [printHeaderText, setPrintHeaderText] = useState("KACHAMBA CHORUS TOUR ITINERARY");
+  const [printSubText, setPrintSubText] = useState("Proclaiming the Three Angels' Messages in Song and Worship");
+  const [showHostColumn, setShowHostColumn] = useState(true);
+  const [showTimeColumn, setShowTimeColumn] = useState(true);
+  const [showNotesColumn, setShowNotesColumn] = useState(true);
+  const [logoPosition, setLogoPosition] = useState<'left' | 'center' | 'right'>('left');
+  const [printFontTheme, setPrintFontTheme] = useState<'traditional' | 'modern' | 'bold-editorial'>('traditional');
+  const [customSortedItinerary, setCustomSortedItinerary] = useState<any[]>([]);
   const [ldrError, setLdrError] = useState("");
   const [showLdrStudio, setShowLdrStudio] = useState(false);
   const [showActStudio, setShowActStudio] = useState(false);
@@ -484,6 +787,12 @@ export default function AdminPanel({
   }, [itineraryToEdit]);
 
   React.useEffect(() => {
+    if (itinerary) {
+      setCustomSortedItinerary([...itinerary]);
+    }
+  }, [itinerary]);
+
+  React.useEffect(() => {
     setShowLdrStudio(false);
     if (leaderToEdit) {
       setLdrForm({
@@ -538,6 +847,136 @@ export default function AdminPanel({
     if (result) {
       onClearEdits();
       onClose();
+    }
+  };
+
+  const uploadBase64 = async (base64Str: string | undefined | null, defaultFilename = "upload.jpg"): Promise<string | undefined | null> => {
+    if (!base64Str || !base64Str.startsWith("data:")) {
+      return base64Str;
+    }
+    const admPass = localStorage.getItem("kachamba_admin_passcode") || "";
+    try {
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-passcode": admPass
+        },
+        body: JSON.stringify({
+          filename: defaultFilename,
+          base64: base64Str
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.url;
+      }
+    } catch (err) {
+      console.error("Network error during base64 upload:", err);
+    }
+    return base64Str;
+  };
+
+  const handleBroadcastSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!broadForm.subject || !broadForm.body) return;
+    setBroadSaving(true);
+    setBroadMsg("");
+    setBroadErr("");
+
+    try {
+      const res = await fetch("/api/broadcasts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-passcode": localStorage.getItem("kachamba_admin_passcode") || ""
+        },
+        body: JSON.stringify(broadForm)
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setBroadMsg(`Success: Choral alert broadcasted successfully to all active subscribers (${data.data.sentCount} recipients)!`);
+        setBroadForm({ subject: "", body: "" });
+        onRefresh();
+      } else {
+        setBroadErr(data.error || "Failed to dispatch broadcast alert.");
+      }
+    } catch (err: any) {
+      setBroadErr(err.message || "Network error. Could not reach server.");
+    } finally {
+      setBroadSaving(false);
+    }
+  };
+
+  const handleSpotlightSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!spotForm.memberName || !spotForm.quoteOrHighlight) return;
+    setSpotSaving(true);
+    setSpotMsg("");
+    setSpotErr("");
+
+    try {
+      const processedImage = await uploadBase64(spotForm.image, "spotlight_avatar.jpg");
+      const payload = { ...spotForm, image: processedImage };
+
+      const res = await fetch("/api/member-spotlights", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-passcode": localStorage.getItem("kachamba_admin_passcode") || ""
+        },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSpotMsg("Success: New WhatsApp-style spotlight status update created! It will stay active for exactly 48 hours.");
+        setSpotForm({ memberName: "", roleOrVoicePart: "", quoteOrHighlight: "", image: "" });
+        onRefresh();
+      } else {
+        setSpotErr(data.error || "Failed to add spotlight update.");
+      }
+    } catch (err: any) {
+      setSpotErr(err.message || "Network error. Could not reach server.");
+    } finally {
+      setSpotSaving(false);
+    }
+  };
+
+  const handleDeleteSubscriber = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this subscriber? They will stop receiving alerts.")) return;
+    try {
+      const res = await fetch("/api/subscribers/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-passcode": localStorage.getItem("kachamba_admin_passcode") || ""
+        },
+        body: JSON.stringify({ id })
+      });
+      if (res.ok) {
+        onRefresh();
+      }
+    } catch (err) {
+      console.error("Failed to delete subscriber:", err);
+    }
+  };
+
+  const handleDeleteSpotlight = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this spotlight? It will disappear from active stories.")) return;
+    try {
+      const res = await fetch("/api/member-spotlights/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-passcode": localStorage.getItem("kachamba_admin_passcode") || ""
+        },
+        body: JSON.stringify({ id })
+      });
+      if (res.ok) {
+        onRefresh();
+      }
+    } catch (err) {
+      console.error("Failed to delete member spotlight:", err);
     }
   };
 
@@ -853,8 +1292,18 @@ export default function AdminPanel({
 
               <div className="flex items-center gap-2">
                 <button
+                  type="button"
+                  onClick={() => setIsGitWebhookModalOpen(true)}
+                  className="bg-slate-900 border border-slate-800 hover:border-slate-700 hover:bg-slate-800 text-slate-300 font-sans font-bold text-xs px-3.5 py-2 rounded-lg cursor-pointer transition-all flex items-center gap-1.5"
+                >
+                  <svg className="w-3.5 h-3.5 text-amber-550 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                    <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.577.688.479C19.138 20.164 22 16.418 22 12c0-5.523-4.477-10-10-10z" />
+                  </svg>
+                  <span>Missions Webhooks</span>
+                </button>
+                <button
                   onClick={onLogout}
-                  className="bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/10 font-sans font-semibold text-xs px-4 py-2 rounded-lg cursor-pointer transition-all"
+                  className="bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/10 font-sans font-semibold text-xs px-3.5 py-2 rounded-lg cursor-pointer transition-all"
                 >
                   Force Log Out
                 </button>
@@ -948,135 +1397,19 @@ export default function AdminPanel({
                         className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400 font-mono text-[11px] mb-2"
                         placeholder="Paste image link, or leave blank"
                       />
-                      <div className="flex flex-col sm:flex-row gap-3">
-                        <label className="flex-1 bg-slate-800 border border-slate-700 p-2 rounded cursor-pointer text-center hover:bg-slate-750 transition-colors flex items-center justify-center gap-2 font-mono text-[10px] uppercase font-bold text-slate-350">
-                          <Plus className="w-3.5 h-3.5 text-amber-400" />
-                          <span>Upload Photo</span>
-                          <input 
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onClick={(e) => { (e.target as HTMLInputElement).value = ''; }}
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              setActFileError("");
-                              if (file) {
-                                if (file.size > 100 * 1024 * 1024) {
-                                  setActFileError("File too large. Choose under 100MB.");
-                                  return;
-                                }
-                                try {
-                                  const reader = new FileReader();
-                                  reader.onload = (event) => {
-                                    const dataUrl = event.target?.result as string;
-                                    if (!dataUrl) {
-                                      setActFileError("Failed to read image file.");
-                                      return;
-                                    }
-
-                                    const image = document.createElement('img');
-                                    image.onload = () => {
-                                      try {
-                                        const canvas = document.createElement('canvas');
-                                        const maxWidth = 3840;
-                                        const maxHeight = 3840;
-                                        let width = image.width;
-                                        let height = image.height;
-                                        if (width > height) {
-                                          if (width > maxWidth) {
-                                            height = Math.round((height * maxWidth) / width);
-                                            width = maxWidth;
-                                          }
-                                        } else {
-                                          if (height > maxHeight) {
-                                            width = Math.round((width * maxHeight) / height);
-                                            height = maxHeight;
-                                          }
-                                        }
-                                        canvas.width = width;
-                                        canvas.height = height;
-                                        const ctx = canvas.getContext('2d');
-                                        if (!ctx) {
-                                          setActForm({ ...actForm, image: dataUrl, mediaType: 'image' });
-                                          return;
-                                        }
-                                        ctx.drawImage(image, 0, 0, width, height);
-                                        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.95);
-                                        setActForm({ ...actForm, image: compressedDataUrl, mediaType: 'image' });
-                                      } catch (err) {
-                                        console.error("Canvas encoding error", err);
-                                        setActForm({ ...actForm, image: dataUrl, mediaType: 'image' });
-                                      }
-                                    };
-                                    image.onerror = () => {
-                                      console.warn("Fell back to raw image dataUrl due to loading restriction.");
-                                      setActForm({ ...actForm, image: dataUrl, mediaType: 'image' });
-                                    };
-                                    image.src = dataUrl;
-                                  };
-                                  reader.onerror = () => {
-                                    setActFileError("Failed to load file.");
-                                  };
-                                  reader.readAsDataURL(file);
-                                } catch (e) {
-                                  setActFileError("Image file loading error.");
-                                }
-                              }
-                            }}
-                          />
-                        </label>
-
-                        <label className="flex-1 bg-slate-800 border border-slate-700 p-2 rounded cursor-pointer text-center hover:bg-slate-750 transition-colors flex items-center justify-center gap-2 font-mono text-[10px] uppercase font-bold text-slate-350">
-                          <Plus className="w-3.5 h-3.5 text-amber-500" />
-                          <span>Upload Video</span>
-                          <input 
-                            type="file"
-                            accept="video/*"
-                            className="hidden"
-                            onClick={(e) => { (e.target as HTMLInputElement).value = ''; }}
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              setActFileError("");
-                              if (file) {
-                                if (file.size > 100 * 1024 * 1024) {
-                                  setActFileError("Video too large. Choose under 100MB.");
-                                  return;
-                                }
-                                try {
-                                  const reader = new FileReader();
-                                  reader.onload = (event) => {
-                                    const dataUrl = event.target?.result as string;
-                                    setActForm({ ...actForm, image: dataUrl, mediaType: 'video' });
-                                  };
-                                  reader.readAsDataURL(file);
-                                } catch (e) {
-                                  setActFileError("Video file loading error.");
-                                }
-                              }
-                            }}
-                          />
-                        </label>
-
-                        {actForm.image && (
-                          <button
-                            type="button"
-                            onClick={() => setActForm({ ...actForm, image: "", mediaType: "" })}
-                            className="bg-red-500/10 hover:bg-red-500 hover:text-white text-red-400 px-3 py-2 rounded border border-red-500/20 text-[10px] font-mono uppercase transition-colors shrink-0"
-                          >
-                            Clear
-                          </button>
-                        )}
+                      <div className="mt-2">
+                        <AdvancedMediaDropzone
+                          label="Activity Cover Art File"
+                          value={actForm.image}
+                          mediaType={actForm.mediaType || "image"}
+                          error={actFileError}
+                          onClear={() => setActForm({ ...actForm, image: "", mediaType: "" })}
+                          onFileSelect={(dataUrl, type) => {
+                            setActForm({ ...actForm, image: dataUrl, mediaType: type });
+                          }}
+                          onError={(msg) => setActFileError(msg)}
+                        />
                       </div>
-                      {actFileError && (
-                        <div className="text-[10px] text-red-400 font-mono bg-red-950/20 border border-red-900/30 p-2 rounded mt-1">
-                          ⚠️ {actFileError}
-                        </div>
-                      )}
-                      {actForm.image && actForm.image.startsWith("data:") && (
-                        <div className="mt-1 text-slate-400 text-[10px] font-mono bg-slate-950 p-2 rounded border border-slate-800">
-                          Uploaded local file successfully!
-                        </div>
-                      )}
 
                       {actForm.image && (!actForm.mediaType || actForm.mediaType === "image") && (
                         <div className="mt-3 flex flex-col gap-2">
@@ -1144,9 +1477,21 @@ export default function AdminPanel({
 
                 {/* 2. Itinerary Edit Form */}
                 <div className="bg-slate-950/40 border border-slate-800 p-6 rounded-2xl">
-                  <div className="flex items-center gap-2 text-amber-400 mb-4 bg-slate-950 p-2 rounded-lg font-bold border border-slate-805 text-sm uppercase tracking-wide">
-                    <Calendar className="w-4 h-4" />
-                    <span>{itineraryToEdit ? "Edit Tour Itinerary" : "Plan New Choral Tour"}</span>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 bg-slate-950 p-2.5 rounded-lg border border-slate-805 text-sm uppercase tracking-wide">
+                    <div className="flex items-center gap-2 text-amber-400 font-bold">
+                      <Calendar className="w-4 h-4" />
+                      <span>{itineraryToEdit ? "Edit Tour Itinerary" : "Plan New Choral Tour"}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomSortedItinerary([...itinerary]);
+                        setIsPrintPreviewOpen(true);
+                      }}
+                      className="bg-amber-500/10 hover:bg-amber-450 hover:text-slate-950 text-amber-400 border border-amber-500/20 hover:border-transparent font-sans font-extrabold text-[10px] tracking-wider py-1.5 px-3.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span>🔮 Print Preview & Arranger</span>
+                    </button>
                   </div>
 
                   <form onSubmit={handleItiSubmit} className="flex flex-col gap-4 text-xs">
@@ -1411,152 +1756,19 @@ export default function AdminPanel({
                           className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400 font-mono text-[11px]"
                           placeholder="Paste image/video URL (e.g., https://... or leave blank)"
                         />
-                        <div className="flex items-center gap-3">
-                          <label className="flex-1 bg-slate-800 border border-slate-700 p-2 rounded cursor-pointer text-center hover:bg-slate-750 transition-colors flex items-center justify-center gap-2 font-mono text-[10px] uppercase font-bold text-slate-350">
-                            <Plus className="w-3.5 h-3.5 text-amber-400" />
-                            <span>Upload File (Photo/Video)</span>
-                            <input 
-                              type="file"
-                              accept="image/*,video/*"
-                              className="hidden"
-                              onClick={(e) => { (e.target as HTMLInputElement).value = ''; }}
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                setItiFileError("");
-                                if (file) {
-                                  // Support up to 100MB files (photos and video clips)
-                                  if (file.size > 100 * 1024 * 1024) {
-                                    setItiFileError("This file is too large. Please select a photo or video under 100MB.");
-                                    return;
-                                  }
-
-                                  const type = file.type.startsWith('video') ? 'video' : 'image';
-                                  if (type === 'video') {
-                                    const reader = new FileReader();
-                                    reader.onload = (event) => {
-                                      if (event.target?.result) {
-                                        setItiForm({
-                                          ...itiForm,
-                                          mediaUrl: event.target.result as string,
-                                          mediaType: 'video'
-                                        });
-                                      }
-                                    };
-                                    reader.readAsDataURL(file);
-                                  } else {
-                                    // Image! Use FileReader to get a dataURL first so it works robustly in sandboxed iframes.
-                                    try {
-                                      const reader = new FileReader();
-                                      reader.onload = (event) => {
-                                        const dataUrl = event.target?.result as string;
-                                        if (!dataUrl) {
-                                          setItiFileError("Failed to read image file.");
-                                          return;
-                                        }
-
-                                        const image = document.createElement('img');
-                                        image.onload = () => {
-                                          try {
-                                            const canvas = document.createElement('canvas');
-                                            const maxWidth = 3840;
-                                            const maxHeight = 3840;
-                                            let width = image.width;
-                                            let height = image.height;
-
-                                            if (width > height) {
-                                              if (width > maxWidth) {
-                                                height = Math.round((height * maxWidth) / width);
-                                                width = maxWidth;
-                                              }
-                                            } else {
-                                              if (height > maxHeight) {
-                                                width = Math.round((width * maxHeight) / height);
-                                                height = maxHeight;
-                                              }
-                                            }
-
-                                            canvas.width = width;
-                                            canvas.height = height;
-                                            const ctx = canvas.getContext('2d');
-                                            if (!ctx) {
-                                              setItiForm({
-                                                ...itiForm,
-                                                mediaUrl: dataUrl,
-                                                mediaType: 'image'
-                                              });
-                                              return;
-                                            }
-
-                                            ctx.drawImage(image, 0, 0, width, height);
-                                            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.95);
-                                            setItiForm({
-                                              ...itiForm,
-                                              mediaUrl: compressedDataUrl,
-                                              mediaType: 'image'
-                                            });
-                                          } catch (err) {
-                                            console.error("Canvas compression error", err);
-                                            setItiForm({
-                                              ...itiForm,
-                                              mediaUrl: dataUrl,
-                                              mediaType: 'image'
-                                            });
-                                          }
-                                        };
-                                        image.onerror = () => {
-                                          console.warn("Fell back to raw image dataUrl due to loading restriction.");
-                                          setItiForm({
-                                            ...itiForm,
-                                            mediaUrl: dataUrl,
-                                            mediaType: 'image'
-                                          });
-                                        };
-                                        image.src = dataUrl;
-                                      };
-                                      reader.onerror = () => {
-                                        setItiFileError("Failed to load file.");
-                                      };
-                                      reader.readAsDataURL(file);
-                                    } catch (e) {
-                                      setItiFileError("Image file loading error.");
-                                    }
-                                  }
-                                }
-                              }}
-                            />
-                          </label>
-                          
-                          {itiForm.mediaUrl && (
-                            <button
-                              type="button"
-                              onClick={() => setItiForm({ ...itiForm, mediaUrl: "", mediaType: "" })}
-                              className="bg-red-500/10 hover:bg-red-500 hover:text-white text-red-400 px-3 py-2 rounded border border-red-500/20 text-[10px] font-mono uppercase"
-                            >
-                              Clear
-                            </button>
-                          )}
+                        <div className="mt-1">
+                          <AdvancedMediaDropzone
+                            label="Itinerary Photo / Video File"
+                            value={itiForm.mediaUrl}
+                            mediaType={itiForm.mediaType || "image"}
+                            error={itiFileError}
+                            onClear={() => setItiForm({ ...itiForm, mediaUrl: "", mediaType: "" })}
+                            onFileSelect={(dataUrl, type) => {
+                              setItiForm({ ...itiForm, mediaUrl: dataUrl, mediaType: type });
+                            }}
+                            onError={(msg) => setItiFileError(msg)}
+                          />
                         </div>
-                        {itiFileError && (
-                          <div className="text-[10px] text-red-400 font-mono bg-red-950/20 border border-red-900/30 p-2 rounded mt-1">
-                            ⚠️ {itiFileError}
-                          </div>
-                        )}
-                         {itiForm.mediaUrl && (
-                          <div className="mt-1 text-slate-400 text-[10px] flex items-center justify-between bg-slate-950 p-2 rounded border border-slate-800">
-                            <span className="truncate max-w-[200px]">
-                              {itiForm.mediaUrl.startsWith("data:") ? "Uploaded local file successfully!" : itiForm.mediaUrl}
-                            </span>
-                            <select 
-                              value={itiForm.mediaType}
-                              onChange={(e) => setItiForm({ ...itiForm, mediaType: e.target.value as any })}
-                              className="bg-slate-900 border border-slate-800 rounded p-1 text-[10px] text-amber-400 outline-none focus:border-amber-400"
-                            >
-                              <option value="">No Preview</option>
-                              <option value="image">Format: Photo</option>
-                              <option value="video">Format: Video</option>
-                            </select>
-                          </div>
-                        )}
 
                         {itiForm.mediaUrl && (!itiForm.mediaType || itiForm.mediaType === "image") && (
                           <div className="mt-3 flex flex-col gap-2">
@@ -1600,6 +1812,21 @@ export default function AdminPanel({
                         )}
                       </div>
                     </div>
+                    
+                    {!itineraryToEdit && (
+                      <div className="flex items-center gap-3.5 p-3.5 bg-amber-500/5 rounded-xl border border-amber-500/10 mb-2">
+                        <input
+                          type="checkbox"
+                          id="sendBroadcast"
+                          checked={itiForm.sendBroadcast}
+                          onChange={(e) => setItiForm({ ...itiForm, sendBroadcast: e.target.checked })}
+                          className="w-4 h-4 rounded text-amber-500 bg-slate-900 border-slate-800 focus:ring-amber-500 accent-amber-500 cursor-pointer shrink-0"
+                        />
+                        <label htmlFor="sendBroadcast" className="text-[11px] font-sans text-slate-300 cursor-pointer select-none leading-relaxed">
+                          📡 <strong>Send Broadcast Dispatch:</strong> Notify all registered email subscribers of this tour addition immediately!
+                        </label>
+                      </div>
+                    )}
 
                     <button
                       type="submit"
@@ -1916,55 +2143,21 @@ export default function AdminPanel({
                     <p className="text-[10px] text-slate-500 mb-1.5 font-sans">
                       Upload an official Poster or QR code sticker image for your Till Number. It will be shown to users as a media preview.
                     </p>
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={mpesaImage}
-                          onChange={(e) => setMpesaImage(e.target.value)}
-                          className="flex-1 bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
-                          placeholder="Paste image URL or upload below..."
-                        />
-                        {mpesaImage && (
-                          <button
-                            type="button"
-                            onClick={() => setMpesaImage("")}
-                            className="bg-red-500/10 hover:bg-red-500 hover:text-white text-red-400 p-2 rounded border border-red-500/20 text-[10px] transition-colors"
-                          >
-                            Clear
-                          </button>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <label className="flex-1 bg-slate-800 border border-slate-700 p-2 rounded cursor-pointer text-center hover:bg-slate-750 transition-colors flex items-center justify-center gap-2 font-mono text-[10px] uppercase font-bold text-slate-350">
-                          <span>📁</span> Upload Till Poster Image
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                const reader = new FileReader();
-                                reader.onload = (event) => {
-                                  const dataUrl = event.target?.result as string;
-                                  setMpesaImage(dataUrl);
-                                };
-                                reader.readAsDataURL(file);
-                              }
-                            }}
-                          />
-                        </label>
-                      </div>
+                    <div className="mt-2 text-left">
+                      <AdvancedMediaDropzone
+                        label="Till Poster Image File"
+                        value={mpesaImage}
+                        mediaType="image"
+                        error=""
+                        onClear={() => setMpesaImage("")}
+                        onFileSelect={(dataUrl) => {
+                          setMpesaImage(dataUrl);
+                        }}
+                        onError={() => {}}
+                        acceptedTypes="image/*"
+                      />
                     </div>
                   </div>
-
-                  {mpesaImage && (
-                    <div className="mt-2 text-center">
-                      <p className="text-[10px] font-mono text-slate-500 mb-1">Poster Preview:</p>
-                      <img src={mpesaImage} alt="Till Poster Preview" className="max-h-48 mx-auto rounded border border-slate-800 object-contain bg-slate-900 p-1" />
-                    </div>
-                  )}
 
                   <hr className="border-slate-800 my-4" />
                   <div className="flex items-center gap-2 text-indigo-400 mb-2 font-bold uppercase tracking-wider text-[10px] font-mono">
@@ -2125,6 +2318,85 @@ export default function AdminPanel({
                       </select>
                     </div>
                   </div>
+
+                    <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl my-4 space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <label className="block text-[10px] font-mono text-slate-350 uppercase tracking-widest font-semibold flex items-center gap-1.5">
+                          <Sliders className="w-3.5 h-3.5 text-amber-500" />
+                          <span>Receipt Structural Element Order</span>
+                        </label>
+                        <span className="text-[9px] font-mono font-bold text-emerald-450 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+                          Drag & Move Controls
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 font-sans leading-snug">
+                        Arrange the order of elements displayed on your custom M-Pesa donation receipt. Drag components of the list or use the quick <ChevronUp className="inline-block w-3 h-3 text-amber-400 saturate-155"/> / <ChevronDown className="inline-block w-3 h-3 text-amber-400 saturate-155"/> button controls below.
+                      </p>
+                      
+                      <div className="space-y-2">
+                        {mpesaReceiptOrder.map((block, idx) => {
+                          const blockLabels: Record<string, { label: string, color: string, icon: any }> = {
+                            successIcon: { label: "✅ Success Accent Circle", color: "from-emerald-500/10 to-emerald-600/5 text-emerald-400 border-emerald-500/20", icon: CheckCircle },
+                            header: { label: "📝 Receipt Title & Header", color: "from-blue-500/10 to-blue-600/5 text-blue-400 border-blue-500/20", icon: Sparkles },
+                            amount: { label: "💵 Main Transaction Amount", color: "from-amber-500/10 to-amber-600/5 text-amber-400 border-amber-500/20", icon: DollarSign },
+                            message: { label: "💬 Custom Thank You Message", color: "from-purple-500/10 to-purple-600/5 text-purple-400 border-purple-500/20", icon: MessageSquareIcon },
+                            details: { label: "📊 Transaction Details Table", color: "from-pink-500/10 to-pink-600/5 text-pink-400 border-pink-500/20", icon: FileText },
+                            barcode: { label: "║▌ Barcode Verification Strip", color: "from-slate-500/10 to-slate-600/5 text-slate-400 border-slate-500/20", icon: Barcode },
+                          };
+                          
+                          const config = blockLabels[block] || { label: block, color: "from-indigo-500/10 to-indigo-600/5 text-indigo-400 border-indigo-500/20", icon: Layout };
+                          const BlockIcon = config.icon;
+                          
+                          return (
+                            <div
+                              key={block}
+                              draggable
+                              onDragStart={() => { dragItem.current = idx; }}
+                              onDragEnter={() => { dragOverItem.current = idx; }}
+                              onDragEnd={handleSort}
+                              onDragOver={(e) => e.preventDefault()}
+                              className={`flex items-center justify-between border bg-gradient-to-r ${config.color} px-3 py-2 rounded-lg cursor-grab hover:cursor-grabbing hover:border-amber-400/50 hover:scale-[1.01] active:scale-[0.99] transition-all`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="text-slate-600 shrink-0 select-none text-xs">☰</span>
+                                <BlockIcon className="w-3.5 h-3.5 shrink-0" />
+                                <span className="text-[11px] font-sans font-semibold tracking-wide">{config.label}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  type="button"
+                                  disabled={idx === 0}
+                                  onClick={() => {
+                                    const nextOrder = [...mpesaReceiptOrder];
+                                    const temp = nextOrder[idx];
+                                    nextOrder[idx] = nextOrder[idx - 1];
+                                    nextOrder[idx - 1] = temp;
+                                    setMpesaReceiptOrder(nextOrder);
+                                  }}
+                                  className="p-1 rounded bg-black/40 hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none text-slate-350 hover:text-white transition-colors"
+                                >
+                                  <ChevronUp className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={idx === mpesaReceiptOrder.length - 1}
+                                  onClick={() => {
+                                    const nextOrder = [...mpesaReceiptOrder];
+                                    const temp = nextOrder[idx];
+                                    nextOrder[idx] = nextOrder[idx + 1];
+                                    nextOrder[idx + 1] = temp;
+                                    setMpesaReceiptOrder(nextOrder);
+                                  }}
+                                  className="p-1 rounded bg-black/40 hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none text-slate-350 hover:text-white transition-colors"
+                                >
+                                  <ChevronDown className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
 
                   <button
                     type="submit"
@@ -2520,6 +2792,255 @@ export default function AdminPanel({
                 )}
               </div>
 
+
+              {/* CUSTOM SECTION: NEWSLETTER BROADCAST MANAGER */}
+              <div className="bg-slate-950/40 border border-slate-800 p-6 rounded-2xl">
+                <div className="flex items-center gap-2 text-amber-400 mb-6 bg-slate-950 p-2.5 rounded-lg border border-slate-805 text-sm font-bold uppercase tracking-wider">
+                  <Send className="w-5 h-5 text-amber-500 animate-pulse-slow" />
+                  <span>Newsletter Subscribers & Choral Broadcasts</span>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Left Column: Create Custom Broadcast Alert */}
+                  <div className="flex flex-col gap-4">
+                    <h4 className="font-sans font-bold text-xs text-white uppercase tracking-wider border-b border-slate-800 pb-2 mb-1">
+                      📢 Dispatch Custom Broadcast Alert
+                    </h4>
+                    <p className="text-[11px] text-slate-400 font-sans leading-relaxed">
+                      Compose a direct newsletter message. All registered active newsletter subscribers will receive this immediate choral alert dispatch!
+                    </p>
+
+                    <form onSubmit={handleBroadcastSubmit} className="flex flex-col gap-3 font-sans text-xs">
+                      {broadErr && (
+                        <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg font-mono">
+                          {broadErr}
+                        </div>
+                      )}
+                      {broadMsg && (
+                        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-3 rounded-lg font-mono">
+                          {broadMsg}
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Broadcast Subject</label>
+                        <input
+                          type="text" required
+                          value={broadForm.subject}
+                          onChange={(e) => setBroadForm({ ...broadForm, subject: e.target.value })}
+                          className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400"
+                          placeholder="e.g. Tour Bus Cancellation / Vesper Shift Announcement"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Broadcast Email Body Material</label>
+                        <textarea
+                          required rows={5}
+                          value={broadForm.body}
+                          onChange={(e) => setBroadForm({ ...broadForm, body: e.target.value })}
+                          className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400 font-sans leading-relaxed block"
+                          placeholder="Compose direct announcements. Use human, respectful words fit for ministry."
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={broadSaving}
+                        className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold py-2.5 rounded-lg transition-colors cursor-pointer text-center text-xs font-sans mt-1"
+                      >
+                        {broadSaving ? "Sending Dispatches..." : "🚀 Disseminate Choral Alert"}
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Right Column: Manage Registered Subscribers & History */}
+                  <div className="flex flex-col gap-4">
+                    <h4 className="font-sans font-bold text-xs text-white uppercase tracking-wider border-b border-slate-800 pb-2 mb-1">
+                      👥 Registered Active Subscribers ({subscribers.length})
+                    </h4>
+                    
+                    <div className="max-h-[180px] overflow-y-auto bg-slate-950/40 border border-slate-850 rounded-xl p-3 flex flex-col gap-2 custom-scrollbar">
+                      {subscribers.length === 0 ? (
+                        <p className="text-[11px] text-slate-500 text-center py-6 font-mono">No active email subscriptions found.</p>
+                      ) : (
+                        subscribers.map((sub) => (
+                          <div key={sub.id} className="flex justify-between items-center bg-slate-900 p-2 rounded-lg border border-slate-850/50 text-[11px]">
+                            <span className="font-mono text-slate-300 truncate tracking-wide">{sub.email}</span>
+                            <button
+                              onClick={() => handleDeleteSubscriber(sub.id)}
+                              className="text-red-400 hover:text-red-500 bg-red-500/10 hover:bg-red-500/20 p-1 rounded-md border border-red-500/10 cursor-pointer transition-colors"
+                              title="Delete subscription"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    <h4 className="font-sans font-bold text-xs text-white uppercase tracking-wider border-b border-slate-800 pb-2 mb-1 mt-2">
+                      📜 Dispatch History log ({broadcasts.length})
+                    </h4>
+                    <div className="max-h-[140px] overflow-y-auto bg-slate-950/40 border border-slate-850 rounded-xl p-3 flex flex-col gap-2 custom-scrollbar">
+                      {broadcasts.length === 0 ? (
+                        <p className="text-[11px] text-slate-500 text-center py-4 font-mono">No broadcasts dispatched yet.</p>
+                      ) : (
+                        [...broadcasts].reverse().map((b) => (
+                          <div key={b.id} className="bg-slate-900 p-2 rounded-lg text-[10px] font-sans border border-slate-850">
+                            <div className="flex justify-between font-bold text-amber-400">
+                              <span className="truncate max-w-[170px]">{b.subject}</span>
+                              <span className="font-mono text-slate-450 uppercase shrink-0">{b.sentCount} Recips</span>
+                            </div>
+                            <p className="text-slate-400 truncate mt-1 leading-normal italic">"{b.body}"</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+
+              {/* CUSTOM SECTION: WHATSAPP MEMBER SPOTLIGHTS */}
+              <div className="bg-slate-950/40 border border-slate-800 p-6 rounded-2xl">
+                <div className="flex items-center gap-2 text-amber-400 mb-6 bg-slate-950 p-2.5 rounded-lg border border-slate-805 text-sm font-bold uppercase tracking-wider">
+                  <Sparkles className="w-5 h-5 text-amber-500" />
+                  <span>Personal Member Spotlight Status updates</span>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Left Column: Create Spotlight Status Update */}
+                  <form onSubmit={handleSpotlightSubmit} className="flex flex-col gap-4">
+                    <h4 className="font-sans font-bold text-xs text-white uppercase tracking-wider border-b border-slate-800 pb-2 mb-1">
+                      🎬 Establish New Member Status Highlight
+                    </h4>
+
+                    {spotErr && (
+                      <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg font-mono text-xs">
+                        {spotErr}
+                      </div>
+                    )}
+                    {spotMsg && (
+                      <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-3 rounded-lg font-mono text-xs">
+                        {spotMsg}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Member Name</label>
+                        <input
+                          type="text" required
+                          value={spotForm.memberName}
+                          onChange={(e) => setSpotForm({ ...spotForm, memberName: e.target.value })}
+                          className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400"
+                          placeholder="e.g. Sister Mercy"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Role / Voice Part</label>
+                        <input
+                          type="text" required
+                          value={spotForm.roleOrVoicePart}
+                          onChange={(e) => setSpotForm({ ...spotForm, roleOrVoicePart: e.target.value })}
+                          className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400"
+                          placeholder="e.g. Soprano Choir Lead"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="text-xs">
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Testimony / Personal Spotlight Highlight</label>
+                      <textarea
+                        required rows={3}
+                        value={spotForm.quoteOrHighlight}
+                        onChange={(e) => setSpotForm({ ...spotForm, quoteOrHighlight: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400 leading-normal block"
+                        placeholder="e.g. 'Singing with Kachamba has been an anchor to my faith, and I thank God for guiding our acapella paths!'"
+                      />
+                    </div>
+
+                    <div className="text-xs">
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Avatar Picture Link (or browse disk)</label>
+                      <input
+                        type="text"
+                        value={spotForm.image}
+                        onChange={(e) => setSpotForm({ ...spotForm, image: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400 font-mono text-[11px] mb-2"
+                        placeholder="Paste profile image URL, or drop file below"
+                      />
+                      
+                      <div className="mt-2">
+                        <AdvancedMediaDropzone
+                          label="Member Spotlight Image File"
+                          value={spotForm.image}
+                          mediaType="image"
+                          error={spotFileError}
+                          onClear={() => setSpotForm({ ...spotForm, image: "" })}
+                          onFileSelect={(dataUrl) => {
+                            setSpotForm({ ...spotForm, image: dataUrl });
+                          }}
+                          onError={(msg) => setSpotFileError(msg)}
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={spotSaving}
+                      className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-sans font-bold py-3 rounded-lg transition-colors cursor-pointer w-full text-center text-xs mt-1"
+                    >
+                      {spotSaving ? "Creating Status..." : "⚡ Post Circular Status Highlight"}
+                    </button>
+                  </form>
+
+                  {/* Right Column: List & Curate Spotlight statuses */}
+                  <div className="flex flex-col gap-4">
+                    <h4 className="font-sans font-bold text-xs text-white uppercase tracking-wider border-b border-slate-800 pb-2 mb-1">
+                      📋 Current active Spotlight stories
+                    </h4>
+
+                    <div className="flex flex-col gap-3 max-h-[380px] overflow-y-auto custom-scrollbar">
+                      {memberSpotlights.length === 0 ? (
+                        <p className="text-[11px] text-slate-500 font-mono text-center py-10">No status stories have been posted yet.</p>
+                      ) : (
+                        [...memberSpotlights].reverse().map((spot) => (
+                          <div key={spot.id} className="border border-slate-850 hover:border-slate-800 rounded-xl p-3 bg-slate-900/50 flex gap-3 text-xs items-start leading-relaxed">
+                            <div className="w-10 h-10 rounded-full mt-0.5 overflow-hidden border border-slate-800 shrink-0 flex items-center justify-center bg-slate-950">
+                              {spot.image ? (
+                                <img src={spot.image} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <Users className="w-4 h-4 text-slate-500" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex justify-between items-start gap-1">
+                                <div>
+                                  <h5 className="font-bold text-slate-100 truncate">{spot.memberName}</h5>
+                                  <p className="font-mono text-[9px] text-amber-400 uppercase tracking-wider leading-tight">{spot.roleOrVoicePart}</p>
+                                </div>
+                                <button
+                                  onClick={() => handleDeleteSpotlight(spot.id)}
+                                  className="text-red-400 hover:text-red-500 p-1 bg-red-500/5 hover:bg-red-500/20 border border-red-500/10 rounded-md cursor-pointer shrink-0 transition-colors"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                              <p className="text-slate-350 italic text-[11px] mt-1.5 leading-snug">"{spot.quoteOrHighlight}"</p>
+                              <p className="font-mono text-[8px] text-slate-500 uppercase tracking-widest mt-2">
+                                Created At: {new Date(spot.createdAt).toLocaleString()}
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+
               {/* SECTION C: CHANGE ADMIN PASSCODE */}
               <div className="bg-slate-950/40 border border-slate-800 p-6 rounded-2xl mb-8">
                 <div className="flex items-center gap-2 text-amber-400 mb-6 bg-slate-950 p-2.5 rounded-lg border border-slate-805 text-sm font-bold uppercase tracking-wider">
@@ -2581,6 +3102,591 @@ export default function AdminPanel({
         )}
 
       </motion.div>
+
+      {/* GITHUB WEBHOOKS GUIDING MODAL */}
+      <AnimatePresence>
+        {isGitWebhookModalOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md"
+          >
+            <motion.div 
+              initial={{ y: 35, scale: 0.95 }}
+              animate={{ y: 0, scale: 1 }}
+              exit={{ y: 35, scale: 0.95 }}
+              transition={{ type: "spring", stiffness: 350, damping: 28 }}
+              className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-2xl text-slate-100 shadow-2xl relative flex flex-col overflow-hidden max-h-[90vh]"
+            >
+              
+              {/* Modal Header */}
+              <div className="bg-slate-950 p-6 border-b border-slate-805 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="bg-amber-500/10 text-amber-400 p-2.5 rounded-xl border border-amber-500/20">
+                    <svg className="w-6 h-6 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.577.688.479C19.138 20.164 22 16.418 22 12c0-5.523-4.477-10-10-10z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-bold font-sans text-white">GitHub Webhooks Installer</h3>
+                    <p className="text-xs text-slate-400 font-mono">Continuous Deployment & Production Synchronization</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setIsGitWebhookModalOpen(false)}
+                  className="text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 p-2 rounded-full cursor-pointer transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Progress Steps Indicator */}
+              <div className="bg-slate-900 border-b border-slate-800/80 px-6 py-4 flex items-center justify-between text-xs font-mono">
+                <button 
+                  onClick={() => setGitActiveStep(1)}
+                  className={`flex items-center gap-2 cursor-pointer pb-1 border-b-2 transition-all ${gitActiveStep === 1 ? 'border-amber-500 text-amber-400 font-bold' : 'border-transparent text-slate-500 hover:text-slate-300'}`}
+                >
+                  <span>[ Step 01 ]</span> <span className="font-sans">Payload Specs</span>
+                </button>
+                <div className="text-slate-700 font-sans font-bold">➔</div>
+                <button 
+                  onClick={() => setGitActiveStep(2)}
+                  className={`flex items-center gap-2 cursor-pointer pb-1 border-b-2 transition-all ${gitActiveStep === 2 ? 'border-amber-500 text-amber-400 font-bold' : 'border-transparent text-slate-500 hover:text-slate-300'}`}
+                >
+                  <span>[ Step 02 ]</span> <span className="font-sans">GitHub Side</span>
+                </button>
+                <div className="text-slate-700 font-sans font-bold">➔</div>
+                <button 
+                  onClick={() => setGitActiveStep(3)}
+                  className={`flex items-center gap-2 cursor-pointer pb-1 border-b-2 transition-all ${gitActiveStep === 3 ? 'border-amber-500 text-amber-400 font-bold' : 'border-transparent text-slate-500 hover:text-slate-300'}`}
+                >
+                  <span>[ Step 03 ]</span> <span className="font-sans">Sync Trigger</span>
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 md:p-8 flex-1 overflow-y-auto space-y-6">
+                
+                {gitActiveStep === 1 && (
+                  <div className="space-y-6 animate-in fade-in duration-300">
+                    <div className="bg-amber-500/5 border border-amber-500/10 p-4 rounded-2xl flex gap-3 text-slate-300 text-xs font-sans leading-relaxed">
+                      <HelpCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                      <div>
+                        These copyable credentials must be configured inside your GitHub repository settings. Webhooks inform the server of code updates so changes made locally or on GitHub reflect on the live website immediately!
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex justify-between items-center mb-1.5">
+                          <span className="text-[10px] font-mono uppercase tracking-widest text-slate-400 font-semibold">1. Webhook Payload Target URL</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const dummyUrl = `${window.location.origin}/api/webhooks/github`;
+                              navigator.clipboard.writeText(dummyUrl);
+                              setIsPayloadCopied(true);
+                              setTimeout(() => setIsPayloadCopied(false), 2000);
+                            }}
+                            className="text-[10px] text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer font-bold font-sans"
+                          >
+                            {isPayloadCopied ? <span className="text-emerald-400 flex items-center gap-1"><Check className="w-3.5 h-3.5" /> Copied!</span> : <span className="flex items-center gap-1"><Copy className="w-3 h-3" /> Copy URL</span>}
+                          </button>
+                        </div>
+                        <div className="bg-slate-950 p-4 rounded-xl border border-slate-850 font-mono text-xs text-amber-500 select-all break-all pr-12 relative shadow-inner">
+                          {window.location.origin}/api/webhooks/github
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="flex justify-between items-center mb-1.5">
+                          <span className="text-[10px] font-mono uppercase tracking-widest text-slate-400 font-semibold">2. Cryptographic Secret Token</span>
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newSec = "KachambaSync_Sec_" + Math.floor(100000 + Math.random() * 900000);
+                                setGitWebhookSecret(newSec);
+                              }}
+                              className="text-[10px] text-slate-450 hover:text-white flex items-center gap-1 cursor-pointer font-mono"
+                              title="Regenerate a random secret token"
+                            >
+                              <RefreshCw className="w-2.5 h-2.5" /> Reset Token
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(gitWebhookSecret);
+                                setIsSecretCopied(true);
+                                setTimeout(() => setIsSecretCopied(false), 2000);
+                              }}
+                              className="text-[10px] text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer font-bold font-sans"
+                            >
+                              {isSecretCopied ? <span className="text-emerald-400 flex items-center gap-1"><Check className="w-3.5 h-3.5" /> Copied!</span> : <span className="flex items-center gap-1"><Copy className="w-3 h-3" /> Copy Token</span>}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="bg-slate-950 p-4 rounded-xl border border-slate-850 font-mono text-xs text-slate-300 select-all pr-12 relative shadow-inner flex items-center gap-2">
+                          <Key className="w-3.5 h-3.5 text-slate-500" />
+                          <span>{gitWebhookSecret}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {gitActiveStep === 2 && (
+                  <div className="space-y-4 animate-in fade-in duration-300 text-xs sm:text-sm font-sans">
+                    <h4 className="text-sm font-bold text-slate-200">Instructions (on GitHub.com):</h4>
+                    <ol className="list-decimal list-inside space-y-3.5 text-slate-350 bg-slate-950/40 p-5 rounded-2xl border border-slate-850">
+                      <li>Log in to your <b>GitHub Account</b> and navigate to your code repository.</li>
+                      <li>Click the <span className="text-amber-400 font-semibold">Settings</span> tab near the top right of the repo bar.</li>
+                      <li>Select <span className="text-amber-400 font-semibold">Webhooks</span> from the left-hand navigation column.</li>
+                      <li>Click the green <span className="text-white bg-slate-800 px-1.5 py-0.5 rounded font-bold border border-slate-700">Add webhook</span> button in the upper right.</li>
+                      <li>In the <span className="text-slate-200 font-semibold">Payload URL</span> input cell, paste the <i>Payload URL</i> from <b>Step 1</b>.</li>
+                      <li>Set <span className="text-slate-205 font-semibold">Content type</span> option to <b>application/json</b>.</li>
+                      <li>In the <span className="text-slate-200 font-semibold">Secret</span> input cell, paste the <i>Secret Token</i> from <b>Step 1</b>.</li>
+                      <li>Keep <span className="text-slate-200">SSL verification</span> turned as <b>enabled</b>.</li>
+                      <li>Select <span className="text-amber-400 font-semibold">Just the push event</span> or choose individual releases.</li>
+                      <li>Click the green <span className="bg-emerald-650/40 border border-emerald-500/35 text-emerald-400 px-2 py-1 rounded font-bold">Add webhook</span> button at the bottom.</li>
+                    </ol>
+                  </div>
+                )}
+
+                {gitActiveStep === 3 && (
+                  <div className="space-y-6 animate-in fade-in duration-300">
+                    <div className="space-y-3 text-center">
+                      <div className="bg-emerald-500/10 text-emerald-400 p-3 rounded-full border border-emerald-500/20 w-fit mx-auto mb-2">
+                        <CheckCircle className="w-8 h-8" />
+                      </div>
+                      <h4 className="text-base font-bold text-white font-sans">Active Webhook Verification Ready!</h4>
+                      <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                        Once you save the webhook, GitHub sends a test secure ping signature payload to our endpoint to confirm the handshake is healthy. 
+                      </p>
+                    </div>
+
+                    <div className="bg-slate-950 rounded-xl p-4 border border-slate-850 font-mono text-center text-xs text-slate-500 space-y-2 max-w-sm mx-auto shadow-inner">
+                      <div className="flex items-center justify-between text-[10px] text-slate-450 uppercase tracking-widest border-b border-slate-900 pb-1.5">
+                        <span>HANDSHAKE STATUS</span>
+                        <span className="text-emerald-500 font-sans font-black flex items-center gap-1 ml-2">● LIVE READY</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 text-left mt-2">
+                        Pushing commits to branch <span className="text-amber-500">"main"</span> will trigger automated builds instantly. The website matches this environment exactly.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+              </div>
+
+              {/* Modal Footer Controls */}
+              <div className="bg-slate-950 p-5 border-t border-slate-805 flex justify-between items-center">
+                <button
+                  type="button"
+                  disabled={gitActiveStep === 1}
+                  onClick={() => setGitActiveStep(prev => prev - 1)}
+                  className="px-4 py-2 bg-slate-900 border border-slate-800 hover:border-slate-700 hover:bg-slate-800 rounded-xl text-xs text-slate-300 font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  Previous Step
+                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsGitWebhookModalOpen(false)}
+                    className="px-4 py-2 bg-slate-900/60 hover:bg-slate-800 text-slate-450 hover:text-white rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                  >
+                    Close Setup Guide
+                  </button>
+                  {gitActiveStep < 3 ? (
+                    <button
+                      type="button"
+                      onClick={() => setGitActiveStep(prev => prev + 1)}
+                      className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-450 hover:to-amber-550 text-slate-950 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                    >
+                      <span>Next Step</span>
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setIsGitWebhookModalOpen(false)}
+                      className="px-5 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-450 hover:to-emerald-550 text-slate-950 rounded-xl text-xs font-extrabold transition-all cursor-pointer"
+                    >
+                      Complete & Exit
+                    </button>
+                  )}
+                </div>
+              </div>
+
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* PRINT PREVIEW OVERLAY / COMPENDIUM ARRANGER STUDIO */}
+      <AnimatePresence>
+        {isPrintPreviewOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-99 flex flex-col bg-slate-950/95 backdrop-blur-lg overflow-hidden text-white"
+          >
+            {/* Top Banner Control Header */}
+            <div className="bg-slate-900 border-b border-slate-850 py-4 px-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="bg-amber-500/10 text-amber-400 border border-amber-500/30 p-2 rounded-xl">
+                  <Calendar className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-sans font-bold text-base text-white">Live Print Preview & Arranger Studio</h3>
+                  <p className="text-[11px] text-slate-400 font-mono">Verify logo alignments, fonts, rearrange schedules, and toggle visible columns before generating print layouts.</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 w-full md:w-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.print();
+                  }}
+                  className="flex-1 md:flex-none bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-sans font-extrabold text-[11px] tracking-wider py-2.5 px-5 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 uppercase"
+                >
+                  <span>Print Itinerary (PDF)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsPrintPreviewOpen(false)}
+                  className="flex-1 md:flex-none bg-slate-805 hover:bg-slate-700 text-slate-200 font-sans font-bold text-[11px] py-2.5 px-4 rounded-lg transition-all cursor-pointer uppercase border border-slate-700 hover:border-transparent"
+                >
+                  Close Studio
+                </button>
+              </div>
+            </div>
+
+            {/* Main Scrolling Content area containing Left Sidebar Controls & Right Live Sheet */}
+            <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+              
+              {/* Left Side: Setup Panels */}
+              <div className="w-full lg:w-[360px] border-r border-slate-850 p-6 overflow-y-auto custom-scrollbar flex flex-col gap-6 shrink-0 h-1/2 lg:h-full bg-slate-900/60">
+                
+                {/* Panel 1: Document Texts */}
+                <div className="flex flex-col gap-3">
+                  <h4 className="font-sans font-bold text-xs text-slate-350 uppercase tracking-widest border-b border-slate-800 pb-1.5">
+                    📄 Document Titles
+                  </h4>
+                  <div>
+                    <label className="block text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-1">Header Title</label>
+                    <input
+                      type="text"
+                      value={printHeaderText}
+                      onChange={(e) => setPrintHeaderText(e.target.value.toUpperCase())}
+                      className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400 text-xs font-sans"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-1">Document Subtitle Text</label>
+                    <input
+                      type="text"
+                      value={printSubText}
+                      onChange={(e) => setPrintSubText(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400 text-xs font-sans"
+                    />
+                  </div>
+                </div>
+
+                {/* Panel 2: Logo Alignment & Theme */}
+                <div className="flex flex-col gap-3.5">
+                  <h4 className="font-sans font-bold text-xs text-slate-350 uppercase tracking-widest border-b border-slate-800 pb-1.5">
+                    🎨 Layout & Theme Styling
+                  </h4>
+                  
+                  <div>
+                    <label className="block text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-1.5">SDA Logo Placement</label>
+                    <div className="grid grid-cols-3 gap-1">
+                      {(['left', 'center', 'right'] as const).map((pos) => (
+                        <button
+                          key={pos} type="button"
+                          onClick={() => setLogoPosition(pos)}
+                          className={`py-1 px-2 rounded font-sans text-[10px] font-bold uppercase transition-colors cursor-pointer border ${
+                            logoPosition === pos 
+                              ? "bg-amber-400/20 text-amber-400 border-amber-500/30" 
+                              : "bg-slate-950 border-slate-850 hover:bg-slate-900 text-slate-400"
+                          }`}
+                        >
+                          {pos}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-1.5">Print Font Combinations</label>
+                    <div className="flex flex-col gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setPrintFontTheme('traditional')}
+                        className={`p-2 rounded-lg text-left transition-colors cursor-pointer border text-xs leading-tight ${
+                          printFontTheme === 'traditional'
+                            ? "bg-amber-400/20 border-amber-500/30 text-white font-bold bg-amber-500/5"
+                            : "bg-slate-950 border-slate-850 hover:bg-slate-900 text-slate-350"
+                        }`}
+                      >
+                        <span className="font-sans block text-[10px] text-amber-400 uppercase tracking-wider font-extrabold mb-0.5">SDA Traditional Classic</span>
+                        <span className="text-[11px] text-slate-400 font-sans block leading-snug">Archivo Black titles paired with Glacial Indifference body text</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPrintFontTheme('modern')}
+                        className={`p-2 rounded-lg text-left transition-colors cursor-pointer border text-xs leading-tight ${
+                          printFontTheme === 'modern'
+                            ? "bg-amber-400/20 border-amber-500/30 text-white font-bold bg-amber-500/5"
+                            : "bg-slate-950 border-slate-850 hover:bg-slate-900 text-slate-350"
+                        }`}
+                      >
+                        <span className="font-sans block text-[10px] text-amber-400 uppercase tracking-wider font-extrabold mb-0.5">Contemporary Swiss</span>
+                        <span className="text-[11px] text-slate-400 font-sans block leading-snug">Inter Display headings paired with JetBrains Mono hour marks</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPrintFontTheme('bold-editorial')}
+                        className={`p-2 rounded-lg text-left transition-colors cursor-pointer border text-xs leading-tight ${
+                          printFontTheme === 'bold-editorial'
+                            ? "bg-amber-400/20 border-amber-500/30 text-white font-bold bg-amber-500/5"
+                            : "bg-slate-950 border-slate-850 hover:bg-slate-900 text-slate-350"
+                        }`}
+                      >
+                        <span className="font-sans block text-[10px] text-amber-400 uppercase tracking-wider font-extrabold mb-0.5">Bold Editorial Bulletin</span>
+                        <span className="text-[11px] text-slate-400 font-sans block leading-snug">Bold serif typography pairing with spacious cell blocks</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Panel 3: Toggle Columns */}
+                <div className="flex flex-col gap-3">
+                  <h4 className="font-sans font-bold text-xs text-slate-350 uppercase tracking-widest border-b border-slate-800 pb-1.5">
+                    Toggle Page Content Columns
+                  </h4>
+                  <div className="flex flex-col gap-2 bg-slate-950/50 p-3 rounded-lg border border-slate-850">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox" id="ptoggle-host" checked={showHostColumn}
+                        onChange={(e) => setShowHostColumn(e.target.checked)}
+                        className="w-3.5 h-3.5 text-amber-500 bg-slate-900 border-slate-800 accent-amber-550 cursor-pointer"
+                      />
+                      <label htmlFor="ptoggle-host" className="text-[11px] text-slate-205 cursor-pointer select-none">Show Host sponsor info</label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox" id="ptoggle-time" checked={showTimeColumn}
+                        onChange={(e) => setShowTimeColumn(e.target.checked)}
+                        className="w-3.5 h-3.5 text-amber-500 bg-slate-900 border-slate-800 accent-amber-550 cursor-pointer"
+                      />
+                      <label htmlFor="ptoggle-time" className="text-[11px] text-slate-205 cursor-pointer select-none">Show Hour of performance</label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox" id="ptoggle-notes" checked={showNotesColumn}
+                        onChange={(e) => setShowNotesColumn(e.target.checked)}
+                        className="w-3.5 h-3.5 text-amber-500 bg-slate-900 border-slate-800 accent-amber-550 cursor-pointer"
+                      />
+                      <label htmlFor="ptoggle-notes" className="text-[11px] text-slate-205 cursor-pointer select-none">Show Directors schedule notes</label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Panel 4: Quick Order Arrangement */}
+                <div className="flex flex-col gap-3">
+                  <h4 className="font-sans font-bold text-xs text-slate-350 uppercase tracking-widest border-b border-slate-800 pb-1.5">
+                    ⏳ Chronological sorting
+                  </h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const sorted = [...customSortedItinerary].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                        setCustomSortedItinerary(sorted);
+                      }}
+                      className="py-1.5 bg-slate-950 border border-slate-850 hover:bg-slate-900 rounded font-mono text-[10px] text-slate-200 transition-colors cursor-pointer"
+                    >
+                      Chronological
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const sorted = [...customSortedItinerary].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                        setCustomSortedItinerary(sorted);
+                      }}
+                      className="py-1.5 bg-slate-950 border border-slate-850 hover:bg-slate-900 rounded font-mono text-[10px] text-slate-200 transition-colors cursor-pointer"
+                    >
+                      Reverse Chrono
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Right Side: Virtual Interactive Paper Preview */}
+              <div className="flex-1 overflow-auto bg-slate-950 py-10 px-4 md:px-8 flex justify-center custom-scrollbar h-1/2 lg:h-full relative select-none">
+                
+                {/* Virtual Letterhead Printable sheet */}
+                <div className="print-preview-printable-area w-full max-w-[21cm] bg-white text-black shadow-2xl p-10 md:p-14 min-h-[29.7cm] flex flex-col relative" style={{ boxSizing: 'border-box' }}>
+                  
+                  {/* Header alignment block */}
+                  <div className={`flex items-center gap-4 border-b-2 border-slate-900 pb-4 mb-6 ${
+                    logoPosition === 'center' ? 'flex-col justify-center text-center' : logoPosition === 'right' ? 'flex-row-reverse justify-between' : 'justify-start'
+                  }`}>
+                    {/* Logo */}
+                    <img
+                      src="/src/assets/sda-logo.png"
+                      alt="SDA Logo"
+                      className="w-14 h-14 object-contain shrink-0"
+                      onError={(e) => {
+                        // absolute fallback in case sda-logo is not built in assets-store
+                        (e.currentTarget as HTMLImageElement).src = 'https://logos-download.com/wp-content/uploads/2016/10/Seventh-day_Adventist_Church_logo_SDA.png';
+                      }}
+                    />
+                    
+                    {/* Brand Title details */}
+                    <div className={`${logoPosition === 'center' ? 'text-center' : 'text-left'}`}>
+                      <h1 
+                        style={{ fontFamily: printFontTheme === 'traditional' ? 'Archivo Black, sans-serif' : printFontTheme === 'modern' ? 'Inter, sans-serif' : 'serif', fontWeight: 900 }}
+                        className="text-base md:text-lg tracking-tight text-slate-950 uppercase leading-none"
+                      >
+                        {printHeaderText}
+                      </h1>
+                      <p className={`text-[10px] text-slate-600 font-mono tracking-wider mt-1.5 ${logoPosition === 'center' ? 'mx-auto max-w-sm' : ''}`}>
+                        {printSubText}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Table Itinerary list print body */}
+                  {customSortedItinerary.length === 0 ? (
+                    <p className="py-20 text-center text-slate-400 font-mono text-xs">No Scheduled Tours to view. Use the admin panel to plan tour events first.</p>
+                  ) : (
+                    <div className="w-full border-t border-slate-350">
+                      {/* Table Head */}
+                      <div className="grid grid-cols-12 border-b border-slate-350 py-2.5 bg-slate-50 text-[10px] font-mono uppercase tracking-widest font-bold">
+                        <div className="col-span-2 text-slate-800">Date</div>
+                        <div className={`col-span-3 text-slate-800`}>Event Title</div>
+                        <div className="col-span-3 text-slate-800">Location</div>
+                        {showHostColumn && <div className="col-span-2 text-slate-800">Host Council</div>}
+                        {showTimeColumn && <div className="col-span-1 text-slate-800 text-right">Time</div>}
+                        {showNotesColumn && <div className="col-span-1 text-slate-800 text-right">Notes</div>}
+                      </div>
+
+                      {/* Table Body rows */}
+                      <div className="divide-y divide-slate-100 flex flex-col">
+                        {customSortedItinerary.map((item, index) => {
+                          const eventTime = item.time || "Sunset";
+                          const eventHost = item.host || "SDA Sanctuary";
+                          const formattedDate = new Date(item.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+                          
+                          return (
+                            <div key={item.id} className="grid grid-cols-12 py-3.5 items-start text-xs border-b border-slate-100 font-sans group relative hover:bg-slate-50/55">
+                              <div className="col-span-2 font-mono text-[11px] text-slate-600">{formattedDate}</div>
+                              <div className="col-span-3 text-slate-900 font-bold pr-2">{item.event}</div>
+                              <div className="col-span-3 text-slate-600 font-mono text-[10px] tracking-tight truncate pr-2">{item.location}</div>
+                              
+                              {showHostColumn && (
+                                <div className="col-span-2 text-slate-700 truncate pr-2">{eventHost}</div>
+                              )}
+                              
+                              {showTimeColumn && (
+                                <div className="col-span-1 text-slate-600 text-right font-mono text-[10px] pr-1">{eventTime}</div>
+                              )}
+
+                              {showNotesColumn && (
+                                <div className="col-span-1 text-slate-600 italic text-[10px] text-right truncate" title={item.notes || "-"}>
+                                  {item.notes || "-"}
+                                </div>
+                              )}
+
+                              {/* Hover Control triggers to Rearrange Elements */}
+                              <div className="absolute right-1 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-1 bg-white border border-slate-200 p-1 rounded-md shadow-md z-10">
+                                <button
+                                  type="button"
+                                  disabled={index === 0}
+                                  onClick={() => {
+                                    const arr = [...customSortedItinerary];
+                                    const temp = arr[index];
+                                    arr[index] = arr[index-1];
+                                    arr[index-1] = temp;
+                                    setCustomSortedItinerary(arr);
+                                  }}
+                                  className="p-1 hover:bg-slate-100 text-slate-600 rounded disabled:opacity-30 cursor-pointer"
+                                  title="Move Item Up"
+                                >
+                                  <ChevronUp className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={index === customSortedItinerary.length - 1}
+                                  onClick={() => {
+                                    const arr = [...customSortedItinerary];
+                                    const temp = arr[index];
+                                    arr[index] = arr[index+1];
+                                    arr[index+1] = temp;
+                                    setCustomSortedItinerary(arr);
+                                  }}
+                                  className="p-1 hover:bg-slate-100 text-slate-600 rounded disabled:opacity-30 cursor-pointer"
+                                  title="Move Item Down"
+                                >
+                                  <ChevronDown className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Footer alignment info */}
+                  <div className="mt-auto border-t-2 border-slate-900 pt-6 flex justify-between items-center text-[9px] font-mono text-slate-500 uppercase tracking-widest leading-loose">
+                    <span>Proclaimed by Ambassador Council</span>
+                    <span>{customSortedItinerary.length} Tour Services listed</span>
+                    <span>SDA Kachamba Music</span>
+                  </div>
+
+                </div>
+
+                {/* Print media css overrides style block */}
+                <style>{`
+                  @media print {
+                    /* Hide entire layout and any other components */
+                    body * {
+                      visibility: hidden !important;
+                    }
+                    /* Render ONLY the print-preview-printable-area */
+                    .print-preview-printable-area, .print-preview-printable-area * {
+                      visibility: visible !important;
+                      color: black !important;
+                    }
+                    /* Re-architect paper coordinates for absolute positioning */
+                    .print-preview-printable-area {
+                      position: absolute !important;
+                      left: 0 !important;
+                      top: 0 !important;
+                      width: 100% !important;
+                      height: auto !important;
+                      box-shadow: none !important;
+                      padding: 1.5cm !important;
+                      background: white !important;
+                    }
+                  }
+                `}</style>
+
+              </div>
+
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </motion.div>
   );
 }

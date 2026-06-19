@@ -19,7 +19,8 @@ import ChatBot from "./components/ChatBot";
 import AdminPanel from "./components/AdminPanel";
 import Leaders from "./components/Leaders";
 import AuthModal from "./components/AuthModal";
-import { Activity, ItineraryItem, Inquiry, MusicData, Leader } from "./types";
+import { Activity, ItineraryItem, Inquiry, MusicData, Leader, Subscriber, Broadcast, MemberSpotlight as MemberSpotlightType } from "./types";
+import MemberSpotlight from "./components/MemberSpotlight";
 import { Music, Heart, Calendar, Compass, Star, Facebook, Youtube } from "lucide-react";
 
 function FadeInSection({ children }: { children: React.ReactNode }) {
@@ -95,11 +96,17 @@ export default function App() {
     itinerary: ItineraryItem[];
     inquiries: Inquiry[];
     leaders: Leader[];
+    subscribers: Subscriber[];
+    broadcasts: Broadcast[];
+    memberSpotlights: MemberSpotlightType[];
   }>({
     activities: [],
     itinerary: [],
     inquiries: [],
-    leaders: []
+    leaders: [],
+    subscribers: [],
+    broadcasts: [],
+    memberSpotlights: []
   });
 
   const [music, setMusic] = useState<MusicData>({
@@ -110,7 +117,7 @@ export default function App() {
     coverUrl: "",
     quoteText: "Let our voices unite, lifting the sound of hope to the clouds...",
     label: "Live At Central",
-    lyrics: "[Acapella Harmony Intro]\n(Ibrahimu, Ibrahimu...\nMchukue mwanao, umpendaye sana Isaka...\nUkamtoe dhabihu...)\n\n(Verse 1)\nSiku ile Mungu alimwita Ibrahimu akasema: \"Ibrahimu!\"\nNaye akaitika kwa upole: \"Mimi hapa Bwana.\"\nAkamwambia: \"Umchukue mwanao, mwana wako wa pekee,\nIsaka yule unayempenda sana, ukaende mpaka nchi ya Moria,\nUkamtoe awe dhabihu ya kuteketezwa juu ya mlima nitakaokuonyesha.\"\n\n(Chorus)\nAkatandika punda wake asubuhi, akachukua kuni na moto,\nAkaanza safari ya utiifu, akamchukua mwanawe Isaka.\nMwanangu kumbuka, utiifu kwa Bwana ni ufunguo wa baraka,\nUnapoombwa kutoa kilicho bora, usisite wala usilalamike,\nMaana Mungu wetu aliye hai, kila wakati atajipatia!\n\n(Verse 2)\nWakiwa njiani mwana Isaka akamwuliza baba yake kwa unyenyekevu:\n\"Baba yangu, moto upo na kuni zipo, lakini yuko wapi kondoo?\"\nIbrahimu akamjibu kwa imani kuu, akasema kwa ujasiri:\n\"Mwanangu, Mungu atajipatia mwenyewe kondoo wa dhabihu.\"\nWakaendelea mbele kwa pamoja, mioyo yao ikiwa imejaa imani.\n\n(Bridge)\nWalipofika juu ya madhabahu, Ibrahimu akanyosha mkono wake,\nAkatwaa kisu amtoe mwanawe dhabihu, ghafla Malaika wa Bwana akaita:\n\"Ibrahimu! Ibrahimu! Usinyoshe mkono wako juu ya kijana!\"\nTazama! Nyuma yake kulikuwa na kondoo dume, amenaswa pembe zake kichakani,\nIbrahimu akamtoa yule kondoo badala ya Isaka!\n\n[Outro]\nBwana atajipatia... Yehova Yire!\nUtiifu wako utaleta baraka kubwa maishani mwako.\nMchukue mwanao, mchukue kila ulichonacho, umkabidhi Bwana,\nMshahara wako utakuwa mkuu mbinguni. Amina!"
+    lyrics: "[Acapella Harmony Intro]\n(Ibrahimu, Ibrahimu...\nMchukue mwanao, umpendaye sana Isaka...\nUkamtoe dhabihu...)\n\n(Verse 1)\nSiku ile Mungu alimwita Ibrahimu akasema: \"Ibrahimu!\"\nNaye akaitika kwa upole: \"Mimi hapa Bwana.\"\nAkamwambia: \"Umchukue mwanao, mwana wako wa pekee,\nIsaka yule unayempenda sana, ukaende mpaka nchi ya Moria,\nUkamtoe awe dhabihu ya kuteketezwa juu ya mlima nitakaokuonyesha.\"\n\n(Chorus)\nAkatandika punda wake asubuhi, akachukua kuni nicotine na moto,\nAkaanza safari ya utiifu, akamchukua mwanawe Isaka.\nMwanangu kumbuka, utiifu kwa Bwana ni ufunguo wa baraka,\nUnapoombwa kutoa kilicho bora, usisite wala usilalamike,\nMaana Mungu wetu aliye hai, kila wakati atajipatia!\n\n(Verse 2)\nWakiwa njiani mwana Isaka akamwuliza baba yake kwa unyenyekevu:\n\"Baba yangu, moto upo na kuni zipo, lakini yuko wapi kondoo?\"\nIbrahimu akamjibu kwa imani kuu, akasema kwa ujasiri:\n\"Mwanangu, Mungu atajipatia mwenyewe kondoo wa dhabihu.\"\nWakaendelea mbele kwa pamoja, mioyo yao ikiwa imejaa imani.\n\n(Bridge)\nWalipofika juu ya madhabahu, Ibrahimu akanyosha mkono wake,\nAkatwaa kisu amtoe mwanawe dhabihu, ghafla Malaika wa Bwana akaita:\n\"Ibrahimu! Ibrahimu! Usinyoshe mkono wako juu ya kijana!\"\nTazama! Nyuma yake kulikuwa na kondoo dume, amenaswa pembe zake kichakani,\nIbrahimu akamtoe yule kondoo badala ya Isaka!\n\n[Outro]\nBwana atajipatia... Yehova Yire!\nUtiifu wako utaleta baraka kubwa maishani mwako.\nMchukue mwanao, mchukue kila ulichonacho, umkabidhi Bwana,\nMshahara wako utakuwa mkuu mbinguni. Amina!"
   });
 
 
@@ -175,7 +182,10 @@ export default function App() {
           activities: data.activities || [],
           itinerary: data.itinerary || [],
           inquiries: data.inquiries || [],
-          leaders: data.leaders || []
+          leaders: data.leaders || [],
+          subscribers: data.subscribers || [],
+          broadcasts: data.broadcasts || [],
+          memberSpotlights: data.memberSpotlights || []
         });
         if (data.music) {
           setMusic(data.music);
@@ -553,6 +563,18 @@ export default function App() {
 
       <main className="flex-1">
         
+        {/* Dynamic Member Spotlight Section */}
+        <FadeInSection>
+          <MemberSpotlight
+            spotlights={dbData.memberSpotlights}
+            isAdmin={!!adminPasscode}
+            onLaunchAdmin={() => {
+              // Open admin panel direct to Spotlight section if desired
+              setIsAdminOpen(true);
+            }}
+          />
+        </FadeInSection>
+        
         {/* Dynamic Itinerary Section */}
         <FadeInSection>
           <Itinerary 
@@ -669,6 +691,11 @@ export default function App() {
             leaderToEdit={ldrToEdit}
             music={music}
             onClearEdits={clearOperationalStates}
+            itinerary={dbData.itinerary}
+            subscribers={dbData.subscribers}
+            broadcasts={dbData.broadcasts}
+            memberSpotlights={dbData.memberSpotlights}
+            onRefresh={fetchData}
           />
         )}
       </AnimatePresence>

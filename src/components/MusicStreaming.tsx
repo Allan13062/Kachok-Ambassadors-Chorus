@@ -278,13 +278,26 @@ export default function MusicStreaming({ music }: { music: MusicData }) {
 
               {/* Progress Bar controls */}
               <div className="w-full mt-6">
-                <div className="relative h-1 w-full bg-slate-800 rounded-full overflow-hidden">
-                  <div 
-                    className="absolute top-0 left-0 h-full bg-amber-500 transition-all duration-300"
-                    style={{ width: `${progressPercent}%` }}
+                <div className="relative group/progress">
+                  <input
+                    type="range"
+                    min="0"
+                    max={trackDuration || 45}
+                    value={currentTime}
+                    onChange={(e) => {
+                      const seekTo = parseFloat(e.target.value);
+                      if (audioRef.current) {
+                        audioRef.current.currentTime = seekTo;
+                      }
+                      setCurrentTime(seekTo);
+                    }}
+                    className="w-full h-1.5 bg-slate-800 rounded-full appearance-none cursor-pointer accent-amber-500 outline-none focus:outline-none transition-all"
+                    style={{
+                      background: `linear-gradient(to right, #f59e0b 0%, #f59e0b ${progressPercent}%, #1e293b ${progressPercent}%, #1e293b 100%)`
+                    }}
                   />
                 </div>
-                <div className="flex justify-between items-center text-[10px] font-mono text-slate-500 mt-1.5">
+                <div className="flex justify-between items-center text-[10px] font-mono text-slate-500 mt-2">
                   <span>{formatTime(currentTime)}</span>
                   <span className="text-[9px] text-amber-500/60 font-sans uppercase font-bold tracking-wider">45s Preview Snippet</span>
                   <span>{formatTime(trackDuration)}</span>

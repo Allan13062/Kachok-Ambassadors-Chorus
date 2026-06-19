@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Music, Star, Mic, CheckCircle, CreditCard, Smartphone, Coins, Eye, X, Info, Send, Barcode } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { jsPDF } from "jspdf";
+import sdaLogo from "../assets/sda-logo.png";
 
 export default function JoinUs() {
   const [activeTab, setActiveTab] = useState<"audition" | "mpesa">("audition");
@@ -151,7 +152,33 @@ export default function JoinUs() {
     }
   };
 
-  const downloadPdfReceipt = () => {
+  const loadImageData = async (url: string): Promise<{ dataUrl: string, width: number, height: number } | null> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "Anonymous";
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          try {
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+            resolve({ dataUrl, width: img.width, height: img.height });
+          } catch (e) {
+            resolve(null);
+          }
+        } else {
+          resolve(null);
+        }
+      };
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+  };
+
+  const downloadPdfReceipt = async () => {
     try {
       const doc = new jsPDF({
         orientation: "portrait",
@@ -170,22 +197,36 @@ export default function JoinUs() {
         hour12: true 
       });
 
+      // Load brand and extra companion logos asynchronously
+      const logoUrl = mpesaConfig.receiptLogo || "https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png";
+      const extraLogoUrl = mpesaConfig.receiptExtraLogo || "https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png";
+      const logoData = await loadImageData(logoUrl);
+      const extraLogoData = await loadImageData(extraLogoUrl);
+
       // 1. Sleek Top Header
       doc.setFillColor(111, 60, 212);
       doc.rect(0, 0, 210, 45, "F");
+
+      // Draw loaded logos in top corners
+      if (logoData && logoData.dataUrl) {
+        doc.addImage(logoData.dataUrl, 'JPEG', 15, 12, 18, 18);
+      }
+      if (extraLogoData && extraLogoData.dataUrl) {
+        doc.addImage(extraLogoData.dataUrl, 'JPEG', 177, 12, 18, 18);
+      }
 
       // Header Text
       const pdfTitle = mpesaConfig.receiptTitle || mpesaConfig.tillName || "KACHAMBA CHORUS MINISTRY";
       doc.setTextColor(255, 255, 255);
       doc.setFont("helvetica", "bold");
       // Adjust font size based on text length to avoid overflow
-      doc.setFontSize(pdfTitle.length > 25 ? 16 : 22);
+      doc.setFontSize(pdfTitle.length > 25 ? 14 : 20);
       doc.text(pdfTitle.toUpperCase(), 105, 18, { align: "center" });
       
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
+      doc.setFontSize(9.5);
       doc.text("Seventh-day Adventist Ambassador Youth Ministry | Kisumu, Kenya", 105, 26, { align: "center" });
-      doc.setFontSize(9);
+      doc.setFontSize(8.5);
       doc.text("Email: kachambachorus@gmail.com | Phone: +254 797 450 206", 105, 32, { align: "center" });
 
       // 2. Receipt Container Frame
@@ -488,6 +529,20 @@ export default function JoinUs() {
                   {pushStatus.type === "success" ? (
                     <div id="mpesa-receipt-container" className="flex flex-col items-center justify-center font-sans print:fixed print:inset-0 print:bg-slate-50 print:z-[9999] print:w-screen print:h-screen print:flex print:flex-col print:items-center print:justify-center">
                       <div id="mpesa-receipt" className={`bg-white rounded-[24px] p-8 pt-10 max-w-sm w-full mx-auto shadow-2xl relative print:shadow-none print:max-w-md print:border border-slate-100 ${mpesaConfig.receiptLayout === 'classic' ? 'border print:border-none' : ''} ${mpesaConfig.receiptFontFamily || 'font-sans'} ${mpesaConfig.receiptTextAlign || 'text-center'} overflow-visible`}>
+                        {/* Premium SDA Identity Header */}
+                        <div className="flex items-center justify-center gap-2 mb-6 pb-4 border-b border-slate-100 print:border-slate-200">
+                          <img 
+                            src={sdaLogo} 
+                            alt="SDA Logo" 
+                            className="w-9 h-9 object-contain shrink-0" 
+                            referrerPolicy="no-referrer"
+                          />
+                          <div className="text-left leading-none">
+                            <span className="text-[11px] font-bold text-slate-800 tracking-tight block uppercase text-receipt-sda-header">Seventh-day Adventist</span>
+                            <span className="text-[8px] text-slate-450 font-medium block uppercase tracking-wider mt-0.5">Ambassador Youth Ministry</span>
+                          </div>
+                        </div>
+
                         {/* Receipt Logo */}
                         {mpesaConfig.receiptLogo && (
                           <div className={`absolute top-6 left-6 ${mpesaConfig.receiptLayout === 'classic' ? 'relative top-0 left-0 mb-4 flex justify-center w-full' : ''}`}>

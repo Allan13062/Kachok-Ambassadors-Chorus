@@ -1,10 +1,21 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.cdnfonts.com/css/glacial-indifference');
 @import "tailwindcss";
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Space Grotesk", sans-serif;
   --font-mono: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-glacial: "Glacial Indifference", sans-serif;
+  --font-archivoblack: "Archivo Black", sans-serif;
+}
+
+.font-glacial {
+  font-family: 'Glacial Indifference', 'Inter', sans-serif !important;
+}
+
+.font-archivoblack {
+  font-family: 'Archivo Black', sans-serif !important;
 }
 
 html {
@@ -394,7 +405,12 @@ html.light, .light {
     display: none !important;
   }
 
-  /* 
+  @page {
+    size: A4 portrait;
+    margin: 1.35in 0.8in 0.8in 0.8in !important;
+  }
+
+  /*
    * ITINERARY PRINT MODE 
    * Isolate the #itinerary section by hiding all adjacent sections/elements under print-mode-itinerary
    */
@@ -426,6 +442,43 @@ html.light, .light {
     color: #000000 !important;
     background: transparent !important;
     border-color: #e2e8f0 !important;
+    font-family: 'Glacial Indifference', 'Inter', sans-serif !important;
+  }
+
+  /* Set the repeating top page header containing SDA Logo & Kachamba Chorus neatly aligned */
+  body.print-mode-itinerary .itinerary-print-header {
+    display: flex !important;
+    position: fixed !important;
+    top: -1.05in !important; /* Offset up into the print margin-top zone */
+    left: 0 !important;
+    right: 0 !important;
+    height: 0.8in !important;
+    border-b: 2px solid #000000 !important;
+    border-bottom: 2px solid #000000 !important;
+    align-items: center !important;
+    gap: 1.25rem !important;
+    background-color: #ffffff !important;
+    z-index: 99999 !important;
+    padding-bottom: 8px !important;
+  }
+
+  body.print-mode-itinerary .itinerary-print-header img {
+    width: 48px !important;
+    height: 48px !important;
+    object-fit: contain !important;
+    display: block !important;
+  }
+
+  body.print-mode-itinerary #itinerary h1,
+  body.print-mode-itinerary #itinerary h2,
+  body.print-mode-itinerary #itinerary h3,
+  body.print-mode-itinerary #itinerary h4,
+  body.print-mode-itinerary #itinerary h5,
+  body.print-mode-itinerary #itinerary .choir-name,
+  body.print-mode-itinerary #itinerary .event-title,
+  body.print-mode-itinerary #itinerary .font-archivoblack,
+  body.print-mode-itinerary #itinerary [id^="itinerary-dispatch-"] h3 {
+    font-family: 'Archivo Black', sans-serif !important;
   }
 
   /* Avoid splitting an itinerary/calendar entry across two physical sheets */
@@ -488,18 +541,30 @@ html.light, .light {
 
   body.print-mode-receipt #mpesa-receipt {
     display: block !important;
-    margin: 1.5in auto !important;
+    margin: 0.5in auto !important;
     padding: 2.5rem !important;
-    border: 2px solid #000000 !important;
+    border: 3px double #000000 !important;
     background: #ffffff !important;
     color: #000000 !important;
-    max-width: 6.5in !important;
+    max-width: 5in !important;
+    border-radius: 12px !important;
+    box-shadow: none !important;
   }
 
   body.print-mode-receipt #mpesa-receipt * {
     color: #000000 !important;
     background: transparent !important;
-    border-color: #000000 !important;
+    border-color: #e2e8f0 !important;
+    font-family: 'Glacial Indifference', 'Inter', sans-serif !important;
+  }
+
+  body.print-mode-receipt #mpesa-receipt h4,
+  body.print-mode-receipt #mpesa-receipt .till-organization-name,
+  body.print-mode-receipt #mpesa-receipt .receipt-title,
+  body.print-mode-receipt #mpesa-receipt .text-receipt-sda-header,
+  body.print-mode-receipt #mpesa-receipt span.text-4xl,
+  body.print-mode-receipt #mpesa-receipt span.text-3xl {
+    font-family: 'Archivo Black', sans-serif !important;
   }
 }
 
