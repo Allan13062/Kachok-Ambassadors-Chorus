@@ -47,67 +47,45 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, theme }: Aut
     setSuccessMsg("");
 
     try {
+      await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
+      
+      let userCredential;
       if (isSignUp) {
-        // Complete Signup through server-to-server endpoint
-        const response = await fetch("/api/auth/signup", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ name, email, password, voicePart, provider: "email" }),
+        userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        await updateProfile(userCredential.user, { displayName: name });
+        // Save to Firestore
+        await setDoc(doc(db, "users", userCredential.user.uid), {
+          uid: userCredential.user.uid,
+          email,
+          name,
+          voicePart,
+          createdAt: new Date().toISOString(),
         });
-        const data = await response.json();
-        
-        if (!response.ok) {
-          throw new Error(data.error || "Sign Up failed on the server.");
-        }
-
-        setSuccessMsg("Account created successfully!");
-        
-        setTimeout(() => {
-          onAuthSuccess({
-            uid: data.user.uid,
-            email: data.user.email,
-            name: data.user.displayName,
-            photoURL: data.user.photoURL,
-            voicePart: data.user.voicePart,
-            providerId: "email",
-          });
-          onClose();
-          resetForm();
-        }, 1500);
       } else {
-        // Complete Login through server-to-server endpoint
-        const response = await fetch("/api/auth/login", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ email, password }),
-        });
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || "Login failed on the server.");
-        }
-
-        setSuccessMsg("Logged in successfully!");
-        
-        setTimeout(() => {
-          onAuthSuccess({
-            uid: data.user.uid,
-            email: data.user.email,
-            name: data.user.displayName,
-            photoURL: data.user.photoURL,
-            voicePart: data.user.voicePart,
-            providerId: "email",
-          });
-          onClose();
-          resetForm();
-        }, 1500);
+        userCredential = await signInWithEmailAndPassword(auth, email, password);
       }
+
+      setSuccessMsg(isSignUp ? "Account created successfully!" : "Logged in successfully!");
+      
+      setTimeout(() => {
+        onAuthSuccess({
+          uid: userCredential.user.uid,
+          email: userCredential.user.email,
+          name: userCredential.user.displayName,
+          voicePart: voicePart,
+        });
+        onClose();
+        resetForm();
+      }, 1500);
+
     } catch (err: any) {
-      setErrorMsg(err.message || "An unexpected transaction error occurred.");
+      if (err.code === "auth/email-already-in-use") {
+        setErrorMsg("Email is already in use. Please sign in.");
+      } else if (err.code === "auth/invalid-credential") {
+        setErrorMsg("Incorrect email or password.");
+      } else {
+        setErrorMsg(err.message || "An unexpected error occurred.");
+      }
     } finally {
       setLoading(false);
     }

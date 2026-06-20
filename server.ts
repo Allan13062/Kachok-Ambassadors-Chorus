@@ -13,6 +13,7 @@ import { google } from "googleapis";
 import { Readable } from "stream";
 
 import { db } from "./src/db/index.ts";
+import { getLocalDb, saveLocalDb } from "./dbStorage.ts";
 import { activities, itinerary, leaders, inquiries, musicConfig, adminConfig } from "./src/db/schema.ts";
 import { eq } from "drizzle-orm";
 
@@ -104,17 +105,9 @@ async function requireAdmin(req: express.Request, res: express.Response, next: e
 }
 
 // Highly reliable bidirectional local JSON database synchronization
-function syncLocalFile(section: string, operation: string, data: any) {
+async function syncLocalFile(section: string, operation: string, data: any) {
   try {
-    if (!fs.existsSync(DB_PATH)) {
-      const dataDir = path.dirname(DB_PATH);
-      if (!fs.existsSync(dataDir)) {
-        fs.mkdirSync(dataDir, { recursive: true });
-      }
-      fs.writeFileSync(DB_PATH, JSON.stringify({ passcode: "SDA2026", activities: [], itinerary: [], leaders: [], inquiries: [], music: {} }, null, 2), "utf-8");
-    }
-    const fileContents = fs.readFileSync(DB_PATH, "utf-8");
-    const localDb = JSON.parse(fileContents);
+    let localDb: any = await getLocalDb();
     
     if (section === "passcode") {
       localDb.passcode = data;
@@ -131,7 +124,7 @@ function syncLocalFile(section: string, operation: string, data: any) {
       }
     }
     
-    fs.writeFileSync(DB_PATH, JSON.stringify(localDb, null, 2), "utf-8");
+    await saveLocalDb(localDb);
     console.log(`[Local Sync] Completed ${operation} on section: "${section}" successfully.`);
   } catch (err: any) {
     console.warn("[Local Sync Warning] Could not replicate update to local JSON:", err.message);
@@ -187,8 +180,8 @@ async function seedCloudSqlFromLocalDb() {
     const testActivities = await db.select().from(activities).limit(1);
     if (testActivities.length === 0) {
       console.log("[Kachamba Cloud SQL] DB is empty. Seeding from local data...");
-      if (fs.existsSync(DB_PATH)) {
-        const localData = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+      if (true) {
+        const localData = await getLocalDb();
 
         if (localData.activities && Array.isArray(localData.activities)) {
           for (const act of localData.activities) {
@@ -356,9 +349,9 @@ app.get("/api/db", async (req, res) => {
     let subscribersList: any[] = [];
     let broadcastsList: any[] = [];
     let memberSpotlightsList: any[] = [];
-    if (fs.existsSync(DB_PATH)) {
+    if (true) {
       try {
-        const localData = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+        const localData = await getLocalDb();
         subscribersList = localData.subscribers || [];
         broadcastsList = localData.broadcasts || [];
         memberSpotlightsList = localData.memberSpotlights || [];
@@ -376,9 +369,9 @@ app.get("/api/db", async (req, res) => {
       memberSpotlights: memberSpotlightsList
     });
   } catch (error: any) {
-    if (fs.existsSync(DB_PATH)) {
+    if (true) {
       try {
-        const localData = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+        const localData = await getLocalDb();
         
         // Populate missing sections with empty arrays just in case
         localData.activities = localData.activities || [];
@@ -436,10 +429,7 @@ app.post("/api/subscribers", async (req, res) => {
   }
 
   try {
-    let localDb: any = { subscribers: [] };
-    if (fs.existsSync(DB_PATH)) {
-      localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
-    }
+    let localDb: any = await getLocalDb();
     localDb.subscribers = localDb.subscribers || [];
 
     const normalized = email.trim().toLowerCase();
@@ -455,7 +445,7 @@ app.post("/api/subscribers", async (req, res) => {
     };
 
     localDb.subscribers.push(newSub);
-    fs.writeFileSync(DB_PATH, JSON.stringify(localDb, null, 2), "utf-8");
+    await saveLocalDb(localDb);
 
     res.json({ success: true, message: "Subscribed successfully! Thank you for supporting our ministry." });
   } catch (error: any) {
@@ -470,10 +460,10 @@ app.post("/api/subscribers/delete", requireAdmin, async (req, res) => {
     return res.status(400).json({ error: "Subscriber ID is required." });
   }
   try {
-    if (fs.existsSync(DB_PATH)) {
-      const localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+    if (true) {
+      let localDb: any = await getLocalDb();
       localDb.subscribers = (localDb.subscribers || []).filter((s: any) => s.id !== id);
-      fs.writeFileSync(DB_PATH, JSON.stringify(localDb, null, 2), "utf-8");
+      await saveLocalDb(localDb);
     }
     res.json({ success: true, message: "Subscriber removed successfully." });
   } catch (error: any) {
@@ -489,10 +479,7 @@ app.post("/api/broadcasts", requireAdmin, async (req, res) => {
   }
 
   try {
-    let localDb: any = { subscribers: [], broadcasts: [] };
-    if (fs.existsSync(DB_PATH)) {
-      localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
-    }
+    let localDb: any = await getLocalDb();
     localDb.subscribers = localDb.subscribers || [];
     localDb.broadcasts = localDb.broadcasts || [];
 
@@ -509,7 +496,7 @@ app.post("/api/broadcasts", requireAdmin, async (req, res) => {
     };
 
     localDb.broadcasts.push(newBroadcast);
-    fs.writeFileSync(DB_PATH, JSON.stringify(localDb, null, 2), "utf-8");
+    await saveLocalDb(localDb);
 
     // Print massive styled bulletin simulation box to console
     console.log("\n======================================================================");
@@ -532,10 +519,7 @@ app.post("/api/member-spotlights", requireAdmin, async (req, res) => {
   }
 
   try {
-    let localDb: any = { memberSpotlights: [] };
-    if (fs.existsSync(DB_PATH)) {
-      localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
-    }
+    let localDb: any = await getLocalDb();
     localDb.memberSpotlights = localDb.memberSpotlights || [];
 
     const newSpotlight = {
@@ -548,7 +532,7 @@ app.post("/api/member-spotlights", requireAdmin, async (req, res) => {
     };
 
     localDb.memberSpotlights.push(newSpotlight);
-    fs.writeFileSync(DB_PATH, JSON.stringify(localDb, null, 2), "utf-8");
+    await saveLocalDb(localDb);
 
     res.json({ success: true, data: newSpotlight });
   } catch (error: any) {
@@ -563,10 +547,10 @@ app.post("/api/member-spotlights/delete", requireAdmin, async (req, res) => {
     return res.status(400).json({ error: "Spotlight ID is required." });
   }
   try {
-    if (fs.existsSync(DB_PATH)) {
-      const localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+    if (true) {
+      let localDb: any = await getLocalDb();
       localDb.memberSpotlights = (localDb.memberSpotlights || []).filter((s: any) => s.id !== id);
-      fs.writeFileSync(DB_PATH, JSON.stringify(localDb, null, 2), "utf-8");
+      await saveLocalDb(localDb);
     }
     res.json({ success: true, message: "Member spotlight deleted successfully." });
   } catch (error: any) {
@@ -794,9 +778,9 @@ app.get("/api/mpesa/config", async (req, res) => {
     }
 
     // Merge from local file as secondary fallback
-    if (fs.existsSync(DB_PATH)) {
+    if (true) {
       try {
-        const localData = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+        const localData = await getLocalDb();
         if (localData.mpesa) {
           configMap = { ...localData.mpesa, ...configMap };
         }
@@ -863,9 +847,9 @@ app.put("/api/mpesa/config", requireAdmin, async (req, res) => {
     if (receiptOrder !== undefined) await upsertConfig("mpesa_receipt_order", String(receiptOrder));
 
     // Consistently write to local configuration json file as absolute backup
-    if (fs.existsSync(DB_PATH)) {
+    if (true) {
       try {
-        const localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+        let localDb: any = await getLocalDb();
         localDb.mpesa = localDb.mpesa || {};
         const configKeys = [
           ["tillNumber", "mpesa_till"], ["tillName", "mpesa_name"], ["tillImage", "mpesa_image"],
@@ -881,7 +865,7 @@ app.put("/api/mpesa/config", requireAdmin, async (req, res) => {
             localDb.mpesa[key] = String(req.body[prop]);
           }
         }
-        fs.writeFileSync(DB_PATH, JSON.stringify(localDb, null, 2), "utf-8");
+        await saveLocalDb(localDb);
       } catch (e: any) {
         console.warn("[Local Sync Warning] Failed to update local config map:", e.message);
       }
@@ -1115,7 +1099,7 @@ app.post("/api/inquiries", async (req, res) => {
 
   try {
     // Write locally first for high availability
-    syncLocalFile("inquiries", "insert", newInq);
+    await syncLocalFile("inquiries", "insert", newInq);
     
     try {
       if (process.env.SQL_HOST) {
@@ -1148,8 +1132,8 @@ app.put("/api/inquiries/:id/status", requireAdmin, async (req, res) => {
       console.log("Could not read inquiry from Postgres, searching local db...");
     }
 
-    if (!existing && fs.existsSync(DB_PATH)) {
-      const localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+    if (!existing && true) {
+      let localDb: any = await getLocalDb();
       existing = (localDb.inquiries || []).find((i: any) => i.id === id);
     }
 
@@ -1162,7 +1146,7 @@ app.put("/api/inquiries/:id/status", requireAdmin, async (req, res) => {
       status: status || "Read"
     };
 
-    syncLocalFile("inquiries", "update", updated);
+    await syncLocalFile("inquiries", "update", updated);
 
     try {
       if (process.env.SQL_HOST) {
@@ -1182,7 +1166,7 @@ app.put("/api/inquiries/:id/status", requireAdmin, async (req, res) => {
 app.delete("/api/inquiries/:id", requireAdmin, async (req, res) => {
   const { id } = req.params;
   try {
-    syncLocalFile("inquiries", "delete", id);
+    await syncLocalFile("inquiries", "delete", id);
     
     try {
       if (process.env.SQL_HOST) {
@@ -1218,7 +1202,7 @@ app.post("/api/activities", requireAdmin, async (req, res) => {
   };
 
   try {
-    syncLocalFile("activities", "insert", newAct);
+    await syncLocalFile("activities", "insert", newAct);
     
     try {
       if (process.env.SQL_HOST) {
@@ -1251,8 +1235,8 @@ app.put("/api/activities/:id", requireAdmin, async (req, res) => {
       console.log("Could not read activity from Postgres, loading local...");
     }
 
-    if (!existing && fs.existsSync(DB_PATH)) {
-      const localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+    if (!existing && true) {
+      let localDb: any = await getLocalDb();
       existing = (localDb.activities || []).find((a: any) => a.id === id);
     }
 
@@ -1271,7 +1255,7 @@ app.put("/api/activities/:id", requireAdmin, async (req, res) => {
       mediaType: mediaType ?? existing.mediaType ?? "image"
     };
 
-    syncLocalFile("activities", "update", updated);
+    await syncLocalFile("activities", "update", updated);
 
     try {
       if (process.env.SQL_HOST) {
@@ -1299,7 +1283,7 @@ app.put("/api/activities/:id", requireAdmin, async (req, res) => {
 app.delete("/api/activities/:id", requireAdmin, async (req, res) => {
   const { id } = req.params;
   try {
-    syncLocalFile("activities", "delete", id);
+    await syncLocalFile("activities", "delete", id);
     
     try {
       if (process.env.SQL_HOST) {
@@ -1337,7 +1321,7 @@ app.post("/api/itinerary", requireAdmin, async (req, res) => {
   };
 
   try {
-    syncLocalFile("itinerary", "insert", newIti);
+    await syncLocalFile("itinerary", "insert", newIti);
     
     try {
       if (process.env.SQL_HOST) {
@@ -1350,10 +1334,7 @@ app.post("/api/itinerary", requireAdmin, async (req, res) => {
     // Trigger automated email broadcast if requested
     if (sendBroadcast) {
       try {
-        let localDb: any = { subscribers: [], broadcasts: [] };
-        if (fs.existsSync(DB_PATH)) {
-          localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
-        }
+        let localDb: any = await getLocalDb();
         localDb.subscribers = localDb.subscribers || [];
         localDb.broadcasts = localDb.broadcasts || [];
 
@@ -1374,7 +1355,7 @@ app.post("/api/itinerary", requireAdmin, async (req, res) => {
           };
 
           localDb.broadcasts.push(autoBroadcast);
-          fs.writeFileSync(DB_PATH, JSON.stringify(localDb, null, 2), "utf-8");
+          await saveLocalDb(localDb);
 
           console.log("\n======================================================================");
           console.log(`📡 AUTOMATIC CHORAL DISPATCH SENT TO ${subscribersCount} RECIPIENTS`);
@@ -1409,8 +1390,8 @@ app.put("/api/itinerary/:id", requireAdmin, async (req, res) => {
       console.log("Could not read itinerary from Postgres, lading local...");
     }
 
-    if (!existing && fs.existsSync(DB_PATH)) {
-      const localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+    if (!existing && true) {
+      let localDb: any = await getLocalDb();
       existing = (localDb.itinerary || []).find((i: any) => i.id === id);
     }
 
@@ -1431,7 +1412,7 @@ app.put("/api/itinerary/:id", requireAdmin, async (req, res) => {
       mediaType: mediaType !== undefined ? mediaType : existing.mediaType
     };
 
-    syncLocalFile("itinerary", "update", updated);
+    await syncLocalFile("itinerary", "update", updated);
 
     try {
       if (process.env.SQL_HOST) {
@@ -1461,7 +1442,7 @@ app.put("/api/itinerary/:id", requireAdmin, async (req, res) => {
 app.delete("/api/itinerary/:id", requireAdmin, async (req, res) => {
   const { id } = req.params;
   try {
-    syncLocalFile("itinerary", "delete", id);
+    await syncLocalFile("itinerary", "delete", id);
     
     try {
       if (process.env.SQL_HOST) {
@@ -1488,10 +1469,7 @@ app.post("/api/auth/signup", async (req, res) => {
   }
 
   try {
-    let localDb: any = { users: [] };
-    if (fs.existsSync(DB_PATH)) {
-      localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
-    }
+    let localDb: any = await getLocalDb();
     
     localDb.users = localDb.users || [];
     
@@ -1513,7 +1491,7 @@ app.post("/api/auth/signup", async (req, res) => {
     };
 
     localDb.users.push(newUser);
-    fs.writeFileSync(DB_PATH, JSON.stringify(localDb, null, 2), "utf-8");
+    await saveLocalDb(localDb);
 
     // Return user object without confidential passcode
     const { password: _, ...secureUser } = newUser;
@@ -1532,10 +1510,7 @@ app.post("/api/auth/login", async (req, res) => {
   }
 
   try {
-    let localDb: any = { users: [] };
-    if (fs.existsSync(DB_PATH)) {
-      localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
-    }
+    let localDb: any = await getLocalDb();
 
     localDb.users = localDb.users || [];
     const normalizedEmail = email.trim().toLowerCase();
@@ -1561,10 +1536,7 @@ app.post("/api/auth/social", async (req, res) => {
   }
 
   try {
-    let localDb: any = { users: [] };
-    if (fs.existsSync(DB_PATH)) {
-      localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
-    }
+    let localDb: any = await getLocalDb();
 
     localDb.users = localDb.users || [];
     const normalizedEmail = email.trim().toLowerCase();
@@ -1585,7 +1557,7 @@ app.post("/api/auth/social", async (req, res) => {
       };
       
       localDb.users.push(user);
-      fs.writeFileSync(DB_PATH, JSON.stringify(localDb, null, 2), "utf-8");
+      await saveLocalDb(localDb);
     }
 
     res.json({ success: true, user });
@@ -1771,7 +1743,7 @@ app.post("/api/leaders", requireAdmin, async (req, res) => {
   };
 
   try {
-    syncLocalFile("leaders", "insert", newLeader);
+    await syncLocalFile("leaders", "insert", newLeader);
     
     try {
       if (process.env.SQL_HOST) {
@@ -1804,8 +1776,8 @@ app.put("/api/leaders/:id", requireAdmin, async (req, res) => {
       console.log("Could not read leader from Postgres, loading local...");
     }
 
-    if (!existing && fs.existsSync(DB_PATH)) {
-      const localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+    if (!existing && true) {
+      let localDb: any = await getLocalDb();
       existing = (localDb.leaders || []).find((l: any) => l.id === id);
     }
 
@@ -1822,7 +1794,7 @@ app.put("/api/leaders/:id", requireAdmin, async (req, res) => {
       phone: phone ?? existing.phone
     };
 
-    syncLocalFile("leaders", "update", updated);
+    await syncLocalFile("leaders", "update", updated);
 
     try {
       if (process.env.SQL_HOST) {
@@ -1848,7 +1820,7 @@ app.put("/api/leaders/:id", requireAdmin, async (req, res) => {
 app.delete("/api/leaders/:id", requireAdmin, async (req, res) => {
   const { id } = req.params;
   try {
-    syncLocalFile("leaders", "delete", id);
+    await syncLocalFile("leaders", "delete", id);
     
     try {
       if (process.env.SQL_HOST) {

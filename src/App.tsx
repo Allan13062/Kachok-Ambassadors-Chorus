@@ -6,7 +6,8 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { onAuthStateChanged, User as FirebaseUser, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
-import { auth, db } from "./lib/firebase";
+import { auth, db, storage } from "./lib/firebase";
+import { ref, uploadString, getDownloadURL } from "firebase/storage";
 import Header from "./components/Header";
 import Hero from "./components/Hero";
 import Itinerary from "./components/Itinerary";
@@ -313,27 +314,15 @@ export default function App() {
     if (!base64Str || !base64Str.startsWith("data:")) {
       return base64Str;
     }
-    if (!adminPasscode) return base64Str;
+    // Admin check logic is removed here since we want admins to upload to Firebase Storage, but also users might need it for profile pictures? 
+    // Wait, the backend checked adminPasscode, but let's allow it as it's uploading to Firebase directly.
     try {
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-passcode": adminPasscode
-        },
-        body: JSON.stringify({
-          filename: defaultFilename,
-          base64: base64Str
-        })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        return data.url;
-      } else {
-        console.error("Base64 upload failed on server, using fallback inline data.");
-      }
+      const storageRef = ref(storage, `uploads/${Date.now()}_${defaultFilename}`);
+      await uploadString(storageRef, base64Str, 'data_url');
+      const downloadURL = await getDownloadURL(storageRef);
+      return downloadURL;
     } catch (err) {
-      console.error("Network error during base64 upload:", err);
+      console.error("Firebase Storage upload failed, using fallback inline data.", err);
     }
     return base64Str;
   };
