@@ -14,9 +14,10 @@ interface HeaderProps {
   user?: FirebaseUser | null;
   onGoogleLogin?: () => void;
   onGoogleLogout?: () => void;
+  webLogo?: string;
 }
 
-export default function Header({ isAdmin, onOpenAdmin, onLogout, activeSection, theme, onToggleTheme, user, onGoogleLogin, onGoogleLogout }: HeaderProps) {
+export default function Header({ isAdmin, onOpenAdmin, onLogout, activeSection, theme, onToggleTheme, user, onGoogleLogin, onGoogleLogout, webLogo }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
 
@@ -89,7 +90,7 @@ export default function Header({ isAdmin, onOpenAdmin, onLogout, activeSection, 
       >
         <div className="relative w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-hidden border border-amber-550/30 bg-slate-950 flex items-center justify-center shadow-lg shadow-amber-500/5 group-hover:scale-105 transition-transform">
           <img 
-            src="https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png" 
+            src={webLogo || "https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png"} 
             alt="Kachamba Chorus Logo" 
             className="w-full h-full object-cover"
             referrerPolicy="no-referrer"

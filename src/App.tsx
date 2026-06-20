@@ -129,6 +129,7 @@ export default function App() {
   });
   const [activeSection, setActiveSection] = useState("home");
   const [bookingPrefill, setBookingPrefill] = useState("");
+  const [webLogo, setWebLogo] = useState("https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png");
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     const saved = localStorage.getItem("kachamba_theme");
     return (saved === "light" || saved === "dark") ? saved : "dark";
@@ -190,6 +191,19 @@ export default function App() {
         if (data.music) {
           setMusic(data.music);
         }
+      }
+
+      // Securely fetch M-Pesa config to derive the dynamic website logo
+      try {
+        const mpesaRes = await fetch("/api/mpesa/config");
+        if (mpesaRes.ok) {
+          const mpesaData = await mpesaRes.json();
+          if (mpesaData.receiptLogo) {
+            setWebLogo(mpesaData.receiptLogo);
+          }
+        }
+      } catch (err) {
+        console.warn("Could not retrieve M-Pesa dynamic configurations on boot:", err);
       }
     } catch (error) {
       console.error("Failed to sync choral records from Express:", error);
@@ -550,6 +564,7 @@ export default function App() {
         user={user}
         onGoogleLogin={handleGoogleLogin}
         onGoogleLogout={handleGoogleLogout}
+        webLogo={webLogo}
       />
 
       {/* Hero Welcome Unit */}
@@ -558,6 +573,7 @@ export default function App() {
           onAskAI={() => {
             setIsChatOpen(true);
           }}
+          webLogo={webLogo}
         />
       </FadeInSection>
 

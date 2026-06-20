@@ -4,9 +4,10 @@ import { motion } from "motion/react";
 
 interface HeroProps {
   onAskAI: () => void;
+  webLogo?: string;
 }
 
-export default function Hero({ onAskAI }: HeroProps) {
+export default function Hero({ onAskAI, webLogo }: HeroProps) {
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
     if (el) {
@@ -86,7 +87,7 @@ export default function Hero({ onAskAI }: HeroProps) {
             <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-amber-500 via-amber-400 to-[#0B1528] opacity-40 blur-xl group-hover:opacity-75 transition duration-1000 group-hover:duration-200" />
             <div className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-full overflow-hidden border-2 border-amber-500/50 bg-[#070E1B] p-1 shadow-2xl transition duration-500 group-hover:rotate-6">
               <img 
-                src="https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png" 
+                src={webLogo || "https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png"} 
                 alt="Kachamba Chorus Official Logo" 
                 className="w-full h-full object-cover rounded-full"
                 referrerPolicy="no-referrer"

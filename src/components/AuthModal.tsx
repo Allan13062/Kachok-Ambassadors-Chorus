@@ -47,44 +47,67 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, theme }: Aut
     setSuccessMsg("");
 
     try {
-      await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
-      
-      let userCredential;
       if (isSignUp) {
-        userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        await updateProfile(userCredential.user, { displayName: name });
-        // Save to Firestore
-        await setDoc(doc(db, "users", userCredential.user.uid), {
-          uid: userCredential.user.uid,
-          email,
-          name,
-          voicePart,
-          createdAt: new Date().toISOString(),
+        // Complete Signup through server-to-server endpoint
+        const response = await fetch("/api/auth/signup", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ name, email, password, voicePart, provider: "email" }),
         });
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.error || "Sign Up failed on the server.");
+        }
+
+        setSuccessMsg("Account created successfully!");
+        
+        setTimeout(() => {
+          onAuthSuccess({
+            uid: data.user.uid,
+            email: data.user.email,
+            name: data.user.displayName,
+            photoURL: data.user.photoURL,
+            voicePart: data.user.voicePart,
+            providerId: "email",
+          });
+          onClose();
+          resetForm();
+        }, 1500);
       } else {
-        userCredential = await signInWithEmailAndPassword(auth, email, password);
-      }
-
-      setSuccessMsg(isSignUp ? "Account created successfully!" : "Logged in successfully!");
-      
-      setTimeout(() => {
-        onAuthSuccess({
-          uid: userCredential.user.uid,
-          email: userCredential.user.email,
-          name: userCredential.user.displayName,
+        // Complete Login through server-to-server endpoint
+        const response = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email, password }),
         });
-        onClose();
-        resetForm();
-      }, 1500);
+        const data = await response.json();
 
+        if (!response.ok) {
+          throw new Error(data.error || "Login failed on the server.");
+        }
+
+        setSuccessMsg("Logged in successfully!");
+        
+        setTimeout(() => {
+          onAuthSuccess({
+            uid: data.user.uid,
+            email: data.user.email,
+            name: data.user.displayName,
+            photoURL: data.user.photoURL,
+            voicePart: data.user.voicePart,
+            providerId: "email",
+          });
+          onClose();
+          resetForm();
+        }, 1500);
+      }
     } catch (err: any) {
-      if (err.code === "auth/email-already-in-use") {
-        setErrorMsg("Email is already in use. Please sign in.");
-      } else if (err.code === "auth/invalid-credential") {
-        setErrorMsg("Incorrect email or password.");
-      } else {
-        setErrorMsg(err.message || "An unexpected error occurred.");
-      }
+      setErrorMsg(err.message || "An unexpected transaction error occurred.");
     } finally {
       setLoading(false);
     }
@@ -97,35 +120,48 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, theme }: Aut
     setSuccessMsg("");
 
     try {
-      await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
-      
       if (providerName === "google") {
-        const provider = new GoogleAuthProvider();
-        const userCredential = await signInWithPopup(auth, provider);
-        
-        // Save user to Firestore if they don't exist
-        const userRef = doc(db, "users", userCredential.user.uid);
-        const userSnap = await getDoc(userRef);
-        if (!userSnap.exists()) {
-          await setDoc(userRef, {
-            uid: userCredential.user.uid,
-            email: userCredential.user.email,
-            name: userCredential.user.displayName,
-            voicePart: "Listener",
-            createdAt: new Date().toISOString(),
-          });
-        }
+        try {
+          await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
+          const provider = new GoogleAuthProvider();
+          const userCredential = await signInWithPopup(auth, provider);
+          
+          // Save user to Firestore if they don't exist
+          const userRef = doc(db, "users", userCredential.user.uid);
+          const userSnap = await getDoc(userRef);
+          if (!userSnap.exists()) {
+            await setDoc(userRef, {
+              uid: userCredential.user.uid,
+              email: userCredential.user.email,
+              name: userCredential.user.displayName,
+              voicePart: "Listener",
+              createdAt: new Date().toISOString(),
+            });
+          }
 
-        setSuccessMsg(`Successfully authenticated via Google!`);
-        setTimeout(() => {
-          onAuthSuccess({
-            uid: userCredential.user.uid,
-            email: userCredential.user.email,
-            name: userCredential.user.displayName,
-          });
-          onClose();
-          resetForm();
-        }, 1500);
+          setSuccessMsg(`Successfully authenticated via Google!`);
+          setTimeout(() => {
+            onAuthSuccess({
+              uid: userCredential.user.uid,
+              email: userCredential.user.email,
+              name: userCredential.user.displayName,
+            });
+            onClose();
+            resetForm();
+          }, 1500);
+        } catch (authErr: any) {
+          console.warn("Direct Firebase Google Login failed, checking origin restriction...", authErr);
+          // If we hit an unauthorized domain error, gracefully explain the workaround
+          if (
+            authErr.code === "auth/unauthorized-domain" || 
+            authErr.message?.includes("unauthorized-domain") || 
+            authErr.message?.includes("unauthorized")
+          ) {
+            throw new Error("Firebase Authentication Error (auth/unauthorized-domain): Standard Google Sign-In requires adding 'kachambachorus.online' to your Firebase Console Authorized Domains list. To log in instantly on this custom domain, please create a free account below using an Email & Password!");
+          } else {
+            throw authErr;
+          }
+        }
       } else {
         setErrorMsg("Facebook login is not implemented yet.");
       }
@@ -133,7 +169,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, theme }: Aut
       if (err.code === "auth/popup-closed-by-user") {
         setErrorMsg("Google Sign-In was cancelled by the user.");
       } else {
-        setErrorMsg(`Failed to connect to ${providerName}: ` + err.message);
+        setErrorMsg(err.message || `Failed to connect to ${providerName}`);
       }
     } finally {
       setLoading(false);

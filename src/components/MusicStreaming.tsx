@@ -31,8 +31,8 @@ export default function MusicStreaming({ music }: { music: MusicData }) {
     return `/api/proxy-audio?url=${encodeURIComponent(urlStr)}`;
   };
 
-  // Fallback default track (Peer Gynt Suite No. 1 - extremely stable, HTTPS and CORS-friendly Wikimedia CDN)
-  const demoAudioTrack = "https://audio.jukehost.co.uk/019ecf7c-ba88-72d0-ac02-28fbf0aaf1ce";
+  // Fallback default track (Hallelujah Chorus - extremely stable, HTTPS and CORS-friendly Wikimedia CDN)
+  const demoAudioTrack = "https://upload.wikimedia.org/wikipedia/commons/4/4c/Halleluja_%28H%C3%A4ndel%29.mp3";
   const activeAudioUrl = getPlayableAudioUrl(music?.audioUrl || demoAudioTrack);
 
   // Track logo fallback

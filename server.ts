@@ -57,13 +57,21 @@ let cachedPasscode: string | null = null;
 let passcodeCacheTime: number = 0;
 let fallbackPasscode: string = "SDA2026";
 
+function isDbAvailable(): boolean {
+  const host = process.env.SQL_HOST;
+  if (!host || host.trim() === "" || host.includes("YOUR_") || host.includes("placeholder") || host.includes("your-")) {
+    return false;
+  }
+  return true;
+}
+
 async function getAdminPasscode(): Promise<string> {
   // Ultra-fast response: If cached in memory, return instantly.
   if (cachedPasscode) {
     return cachedPasscode;
   }
   
-  if (!process.env.SQL_HOST) {
+  if (!isDbAvailable()) {
     return fallbackPasscode;
   }
   
@@ -153,7 +161,7 @@ function getGeminiClient(): GoogleGenAI | null {
 // -------------- CLOUD SQL SEEDER --------------
 
 async function seedCloudSqlFromLocalDb() {
-  if (!process.env.SQL_HOST || process.env.SQL_HOST.trim() === "" || process.env.SQL_HOST.includes("YOUR_")) {
+  if (!isDbAvailable()) {
     console.log("[Kachamba Cloud SQL] Skipping seeding - SQL_HOST is not configured.");
     return;
   }
@@ -291,18 +299,36 @@ app.get("/api/db", async (req, res) => {
     const dbPasscode = await getAdminPasscode();
     const isAdmin = req.headers["x-admin-passcode"] === dbPasscode;
 
-    // Fast-fail if DB is fully down to maintain high performance
-    const dbPromise = Promise.all([
-      db.select().from(activities),
-      db.select().from(itinerary),
-      db.select().from(leaders),
-      db.select().from(musicConfig).where(eq(musicConfig.id, 1)).limit(1)
-    ]);
+    let allActs: any[] = [];
+    let allIti: any[] = [];
+    let allLdr: any[] = [];
+    let musicRecs: any[] = [];
 
-    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("DB Load Timeout")), 12000));
-    
-    // @ts-ignore
-    const [allActs, allIti, allLdr, musicRecs] = await Promise.race([dbPromise, timeoutPromise]);
+    if (isDbAvailable()) {
+      try {
+        // Fast-fail if DB is fully down to maintain high performance
+        const dbPromise = Promise.all([
+          db.select().from(activities),
+          db.select().from(itinerary),
+          db.select().from(leaders),
+          db.select().from(musicConfig).where(eq(musicConfig.id, 1)).limit(1)
+        ]);
+
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("DB Load Timeout")), 5000));
+        
+        // @ts-ignore
+        const [acts, iti, ldr, music] = await Promise.race([dbPromise, timeoutPromise]);
+        allActs = acts;
+        allIti = iti;
+        allLdr = ldr;
+        musicRecs = music;
+      } catch (dbErr: any) {
+        console.warn("[Cloud SQL] Failed to load data from live DB, falling back to local file. Error:", dbErr.message);
+        throw dbErr; // Trigger local file load fallback in general catch block
+      }
+    } else {
+      throw new Error("Live database is not configured");
+    }
 
     // Keep activities sorted descendingly by id/timestamp
     allActs.sort((a, b) => (b.id || "").localeCompare(a.id || ""));
@@ -726,7 +752,7 @@ app.post("/api/auth/reset", async (req, res) => {
       cachedPasscode = newPasscode;
       passcodeCacheTime = Date.now();
 
-      if (process.env.SQL_HOST) {
+      if (isDbAvailable()) {
         try {
           await db.insert(adminConfig)
             .values({ key: "passcode", value: newPasscode, updatedAt: new Date() })
@@ -753,11 +779,29 @@ app.post("/api/auth/reset", async (req, res) => {
 // GET M-Pesa Config (Public)
 app.get("/api/mpesa/config", async (req, res) => {
   try {
-    const configs = await db.select().from(adminConfig);
-    const configMap = configs.reduce((acc, curr) => {
-      acc[curr.key] = curr.value;
-      return acc;
-    }, {} as Record<string, string>);
+    let configMap: Record<string, string> = {};
+
+    if (isDbAvailable()) {
+      try {
+        const configs = await db.select().from(adminConfig);
+        configMap = configs.reduce((acc, curr) => {
+          acc[curr.key] = curr.value;
+          return acc;
+        }, {} as Record<string, string>);
+      } catch (dbErr: any) {
+        console.warn("[Cloud SQL] Failed to retrieve admin config from Postgres:", dbErr.message);
+      }
+    }
+
+    // Merge from local file as secondary fallback
+    if (fs.existsSync(DB_PATH)) {
+      try {
+        const localData = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+        if (localData.mpesa) {
+          configMap = { ...localData.mpesa, ...configMap };
+        }
+      } catch (e) {}
+    }
 
     res.json({
       tillNumber: configMap["mpesa_till"] || "4119041",
@@ -774,7 +818,8 @@ app.get("/api/mpesa/config", async (req, res) => {
       receiptBodySize: configMap["mpesa_receipt_body_size"] || "text-sm",
       receiptBodyColor: configMap["mpesa_receipt_body_color"] || "text-slate-500",
       receiptTextAlign: configMap["mpesa_receipt_text_align"] || "text-center",
-      receiptFontFamily: configMap["mpesa_receipt_font_family"] || "font-sans"
+      receiptFontFamily: configMap["mpesa_receipt_font_family"] || "font-sans",
+      receiptOrder: configMap["mpesa_receipt_order"] || null
     });
   } catch (error: any) {
     res.status(500).json({ error: "Failed to load M-pesa billing configurations: " + error.message });
@@ -783,15 +828,21 @@ app.get("/api/mpesa/config", async (req, res) => {
 
 // PUT M-Pesa Config (Requires Admin)
 app.put("/api/mpesa/config", requireAdmin, async (req, res) => {
-  const { tillNumber, tillName, tillImage, tillType, receiptTitle, receiptLogo, receiptExtraLogo, receiptMessage, receiptLayout, receiptHeaderSize, receiptHeaderColor, receiptBodySize, receiptBodyColor, receiptTextAlign, receiptFontFamily } = req.body;
+  const { tillNumber, tillName, tillImage, tillType, receiptTitle, receiptLogo, receiptExtraLogo, receiptMessage, receiptLayout, receiptHeaderSize, receiptHeaderColor, receiptBodySize, receiptBodyColor, receiptTextAlign, receiptFontFamily, receiptOrder } = req.body;
   try {
     const upsertConfig = async (key: string, value: string) => {
-      await db.insert(adminConfig)
-        .values({ key, value, updatedAt: new Date() })
-        .onConflictDoUpdate({
-          target: adminConfig.key,
-          set: { value, updatedAt: new Date() }
-        });
+      if (isDbAvailable()) {
+        try {
+          await db.insert(adminConfig)
+            .values({ key, value, updatedAt: new Date() })
+            .onConflictDoUpdate({
+              target: adminConfig.key,
+              set: { value, updatedAt: new Date() }
+            });
+        } catch (dbErr) {
+          console.warn(`[Cloud SQL] Could not write config key "${key}" to live DB.`);
+        }
+      }
     };
 
     if (tillNumber !== undefined) await upsertConfig("mpesa_till", String(tillNumber));
@@ -809,6 +860,32 @@ app.put("/api/mpesa/config", requireAdmin, async (req, res) => {
     if (receiptBodyColor !== undefined) await upsertConfig("mpesa_receipt_body_color", String(receiptBodyColor));
     if (receiptTextAlign !== undefined) await upsertConfig("mpesa_receipt_text_align", String(receiptTextAlign));
     if (receiptFontFamily !== undefined) await upsertConfig("mpesa_receipt_font_family", String(receiptFontFamily));
+    if (receiptOrder !== undefined) await upsertConfig("mpesa_receipt_order", String(receiptOrder));
+
+    // Consistently write to local configuration json file as absolute backup
+    if (fs.existsSync(DB_PATH)) {
+      try {
+        const localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+        localDb.mpesa = localDb.mpesa || {};
+        const configKeys = [
+          ["tillNumber", "mpesa_till"], ["tillName", "mpesa_name"], ["tillImage", "mpesa_image"],
+          ["tillType", "mpesa_type"], ["receiptTitle", "mpesa_receipt_title"], ["receiptLogo", "mpesa_receipt_logo"],
+          ["receiptExtraLogo", "mpesa_receipt_extra_logo"], ["receiptMessage", "mpesa_receipt_message"],
+          ["receiptLayout", "mpesa_receipt_layout"], ["receiptHeaderSize", "mpesa_receipt_header_size"],
+          ["receiptHeaderColor", "mpesa_receipt_header_color"], ["receiptBodySize", "mpesa_receipt_body_size"],
+          ["receiptBodyColor", "mpesa_receipt_body_color"], ["receiptTextAlign", "mpesa_receipt_text_align"],
+          ["receiptFontFamily", "mpesa_receipt_font_family"], ["receiptOrder", "mpesa_receipt_order"]
+        ];
+        for (const [prop, key] of configKeys) {
+          if (req.body[prop] !== undefined) {
+            localDb.mpesa[key] = String(req.body[prop]);
+          }
+        }
+        fs.writeFileSync(DB_PATH, JSON.stringify(localDb, null, 2), "utf-8");
+      } catch (e: any) {
+        console.warn("[Local Sync Warning] Failed to update local config map:", e.message);
+      }
+    }
 
     res.json({ success: true, message: "M-pesa billing configuration updated successfully." });
   } catch (error: any) {
