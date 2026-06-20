@@ -10,4 +10,5 @@ if (fs.existsSync(configPath)) {
 }
 
 const app = initializeApp(firebaseConfig);
-export const firestore = getFirestore(app);
+export const firestore = getFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)');
+

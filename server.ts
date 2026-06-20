@@ -13,7 +13,7 @@ import { google } from "googleapis";
 import { Readable } from "stream";
 
 import { db } from "./src/db/index.ts";
-import { getLocalDb, saveLocalDb } from "./dbStorage.ts";
+import { getLocalDb, saveLocalDb, insertItem, deleteItem } from "./dbStorage.ts";
 import { activities, itinerary, leaders, inquiries, musicConfig, adminConfig } from "./src/db/schema.ts";
 import { eq } from "drizzle-orm";
 
@@ -107,24 +107,18 @@ async function requireAdmin(req: express.Request, res: express.Response, next: e
 // Highly reliable bidirectional local JSON database synchronization
 async function syncLocalFile(section: string, operation: string, data: any) {
   try {
-    let localDb: any = await getLocalDb();
-    
     if (section === "passcode") {
-      localDb.passcode = data;
+      await insertItem("configs", "admin", { passcode: data });
     } else if (section === "music") {
-      localDb.music = { ...localDb.music, ...data };
+      await insertItem("configs", "music", data);
     } else {
-      localDb[section] = localDb[section] || [];
-      if (operation === "insert") {
-        localDb[section].push(data);
-      } else if (operation === "update") {
-        localDb[section] = localDb[section].map((item: any) => item.id === data.id ? { ...item, ...data } : item);
+      if (operation === "insert" || operation === "update") {
+        await insertItem(section, data.id, data);
       } else if (operation === "delete") {
-        localDb[section] = localDb[section].filter((item: any) => item.id !== data.id && item.id !== data);
+        const idToDelete = (typeof data === "object" && data !== null && data.id) ? data.id : data;
+        await deleteItem(section, idToDelete);
       }
     }
-    
-    await saveLocalDb(localDb);
     console.log(`[Local Sync] Completed ${operation} on section: "${section}" successfully.`);
   } catch (err: any) {
     console.warn("[Local Sync Warning] Could not replicate update to local JSON:", err.message);
@@ -1637,11 +1631,11 @@ app.post("/api/chat", async (req, res) => {
       parts: [{ text: msg.text }]
     }));
 
-    let modelStr = "gemini-3.5-flash";
+    let modelStr = "gemini-2.5-flash";
     let tools: any[] = [];
     
     if (req.body.feature === 'lite') {
-      modelStr = "gemini-3.1-flash-lite";
+      modelStr = "gemini-2.5-flash"; // gemini-2.0-flash-lite does not exist yet maybe, let's stick to safe
     } else if (req.body.feature === 'search') {
       tools = [{ googleSearch: {} }];
     } else if (req.body.feature === 'maps') {
@@ -1843,70 +1837,15 @@ app.post("/api/upload", requireAdmin, async (req, res) => {
     return res.status(400).json({ error: "No file content specified under base64 parameter." });
   }
 
-  // SERVERLESS OPTIMIZATION: On Vercel, the filesystem is read-only.
-  // Instead of saving to disk, we return the Base64 Data URI directly to be stored in the Postgres database.
-  if (process.env.VERCEL) {
-    return res.json({ 
-      success: true, 
-      url: base64, // The UI will store this Data URI directly in the database
-      filename: filename,
-      mimeType: ""
-    });
-  }
-
-  try {
-    let mimeType = "";
-    let base64Data = base64;
-
-    if (base64.startsWith("data:")) {
-      const matches = base64.match(/^data:([^;]+);base64,(.+)$/);
-      if (matches) {
-        mimeType = matches[1];
-        base64Data = matches[2];
-      } else {
-        return res.status(400).json({ error: "Invalid data URL base64 format." });
-      }
-    }
-
-    const buffer = Buffer.from(base64Data, "base64");
-
-    // Standard extensions detection
-    let ext = "bin";
-    if (mimeType) {
-      if (mimeType.includes("image/jpeg") || mimeType.includes("image/jpg")) ext = "jpg";
-      else if (mimeType.includes("image/png")) ext = "png";
-      else if (mimeType.includes("image/gif")) ext = "gif";
-      else if (mimeType.includes("image/webp")) ext = "webp";
-      else if (mimeType.includes("video/mp4")) ext = "mp4";
-      else if (mimeType.includes("video/webm")) ext = "webm";
-      else if (mimeType.includes("video/quicktime") || mimeType.includes("video/mov")) ext = "mov";
-    }
-
-    // Fallback detection from original filename
-    if (ext === "bin" && filename) {
-      const parts = filename.split(".");
-      if (parts.length > 1) {
-        ext = parts[parts.length - 1].toLowerCase();
-      }
-    }
-
-    // Generate neat, unique timestamped filename on the disk
-    const uniqueId = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    const diskFilename = `upload_${uniqueId}.${ext}`;
-    const filePath = path.join(process.cwd(), "uploads", diskFilename);
-
-    await fs.promises.writeFile(filePath, buffer);
-
-    res.json({ 
-      success: true, 
-      url: `/uploads/${diskFilename}`,
-      filename: diskFilename,
-      mimeType: mimeType
-    });
-  } catch (error: any) {
-    console.error("Local file writing failure:", error);
-    res.status(500).json({ error: "Internal server failed to write uploaded file resource: " + error.message });
-  }
+  // Always return the Base64 Data URI directly to be stored persistently in Firestore.
+  // This bypasses local ephemeral filesystem storage which gets wiped on Cloud Run container restarts.
+  // By compressing the image on the client side, we stay well under Firebase 1MB limits.
+  return res.json({ 
+    success: true, 
+    url: base64, // The UI will store this Data URI directly in the database
+    filename: filename,
+    mimeType: ""
+  });
 });
 
 

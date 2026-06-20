@@ -309,22 +309,62 @@ export default function App() {
     }
   };
 
-  // Central base64 file upload interceptor helper
+  const compressImage = (base64Str: string, maxWidth = 800): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.src = base64Str;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const ratio = Math.min(maxWidth / img.width, 1);
+        canvas.width = img.width * ratio;
+        canvas.height = img.height * ratio;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL("image/jpeg", 0.7)); // compress heavily
+        } else {
+          resolve(base64Str);
+        }
+      };
+      img.onerror = () => resolve(base64Str); // Fallback
+    });
+  };
+
   const uploadBase64IfNeeded = async (base64Str: string | undefined | null, defaultFilename = "upload.jpg"): Promise<string | undefined | null> => {
     if (!base64Str || !base64Str.startsWith("data:")) {
       return base64Str;
     }
-    // Admin check logic is removed here since we want admins to upload to Firebase Storage, but also users might need it for profile pictures? 
-    // Wait, the backend checked adminPasscode, but let's allow it as it's uploading to Firebase directly.
-    try {
-      const storageRef = ref(storage, `uploads/${Date.now()}_${defaultFilename}`);
-      await uploadString(storageRef, base64Str, 'data_url');
-      const downloadURL = await getDownloadURL(storageRef);
-      return downloadURL;
-    } catch (err) {
-      console.error("Firebase Storage upload failed, using fallback inline data.", err);
+    
+    // Admin uploads only
+    if (!adminPasscode) return base64Str;
+    
+    let processedBase64 = base64Str;
+    if (base64Str.startsWith("data:image/")) {
+        processedBase64 = await compressImage(base64Str);
     }
-    return base64Str;
+
+    try {
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-passcode": adminPasscode
+        },
+        body: JSON.stringify({
+          filename: defaultFilename,
+          base64: processedBase64
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.url;
+      } else {
+        console.error("Base64 upload failed on server, using fallback inline data.");
+      }
+    } catch (err) {
+      console.error("Network error during base64 upload:", err);
+    }
+    return processedBase64;
   };
 
   // Activity actions (Admin CRUD)
