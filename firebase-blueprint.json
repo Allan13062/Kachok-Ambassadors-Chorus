@@ -98,9 +98,23 @@
         "voicePart": { "type": "string" },
         "providerId": { "type": "string" },
         "createdAt": { "type": "string" },
-        "password": { "type": "string" }
+        "password": { "type": "string" },
+        "role": { "type": "string" }
       },
       "required": ["uid", "email", "password"]
+    },
+    "UserSession": {
+      "title": "UserSession",
+      "description": "A temporary secure server-side session for admins and leaders",
+      "type": "object",
+      "properties": {
+        "token": { "type": "string" },
+        "userId": { "type": "string" },
+        "role": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "expiresAt": { "type": "number" }
+      },
+      "required": ["token", "expiresAt"]
     },
     "Subscriber": {
       "title": "Subscriber",
@@ -182,6 +196,10 @@
     "/memberSpotlights/{spotlightId}": {
       "schema": "MemberSpotlight",
       "description": "Choir member spotlight listings"
+    },
+    "/sessions/{sessionId}": {
+      "schema": "UserSession",
+      "description": "Admin and leadership secure sessions"
     }
   }
 }

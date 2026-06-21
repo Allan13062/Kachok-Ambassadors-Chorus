@@ -81,3 +81,23 @@ export async function deleteItem(colName: string, id: string) {
     await deleteDoc(doc(firestore, colName, id));
   } catch(e) { console.error(`Error deleting from ${colName}:`, e); }
 }
+
+export async function getSession(token: string) {
+  try {
+    const sessionDoc = await getDoc(doc(firestore, "sessions", token));
+    if (sessionDoc.exists()) {
+      return sessionDoc.data();
+    }
+  } catch(e) {
+    console.error("[dbStorage getSession] Error:", e);
+  }
+  return null;
+}
+
+export async function deleteSession(token: string) {
+  try {
+    await deleteDoc(doc(firestore, "sessions", token));
+  } catch(e) {
+    console.error("[dbStorage deleteSession] Error:", e);
+  }
+}

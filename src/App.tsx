@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { onAuthStateChanged, User as FirebaseUser, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
 import { auth, db, storage } from "./lib/firebase";
 import { ref, uploadString, getDownloadURL } from "firebase/storage";
+import { useAdminAuth } from "./hooks/useAdminAuth";
 import Header from "./components/Header";
 import Hero from "./components/Hero";
 import Itinerary from "./components/Itinerary";
@@ -125,9 +126,11 @@ export default function App() {
   // UI state managers
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const [adminPasscode, setAdminPasscode] = useState<string | null>(() => {
-    return localStorage.getItem("kachamba_admin_passcode");
-  });
+
+  // Custom secure React hook managing centralized admin sessions
+  const { isAdmin, adminToken, login: loginAdmin, logout: logoutAdmin } = useAdminAuth();
+  const adminPasscode = adminToken;
+
   const [activeSection, setActiveSection] = useState("home");
   const [bookingPrefill, setBookingPrefill] = useState("");
   const [webLogo, setWebLogo] = useState("https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png");
@@ -145,6 +148,29 @@ export default function App() {
     }
     localStorage.setItem("kachamba_theme", theme);
   }, [theme]);
+
+  // Securely intercept and append server-side session headers to all /api requests
+  useEffect(() => {
+    const originalFetch = window.fetch;
+    window.fetch = function (input, init) {
+      const urlStr = typeof input === "string" ? input : (input && 'url' in input ? (input as any).url : "");
+      if (urlStr && (urlStr.startsWith("/api/") || urlStr.includes("/api/"))) {
+        init = init || {};
+        const headers = new Headers(init.headers || {});
+        if (adminToken && !headers.has("x-admin-token")) {
+          headers.set("x-admin-token", adminToken);
+        }
+        if (user?.uid && !headers.has("x-user-id")) {
+          headers.set("x-user-id", user.uid);
+        }
+        init.headers = headers;
+      }
+      return originalFetch.apply(this, [input, init]);
+    };
+    return () => {
+      window.fetch = originalFetch;
+    };
+  }, [adminToken, user]);
 
   // Editing state markers
   const [actToEdit, setActToEdit] = useState<Activity | null>(null);
@@ -172,6 +198,10 @@ export default function App() {
       const headers: Record<string, string> = {};
       if (adminPasscode) {
         headers["x-admin-passcode"] = adminPasscode;
+        headers["x-admin-token"] = adminPasscode;
+      }
+      if (user?.uid) {
+        headers["x-user-id"] = user.uid;
       }
 
       const response = await fetch("/api/db", {
@@ -240,28 +270,11 @@ export default function App() {
 
   // Leaders portal auth pipeline
   const handleAdminAuth = async (passcode: string): Promise<boolean> => {
-    try {
-      const res = await fetch("/api/auth", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ passcode })
-      });
-      if (res.ok) {
-        setAdminPasscode(passcode);
-        localStorage.setItem("kachamba_admin_passcode", passcode);
-        return true;
-      }
-    } catch (error) {
-      console.error("Auth server failure:", error);
-    }
-    return false;
+    return await loginAdmin(passcode);
   };
 
   const handleAdminLogout = () => {
-    setAdminPasscode(null);
-    localStorage.removeItem("kachamba_admin_passcode");
+    logoutAdmin();
     setIsAdminOpen(false);
     clearOperationalStates();
   };

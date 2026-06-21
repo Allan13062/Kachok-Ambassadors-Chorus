@@ -47,45 +47,40 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, theme }: Aut
     setSuccessMsg("");
 
     try {
-      await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
-      
-      let userCredential;
-      if (isSignUp) {
-        userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        await updateProfile(userCredential.user, { displayName: name });
-        // Save to Firestore
-        await setDoc(doc(db, "users", userCredential.user.uid), {
-          uid: userCredential.user.uid,
-          email,
-          name,
-          voicePart,
-          createdAt: new Date().toISOString(),
-        });
-      } else {
-        userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const endpoint = isSignUp ? "/api/auth/signup" : "/api/auth/login";
+      const payload = isSignUp ? { name, email, password, voicePart } : { email, password };
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Authentication request failed.");
       }
 
       setSuccessMsg(isSignUp ? "Account created successfully!" : "Logged in successfully!");
       
       setTimeout(() => {
         onAuthSuccess({
-          uid: userCredential.user.uid,
-          email: userCredential.user.email,
-          name: userCredential.user.displayName,
-          voicePart: voicePart,
+          uid: data.user.uid,
+          email: data.user.email,
+          displayName: data.user.displayName,
+          photoURL: data.user.photoURL,
+          voicePart: data.user.voicePart || voicePart,
+          role: data.user.role || "member"
         });
         onClose();
         resetForm();
       }, 1500);
 
     } catch (err: any) {
-      if (err.code === "auth/email-already-in-use") {
-        setErrorMsg("Email is already in use. Please sign in.");
-      } else if (err.code === "auth/invalid-credential") {
-        setErrorMsg("Incorrect email or password.");
-      } else {
-        setErrorMsg(err.message || "An unexpected error occurred.");
-      }
+      setErrorMsg(err.message || "An unexpected auth error occurred. Please try again.");
     } finally {
       setLoading(false);
     }

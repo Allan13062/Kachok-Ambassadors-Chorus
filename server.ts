@@ -13,7 +13,7 @@ import { google } from "googleapis";
 import { Readable } from "stream";
 
 import { db } from "./src/db/index.ts";
-import { getLocalDb, saveLocalDb, insertItem, deleteItem } from "./dbStorage.ts";
+import { getLocalDb, saveLocalDb, insertItem, deleteItem, getSession, deleteSession } from "./dbStorage.ts";
 import { activities, itinerary, leaders, inquiries, musicConfig, adminConfig } from "./src/db/schema.ts";
 import { eq } from "drizzle-orm";
 
@@ -35,7 +35,7 @@ app.use(express.urlencoded({ limit: "150mb", extended: true }));
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-admin-passcode");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-admin-passcode, x-admin-token, x-user-id");
   if (req.method === "OPTIONS") {
     return res.sendStatus(200);
   }
@@ -101,18 +101,47 @@ async function getAdminPasscode(): Promise<string> {
   }
 }
 
-// Authentication middleware using Cloud SQL Configuration with Caching
+// Authentication middleware using Firestore sessions and roles as the source of truth
 async function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
   const code = req.headers["x-admin-passcode"] as string;
+  const token = (req.headers["x-admin-token"] || req.headers["x-admin-passcode"]) as string;
+  const userId = req.headers["x-user-id"] as string;
+
   try {
-    const dbPasscode = await getAdminPasscode();
-    if (code && code === dbPasscode) {
-      next();
-    } else {
-      res.status(401).json({ error: "Unauthorized: Invalid admin passcode" });
+    // 1. Check secure session token from headers (Firestore-backed server-side sessions)
+    if (token) {
+      const session = await getSession(token);
+      if (session && session.expiresAt > Date.now()) {
+        return next();
+      }
     }
+
+    // 2. Fallback check for raw passcode (backwards compatible / manual CLI tools)
+    if (code) {
+      const dbPasscode = await getAdminPasscode();
+      if (code === dbPasscode) {
+        return next();
+      }
+    }
+
+    // 3. User permission check - Source of truth in Firestore
+    if (userId) {
+      const localDb = await getLocalDb();
+      const dbUser = (localDb.users || []).find((u: any) => u.uid === userId);
+      // Permit leaders (role === "leader" / "admin" / isLeader === true etc)
+      if (dbUser && (
+        dbUser.role === "leader" || 
+        dbUser.role === "admin" || 
+        dbUser.isLeader === true || 
+        dbUser.voicePart === "Section Leader"
+      )) {
+        return next();
+      }
+    }
+
+    res.status(401).json({ error: "Unauthorized: Invalid credentials or insufficient permissions. Please log in as Admin/Leader." });
   } catch (error) {
-    res.status(500).json({ error: "Authentication database query failed." });
+    res.status(500).json({ error: "Authentication check database query failed." });
   }
 }
 
@@ -725,12 +754,60 @@ app.post("/api/auth", async (req, res) => {
   try {
     const dbPasscode = await getAdminPasscode();
     if (passcode === dbPasscode) {
-      res.json({ success: true, message: "Welcome Elder/Ambassador Director!" });
+      // Create a secure session token
+      const token = "adm_sess_" + Math.random().toString(36).substring(2, 11) + Math.random().toString(36).substring(2, 11);
+      const expiresAt = Date.now() + 2 * 60 * 60 * 1000; // 2 hour session validity duration
+      
+      const payload = {
+        token,
+        expiresAt,
+        role: "admin",
+        createdAt: new Date().toISOString()
+      };
+
+      await insertItem("sessions", token, payload);
+
+      res.json({ 
+        success: true, 
+        token, 
+        message: "Welcome Elder/Ambassador Director!" 
+      });
     } else {
       res.status(401).json({ error: "Incorrect passcode. Please try again." });
     }
   } catch (error: any) {
     res.status(500).json({ error: "Authentication failed: " + error.message });
+  }
+});
+
+// A2-b. Validate Session Token (automatic token expiry check)
+app.post("/api/auth/validate-token", async (req, res) => {
+  const { token } = req.body;
+  if (!token) {
+    return res.status(400).json({ valid: false, error: "Session token is required" });
+  }
+  try {
+    const session = await getSession(token);
+    if (session && session.expiresAt > Date.now()) {
+      return res.json({ valid: true, role: session.role });
+    }
+    return res.json({ valid: false, error: "Session expired or invalid" });
+  } catch (error: any) {
+    res.status(500).json({ valid: false, error: error.message });
+  }
+});
+
+// A2-c. Admin Sign Out / Clean Up Session
+app.post("/api/auth/logout", async (req, res) => {
+  const { token } = req.body;
+  if (!token) {
+    return res.status(400).json({ success: false, error: "Token is required to sign out" });
+  }
+  try {
+    await deleteSession(token);
+    res.json({ success: true, message: "Logged out and deleted session successfully" });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

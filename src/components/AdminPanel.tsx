@@ -464,7 +464,7 @@ export default function AdminPanel({
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          "x-admin-passcode": passcode || localStorage.getItem("kachamba_admin_passcode") || ""
+          "x-admin-passcode": passcode || localStorage.getItem("kachamba_admin_token") || localStorage.getItem("kachamba_admin_passcode") || ""
         },
         body: JSON.stringify({
           tillNumber: mpesaTill,
@@ -854,7 +854,7 @@ export default function AdminPanel({
     if (!base64Str || !base64Str.startsWith("data:")) {
       return base64Str;
     }
-    const admPass = localStorage.getItem("kachamba_admin_passcode") || "";
+    const admPass = localStorage.getItem("kachamba_admin_token") || localStorage.getItem("kachamba_admin_passcode") || "";
     try {
       const res = await fetch("/api/upload", {
         method: "POST",
@@ -889,7 +889,7 @@ export default function AdminPanel({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-admin-passcode": localStorage.getItem("kachamba_admin_passcode") || ""
+          "x-admin-passcode": localStorage.getItem("kachamba_admin_token") || localStorage.getItem("kachamba_admin_passcode") || ""
         },
         body: JSON.stringify(broadForm)
       });
@@ -923,7 +923,7 @@ export default function AdminPanel({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-admin-passcode": localStorage.getItem("kachamba_admin_passcode") || ""
+          "x-admin-passcode": localStorage.getItem("kachamba_admin_token") || localStorage.getItem("kachamba_admin_passcode") || ""
         },
         body: JSON.stringify(payload)
       });
@@ -949,7 +949,7 @@ export default function AdminPanel({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-admin-passcode": localStorage.getItem("kachamba_admin_passcode") || ""
+          "x-admin-passcode": localStorage.getItem("kachamba_admin_token") || localStorage.getItem("kachamba_admin_passcode") || ""
         },
         body: JSON.stringify({ id })
       });
@@ -968,7 +968,7 @@ export default function AdminPanel({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-admin-passcode": localStorage.getItem("kachamba_admin_passcode") || ""
+          "x-admin-passcode": localStorage.getItem("kachamba_admin_token") || localStorage.getItem("kachamba_admin_passcode") || ""
         },
         body: JSON.stringify({ id })
       });
