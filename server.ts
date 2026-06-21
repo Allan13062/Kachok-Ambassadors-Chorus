@@ -72,6 +72,18 @@ async function getAdminPasscode(): Promise<string> {
     return cachedPasscode;
   }
   
+  // Try connected Firestore via getLocalDb() first
+  try {
+    const localDb = await getLocalDb();
+    if (localDb && localDb.passcode) {
+      cachedPasscode = localDb.passcode;
+      passcodeCacheTime = Date.now();
+      return cachedPasscode;
+    }
+  } catch (error: any) {
+    console.error("[Kachamba Server] Firestore passcode retrieval failed:", error.message);
+  }
+  
   if (!isDbAvailable()) {
     return fallbackPasscode;
   }
@@ -729,6 +741,14 @@ app.post("/api/auth/reset", async (req, res) => {
       fallbackPasscode = newPasscode;
       cachedPasscode = newPasscode;
       passcodeCacheTime = Date.now();
+
+      // Write to connected Firestore
+      try {
+        await insertItem("configs", "admin", { passcode: newPasscode });
+        console.log("[Kachamba Server] Successfully saved updated passcode reset to Firestore configs/admin.");
+      } catch (firestoreErr: any) {
+        console.error("[Kachamba Server] Firestore update failed during reset:", firestoreErr.message);
+      }
 
       if (isDbAvailable()) {
         try {
