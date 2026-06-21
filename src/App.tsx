@@ -152,7 +152,7 @@ export default function App() {
   // Securely intercept and append server-side session headers to all /api requests
   useEffect(() => {
     const originalFetch = window.fetch;
-    window.fetch = function (input, init) {
+    const customFetch = function (this: any, input: any, init?: any) {
       const urlStr = typeof input === "string" ? input : (input && 'url' in input ? (input as any).url : "");
       if (urlStr && (urlStr.startsWith("/api/") || urlStr.includes("/api/"))) {
         init = init || {};
@@ -165,10 +165,40 @@ export default function App() {
         }
         init.headers = headers;
       }
-      return originalFetch.apply(this, [input, init]);
+      return originalFetch.apply(this || window, [input, init]);
     };
+
+    try {
+      Object.defineProperty(window, 'fetch', {
+        value: customFetch,
+        configurable: true,
+        writable: true,
+        enumerable: true
+      });
+    } catch (e) {
+      console.warn("Failed to redefine window.fetch with Object.defineProperty, fallback to standard assignment:", e);
+      try {
+        (window as any).fetch = customFetch;
+      } catch (err) {
+        console.error("Critical: Cannot patch window.fetch in this browser environment:", err);
+      }
+    }
+
     return () => {
-      window.fetch = originalFetch;
+      try {
+        Object.defineProperty(window, 'fetch', {
+          value: originalFetch,
+          configurable: true,
+          writable: true,
+          enumerable: true
+        });
+      } catch (e) {
+        try {
+          (window as any).fetch = originalFetch;
+        } catch (err) {
+          // ignore
+        }
+      }
     };
   }, [adminToken, user]);
 
