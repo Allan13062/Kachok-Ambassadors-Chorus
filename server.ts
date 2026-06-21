@@ -123,11 +123,16 @@ async function syncLocalFile(section: string, operation: string, data: any) {
       await insertItem("configs", "admin", { passcode: data });
     } else if (section === "music") {
       await insertItem("configs", "music", data);
+    } else if (section === "mpesa") {
+      await insertItem("configs", "mpesa", data);
     } else {
       if (operation === "insert" || operation === "update") {
-        await insertItem(section, data.id, data);
+        const id = data.id || data.uid;
+        if (id) {
+          await insertItem(section, id, data);
+        }
       } else if (operation === "delete") {
-        const idToDelete = (typeof data === "object" && data !== null && data.id) ? data.id : data;
+        const idToDelete = (typeof data === "object" && data !== null) ? (data.id || data.uid || data) : data;
         await deleteItem(section, idToDelete);
       }
     }
@@ -452,6 +457,7 @@ app.post("/api/subscribers", async (req, res) => {
 
     localDb.subscribers.push(newSub);
     await saveLocalDb(localDb);
+    await syncLocalFile("subscribers", "insert", newSub);
 
     res.json({ success: true, message: "Subscribed successfully! Thank you for supporting our ministry." });
   } catch (error: any) {
@@ -470,6 +476,7 @@ app.post("/api/subscribers/delete", requireAdmin, async (req, res) => {
       let localDb: any = await getLocalDb();
       localDb.subscribers = (localDb.subscribers || []).filter((s: any) => s.id !== id);
       await saveLocalDb(localDb);
+      await syncLocalFile("subscribers", "delete", id);
     }
     res.json({ success: true, message: "Subscriber removed successfully." });
   } catch (error: any) {
@@ -503,6 +510,7 @@ app.post("/api/broadcasts", requireAdmin, async (req, res) => {
 
     localDb.broadcasts.push(newBroadcast);
     await saveLocalDb(localDb);
+    await syncLocalFile("broadcasts", "insert", newBroadcast);
 
     // Print massive styled bulletin simulation box to console
     console.log("\n======================================================================");
@@ -539,6 +547,7 @@ app.post("/api/member-spotlights", requireAdmin, async (req, res) => {
 
     localDb.memberSpotlights.push(newSpotlight);
     await saveLocalDb(localDb);
+    await syncLocalFile("memberSpotlights", "insert", newSpotlight);
 
     res.json({ success: true, data: newSpotlight });
   } catch (error: any) {
@@ -557,6 +566,7 @@ app.post("/api/member-spotlights/delete", requireAdmin, async (req, res) => {
       let localDb: any = await getLocalDb();
       localDb.memberSpotlights = (localDb.memberSpotlights || []).filter((s: any) => s.id !== id);
       await saveLocalDb(localDb);
+      await syncLocalFile("memberSpotlights", "delete", id);
     }
     res.json({ success: true, message: "Member spotlight deleted successfully." });
   } catch (error: any) {
@@ -880,6 +890,7 @@ app.put("/api/mpesa/config", requireAdmin, async (req, res) => {
           }
         }
         await saveLocalDb(localDb);
+        await syncLocalFile("mpesa", "insert", localDb.mpesa);
       } catch (e: any) {
         console.warn("[Local Sync Warning] Failed to update local config map:", e.message);
       }
@@ -1506,6 +1517,7 @@ app.post("/api/auth/signup", async (req, res) => {
 
     localDb.users.push(newUser);
     await saveLocalDb(localDb);
+    await syncLocalFile("users", "insert", newUser);
 
     // Return user object without confidential passcode
     const { password: _, ...secureUser } = newUser;
@@ -1572,6 +1584,7 @@ app.post("/api/auth/social", async (req, res) => {
       
       localDb.users.push(user);
       await saveLocalDb(localDb);
+      await syncLocalFile("users", "insert", user);
     }
 
     res.json({ success: true, user });

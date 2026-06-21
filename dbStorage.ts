@@ -12,7 +12,8 @@ export async function getLocalDb() {
     users: [], 
     subscribers: [], 
     broadcasts: [], 
-    memberSpotlights: [] 
+    memberSpotlights: [],
+    mpesa: {} 
   };
 
   try {
@@ -41,6 +42,13 @@ export async function getLocalDb() {
       const adminDoc = await getDoc(doc(firestore, "configs", "admin"));
       if (adminDoc.exists()) {
         result.passcode = adminDoc.data().passcode || result.passcode;
+      }
+    } catch(e) {}
+
+    try {
+      const mpesaDoc = await getDoc(doc(firestore, "configs", "mpesa"));
+      if (mpesaDoc.exists()) {
+        result.mpesa = mpesaDoc.data() || {};
       }
     } catch(e) {}
 
