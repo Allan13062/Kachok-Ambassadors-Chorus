@@ -67,8 +67,8 @@ function isDbAvailable(): boolean {
 }
 
 async function getAdminPasscode(): Promise<string> {
-  // Ultra-fast response: If cached in memory, return instantly.
-  if (cachedPasscode) {
+  // Ultra-fast response: If cached in memory, return instantly (cache for 10 seconds max).
+  if (cachedPasscode && (Date.now() - passcodeCacheTime < 10000)) {
     return cachedPasscode;
   }
   

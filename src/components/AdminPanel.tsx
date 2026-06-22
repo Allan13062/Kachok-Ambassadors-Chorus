@@ -339,6 +339,8 @@ export default function AdminPanel({
   const [resetMessage, setResetMessage] = useState("");
   const [resetErrorMsg, setResetErrorMsg] = useState("");
   const [resetCurrentPasscode, setResetCurrentPasscode] = useState("");
+  const [isPasscodeVisible, setIsPasscodeVisible] = useState(false);
+  const [resetMethod, setResetMethod] = useState<'recovery' | 'current'>('current');
   
   const handleResetSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1056,7 +1058,7 @@ export default function AdminPanel({
                 KACHAMBA <span className="text-amber-400">LEADER</span> GATEWAY
               </h2>
               <p className="font-sans text-xs text-slate-400 max-w-sm mt-3.5 leading-relaxed">
-                Unlock editing privileges for scheduling itineraries, leadership cards, choir activities, and public communications.
+                Enter your administrative key below to authorize device access for the Kachamba Chorus Gateway.
               </p>
             </div>
 
