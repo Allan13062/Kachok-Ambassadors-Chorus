@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore/lite';
+import { getFirestore, setLogLevel } from 'firebase/firestore/lite';
 import fs from 'fs';
 import path from 'path';
 
@@ -10,5 +10,6 @@ if (fs.existsSync(configPath)) {
 }
 
 const app = initializeApp(firebaseConfig);
+setLogLevel('silent');
 export const firestore = getFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)');
 

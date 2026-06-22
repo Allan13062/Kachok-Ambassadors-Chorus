@@ -115,7 +115,7 @@ export default function Leaders({ items, isAdmin, onAdd, onEdit, onDelete }: Lea
           {items.map((leader) => (
             <div 
               key={leader.id}
-              className="group relative bg-slate-900/40 backdrop-blur-md border border-slate-850 hover:border-amber-400/30 rounded-2xl overflow-hidden shadow-xl hover:shadow-2xl hover:shadow-amber-500/5 transition-all duration-300 flex flex-col justify-between"
+              className="group relative bg-slate-900/40 backdrop-blur-md border border-slate-850 hover:border-amber-400/30 rounded-2xl overflow-hidden shadow-xl hover:shadow-2xl hover:shadow-amber-500/5 hover:-translate-y-1 hover:scale-[1.03] transition-all duration-300 flex flex-col justify-between"
             >
               <div>
                 {/* Leader Picture Box - 16:10 or square responsive frame */}

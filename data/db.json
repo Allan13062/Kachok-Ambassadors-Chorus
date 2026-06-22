@@ -1,5 +1,5 @@
 {
-  "passcode": "SDA2026",
+  "passcode": "newnew",
   "activities": [
     {
       "id": "act-1",
@@ -128,6 +128,45 @@
       "image": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400",
       "bio": "Spiritual advisor delegated by the Local Church Board, overseeing our outreach logistics and uniform supplies.",
       "phone": "+254 734 567 890"
+    }
+  ],
+  "users": [
+    {
+      "uid": "usr_sh8a5vbjq",
+      "email": "dukeofsagam@gmail.com",
+      "displayName": "Allande George",
+      "photoURL": "https://api.dicebear.com/7.x/adventurer/svg?seed=Allande%20George",
+      "voicePart": "Listener",
+      "providerId": "email",
+      "createdAt": "2026-06-22T06:47:47.109Z",
+      "password": "SDA2026"
+    },
+    {
+      "id": "usr_sh8a5vbjq",
+      "uid": "usr_sh8a5vbjq",
+      "email": "dukeofsagam@gmail.com",
+      "displayName": "Allande George",
+      "photoURL": "https://api.dicebear.com/7.x/adventurer/svg?seed=Allande%20George",
+      "voicePart": "Listener",
+      "providerId": "email",
+      "createdAt": "2026-06-22T06:47:47.109Z",
+      "password": "SDA2026"
+    }
+  ],
+  "sessions": [
+    {
+      "id": "adm_sess_flwcye8iirg8s0w47h",
+      "token": "adm_sess_flwcye8iirg8s0w47h",
+      "expiresAt": 1782118352104,
+      "role": "admin",
+      "createdAt": "2026-06-22T06:52:32.104Z"
+    },
+    {
+      "id": "adm_sess_xxa6pi252nc0kzr3qe",
+      "token": "adm_sess_xxa6pi252nc0kzr3qe",
+      "expiresAt": 1782118947137,
+      "role": "admin",
+      "createdAt": "2026-06-22T07:02:27.137Z"
     }
   ]
 }

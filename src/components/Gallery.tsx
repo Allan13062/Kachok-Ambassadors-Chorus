@@ -86,7 +86,7 @@ export default function Gallery() {
                 hidden: { opacity: 0, y: 25 },
                 visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 70, damping: 20 } }
               }}
-              whileHover={{ y: -5, scale: 1.015, boxShadow: "0 15px 30px -5px rgba(245, 158, 11, 0.08)" }}
+              whileHover={{ y: -5, scale: 1.03, boxShadow: "0 15px 30px -5px rgba(245, 158, 11, 0.08)" }}
               onClick={() => setSelectedImg({ url: photo.url, title: photo.title })}
               className="group relative bg-slate-950/80 border border-slate-800 hover:border-amber-400/40 rounded-2xl overflow-hidden shadow-lg transition-all cursor-zoom-in"
             >

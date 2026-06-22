@@ -72,11 +72,13 @@ async function getAdminPasscode(): Promise<string> {
     return cachedPasscode;
   }
   
-  // Try connected Firestore via getLocalDb() first
+  // Try directly connected Firestore first for ultra-fast admin auth
   try {
-    const localDb = await getLocalDb();
-    if (localDb && localDb.passcode) {
-      cachedPasscode = localDb.passcode;
+    const { getDoc, doc } = await import('firebase/firestore/lite');
+    const { firestore } = await import('./src/lib/firebaseLite.ts');
+    const adminDoc = await getDoc(doc(firestore, "configs", "admin"));
+    if (adminDoc.exists() && adminDoc.data().passcode) {
+      cachedPasscode = adminDoc.data().passcode;
       passcodeCacheTime = Date.now();
       return cachedPasscode;
     }
@@ -84,7 +86,19 @@ async function getAdminPasscode(): Promise<string> {
     console.error("[Kachamba Server] Firestore passcode retrieval failed:", error.message);
   }
   
+  // Then check Cloud SQL if available
   if (!isDbAvailable()) {
+    // If no SQL, and Firestore didn't have it, load it from local JSON sync
+    try {
+      const localDb = await getLocalDb();
+      if (localDb && localDb.passcode) {
+        cachedPasscode = localDb.passcode;
+        passcodeCacheTime = Date.now();
+        return cachedPasscode;
+      }
+    } catch (e) {
+      console.error("Local db passcode fallback failed", e);
+    }
     return fallbackPasscode;
   }
   

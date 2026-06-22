@@ -49,113 +49,33 @@ export async function getLocalDb() {
   // Load local JSON as the robust base offline data
   const result = getLocalJson();
 
-  // Try to enrich from remote Firestore with individual try-catch blocks to prevent cascading failures
   try {
     const fetchCol = async (colName: string) => {
       const snapshot = await getDocs(collection(firestore, colName));
       return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     };
 
-    try {
-      const remoteAct = await fetchCol('activities');
-      if (remoteAct && remoteAct.length > 0) {
-        result.activities = remoteAct;
-      }
-    } catch (e: any) {
-      console.warn(`[Firestore getLocalDb] Could not load 'activities' from remote: ${e.message || e}. Using local seeded data.`);
-    }
+    const fetchDoc = async (colName: string, docId: string) => {
+      const d = await getDoc(doc(firestore, colName, docId));
+      return d.exists() ? d.data() : null;
+    };
 
-    try {
-      const remoteIti = await fetchCol('itinerary');
-      if (remoteIti && remoteIti.length > 0) {
-        result.itinerary = remoteIti;
-      }
-    } catch (e: any) {
-      console.warn(`[Firestore getLocalDb] Could not load 'itinerary' from remote: ${e.message || e}. Using local seeded data.`);
-    }
+    // Accelerate DB fetch by firing all queries in parallel and waiting up to 5 seconds.
+    const promises = [
+      fetchCol('activities').then(data => data.length ? (result.activities = data) : null).catch(e => console.warn(`[Firestore] activities: ${e.message}`)),
+      fetchCol('itinerary').then(data => data.length ? (result.itinerary = data) : null).catch(e => console.warn(`[Firestore] itinerary: ${e.message}`)),
+      fetchCol('leaders').then(data => data.length ? (result.leaders = data) : null).catch(e => console.warn(`[Firestore] leaders: ${e.message}`)),
+      fetchCol('inquiries').then(data => data.length ? (result.inquiries = data) : null).catch(e => console.warn(`[Firestore] inquiries: ${e.message}`)),
+      fetchCol('users').then(data => data.length ? (result.users = data) : null).catch(e => console.warn(`[Firestore] users: ${e.message}`)),
+      fetchCol('subscribers').then(data => data.length ? (result.subscribers = data) : null).catch(e => console.warn(`[Firestore] subscribers: ${e.message}`)),
+      fetchCol('broadcasts').then(data => data.length ? (result.broadcasts = data) : null).catch(e => console.warn(`[Firestore] broadcasts: ${e.message}`)),
+      fetchCol('memberSpotlights').then(data => data.length ? (result.memberSpotlights = data) : null).catch(e => console.warn(`[Firestore] memberSpotlights: ${e.message}`)),
+      fetchDoc('configs', 'music').then(data => data ? (result.music = data) : null).catch(e => console.warn(`[Firestore] music: ${e.message}`)),
+      fetchDoc('configs', 'admin').then(data => data?.passcode ? (result.passcode = data.passcode) : null).catch(e => console.warn(`[Firestore] admin: ${e.message}`)),
+      fetchDoc('configs', 'mpesa').then(data => data ? (result.mpesa = data) : null).catch(e => console.warn(`[Firestore] mpesa: ${e.message}`))
+    ];
 
-    try {
-      const remoteLeaders = await fetchCol('leaders');
-      if (remoteLeaders && remoteLeaders.length > 0) {
-        result.leaders = remoteLeaders;
-      }
-    } catch (e: any) {
-      console.warn(`[Firestore getLocalDb] Could not load 'leaders' from remote: ${e.message || e}. Using local seeded data.`);
-    }
-
-    try {
-      const remoteInq = await fetchCol('inquiries');
-      if (remoteInq && remoteInq.length > 0) {
-        result.inquiries = remoteInq;
-      }
-    } catch (e: any) {
-      console.warn(`[Firestore getLocalDb] Could not load 'inquiries' from remote: ${e.message || e}. Using local seeded data.`);
-    }
-
-    try {
-      const remoteUsers = await fetchCol('users');
-      if (remoteUsers && remoteUsers.length > 0) {
-        result.users = remoteUsers;
-      }
-    } catch (e: any) {
-      console.warn(`[Firestore getLocalDb] Could not load 'users' from remote: ${e.message || e}. Using local seeded data.`);
-    }
-
-    try {
-      const remoteSubscribers = await fetchCol('subscribers');
-      if (remoteSubscribers && remoteSubscribers.length > 0) {
-        result.subscribers = remoteSubscribers;
-      }
-    } catch (e: any) {
-      console.warn(`[Firestore getLocalDb] Could not load 'subscribers' from remote: ${e.message || e}. Using local seeded data.`);
-    }
-
-    try {
-      const remoteBroadcasts = await fetchCol('broadcasts');
-      if (remoteBroadcasts && remoteBroadcasts.length > 0) {
-        result.broadcasts = remoteBroadcasts;
-      }
-    } catch (e: any) {
-      console.warn(`[Firestore getLocalDb] Could not load 'broadcasts' from remote: ${e.message || e}. Using local seeded data.`);
-    }
-
-    try {
-      const remoteMemberSpotlights = await fetchCol('memberSpotlights');
-      if (remoteMemberSpotlights && remoteMemberSpotlights.length > 0) {
-        result.memberSpotlights = remoteMemberSpotlights;
-      }
-    } catch (e: any) {
-      console.warn(`[Firestore getLocalDb] Could not load 'memberSpotlights' from remote: ${e.message || e}. Using local seeded data.`);
-    }
-
-    // Load configurations from remote with try-catch
-    try {
-      const musicDoc = await getDoc(doc(firestore, "configs", "music"));
-      if (musicDoc.exists()) {
-        result.music = musicDoc.data();
-      }
-    } catch (e: any) {
-      console.warn(`[Firestore getLocalDb] Could not load config 'music': ${e.message || e}. Using local.`);
-    }
-
-    try {
-      const adminDoc = await getDoc(doc(firestore, "configs", "admin"));
-      if (adminDoc.exists()) {
-        result.passcode = adminDoc.data().passcode || result.passcode;
-      }
-    } catch (e: any) {
-      console.warn(`[Firestore getLocalDb] Could not load config 'admin': ${e.message || e}. Using local.`);
-    }
-
-    try {
-      const mpesaDoc = await getDoc(doc(firestore, "configs", "mpesa"));
-      if (mpesaDoc.exists()) {
-        result.mpesa = mpesaDoc.data() || {};
-      }
-    } catch (e: any) {
-      console.warn(`[Firestore getLocalDb] Could not load config 'mpesa': ${e.message || e}. Using local.`);
-    }
-
+    await Promise.allSettled(promises);
   } catch (e: any) {
     console.warn("[Firestore getLocalDb] Global error during fetch:", e.message || e);
   }
