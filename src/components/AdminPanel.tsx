@@ -1266,9 +1266,7 @@ export default function AdminPanel({
                 Authority Sign-In Service
               </span>
               <div className="flex bg-slate-950/40 px-3 py-1.5 rounded-xl border border-slate-900 text-[8px] font-mono text-slate-500 gap-2 items-center">
-                <span>DEMO: <u className="text-amber-500 font-bold">SDA2026</u></span>
-                <span className="text-slate-800">•</span>
-                <span>RECOVERY: <u className="text-amber-500 font-bold">KACHAMBA2026</u></span>
+                <span>Passcode is managed securely by your server environment!</span>
               </div>
             </div>
           </div>

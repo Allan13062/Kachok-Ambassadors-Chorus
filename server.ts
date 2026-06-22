@@ -67,6 +67,10 @@ function isDbAvailable(): boolean {
 }
 
 async function getAdminPasscode(): Promise<string> {
+  if (process.env.ADMIN_PASSCODE) {
+    return process.env.ADMIN_PASSCODE;
+  }
+
   // Ultra-fast response: If cached in memory, return instantly (cache for 10 seconds max).
   if (cachedPasscode && (Date.now() - passcodeCacheTime < 10000)) {
     return cachedPasscode;
@@ -829,6 +833,10 @@ app.post("/api/auth/logout", async (req, res) => {
 
 // Update passcode (Requires Admin or Recovery Key)
 app.post("/api/auth/reset", async (req, res) => {
+  if (process.env.ADMIN_PASSCODE) {
+    return res.status(403).json({ error: "Passcode is managed by server environment variables and cannot be changed here." });
+  }
+
   const { newPasscode, recoveryKey, currentPasscode } = req.body;
   
   try {
