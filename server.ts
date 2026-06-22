@@ -56,7 +56,7 @@ app.use("/uploads", (req, res, next) => {
 // Fast In-Memory Passcode Cache to prevent Database slowness
 let cachedPasscode: string | null = null;
 let passcodeCacheTime: number = 0;
-let fallbackPasscode: string = "SDA2026";
+let fallbackPasscode: string = process.env.ADMIN_PASSCODE || "SDA2026";
 
 function isDbAvailable(): boolean {
   const host = process.env.SQL_HOST;
