@@ -121,6 +121,9 @@ async function getAdminPasscode(): Promise<string> {
 
 // Authentication middleware using Firestore sessions and roles as the source of truth
 async function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
+  // Admin login is disabled. Bypass authentication.
+  return next();
+  
   const code = req.headers["x-admin-passcode"] as string;
   const token = (req.headers["x-admin-token"] || req.headers["x-admin-passcode"]) as string;
   const userId = req.headers["x-user-id"] as string;
@@ -399,10 +402,9 @@ app.get("/api/db", async (req, res) => {
     };
 
     let inquiriesList: any[] = [];
-    if (isAdmin) {
-      inquiriesList = await db.select().from(inquiries);
-      inquiriesList.sort((a, b) => (b.id || "").localeCompare(a.id || ""));
-    }
+    // Admin login is disabled. Bypass authentication so everyone can view it.
+    inquiriesList = await db.select().from(inquiries);
+    inquiriesList.sort((a, b) => (b.id || "").localeCompare(a.id || ""));
 
     let subscribersList: any[] = [];
     let broadcastsList: any[] = [];

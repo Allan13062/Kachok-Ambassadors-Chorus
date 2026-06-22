@@ -1339,7 +1339,7 @@ export default function Itinerary({
                       <input 
                         type="text" 
                         required
-                        value={editForm.event}
+                        value={editForm.event || ""}
                         onChange={(e) => setEditForm({ ...editForm, event: e.target.value })}
                         className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-amber-400 text-xs font-sans"
                         placeholder="e.g. Sabbath Revival & Mission Concert"
@@ -1351,7 +1351,7 @@ export default function Itinerary({
                       <input 
                         type="text" 
                         required
-                        value={editForm.location}
+                        value={editForm.location || ""}
                         onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
                         className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-amber-400 text-xs font-sans"
                         placeholder="e.g. Kisumu Central SDA Church"
@@ -1363,7 +1363,7 @@ export default function Itinerary({
                       <input 
                         type="date" 
                         required
-                        value={editForm.date}
+                        value={editForm.date || ""}
                         onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
                         className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-amber-300 outline-none focus:border-amber-400 text-xs font-sans font-mono"
                       />
@@ -1395,7 +1395,7 @@ export default function Itinerary({
                     <div>
                       <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-2 font-bold">Mission Status</label>
                       <select 
-                        value={editForm.status}
+                        value={editForm.status || "Confirmed"}
                         onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
                         className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-amber-300 outline-none focus:border-amber-400 text-xs font-sans font-semibold"
                       >
@@ -1736,7 +1736,7 @@ export default function Itinerary({
                         <input 
                           type="text" 
                           required
-                          value={editForm.event}
+                          value={editForm.event || ""}
                           onChange={(e) => setEditForm({ ...editForm, event: e.target.value })}
                           className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-amber-400 text-xs font-sans"
                           placeholder="e.g. Youth Camp Meeting Live"
@@ -1748,7 +1748,7 @@ export default function Itinerary({
                         <input 
                           type="text" 
                           required
-                          value={editForm.host}
+                          value={editForm.host || ""}
                           onChange={(e) => setEditForm({ ...editForm, host: e.target.value })}
                           className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-amber-400 text-xs font-sans"
                           placeholder="e.g. Kachok SDA Church Choir"
@@ -1760,7 +1760,7 @@ export default function Itinerary({
                         <input 
                           type="date" 
                           required
-                          value={editForm.date}
+                          value={editForm.date || ""}
                           onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
                           className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-amber-400 text-xs font-sans font-mono"
                         />
@@ -1770,7 +1770,7 @@ export default function Itinerary({
                         <label className="block text-[10px] font-mono text-slate-450 uppercase tracking-wider mb-1.5 font-bold">Service Time hours</label>
                         <input 
                           type="text" 
-                          value={editForm.time}
+                          value={editForm.time || ""}
                           onChange={(e) => setEditForm({ ...editForm, time: e.target.value })}
                           className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-amber-400 text-xs font-sans"
                           placeholder="e.g. 2:00 PM EST or Morning Services"
@@ -1782,7 +1782,7 @@ export default function Itinerary({
                         <input 
                           type="text" 
                           required
-                          value={editForm.location}
+                          value={editForm.location || ""}
                           onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
                           className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-amber-400 text-xs font-sans"
                           placeholder="e.g. SDAC Kachok Church, Kisumu"
@@ -1792,7 +1792,7 @@ export default function Itinerary({
                       <div>
                         <label className="block text-[10px] font-mono text-slate-450 uppercase tracking-wider mb-1.5 font-bold">Mission Status</label>
                         <select 
-                          value={editForm.status}
+                          value={editForm.status || "Confirmed"}
                           onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
                           className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-amber-300 outline-none focus:border-amber-400 text-xs font-sans font-semibold"
                         >

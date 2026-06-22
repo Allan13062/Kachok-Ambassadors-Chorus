@@ -182,10 +182,16 @@ export default function Header({ isAdmin, onOpenAdmin, onLogout, activeSection, 
               ADMIN
             </span>
             <button
-              onClick={onLogout}
-              className="bg-red-500/10 hover:bg-red-505 hover:text-white border border-red-500/20 text-red-500 font-sans text-[11px] sm:text-xs font-semibold px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-lg cursor-pointer transition-all"
+              onClick={onOpenAdmin}
+              className={`flex items-center gap-1.5 text-[11px] sm:text-xs font-medium px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-lg border transition-all cursor-pointer ${
+                theme === "dark"
+                  ? "bg-slate-800/80 hover:bg-slate-700/80 text-amber-400 hover:text-amber-300 border-slate-700"
+                  : "bg-slate-100 hover:bg-amber-500 hover:text-white text-slate-800 border-slate-300 hover:border-amber-400"
+              }`}
             >
-              Sign Out
+              <Lock className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+              <span className="hidden xs:inline">Dashboard</span>
+              <span className="inline xs:hidden">Dash</span>
             </button>
           </div>
         ) : (
