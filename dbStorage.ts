@@ -101,7 +101,12 @@ export async function insertItem(colName: string, id: string, data: any) {
   
   if (colName === "configs") {
     if (id === "music") dbData.music = data;
-    else if (id === "admin") dbData.passcode = data.passcode || dbData.passcode;
+    else if (id === "admin") {
+      dbData.passcode = data.passcode || dbData.passcode;
+      dbData.adminEmail = data.adminEmail || dbData.adminEmail || "allangeorge566@gmail.com";
+      dbData.recoveryCode = data.recoveryCode || dbData.recoveryCode;
+      dbData.recoveryCodeExp = data.recoveryCodeExp || dbData.recoveryCodeExp;
+    }
     else if (id === "mpesa") dbData.mpesa = data;
   } else if (colName === "sessions") {
     inMemorySessions[id] = data;

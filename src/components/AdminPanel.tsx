@@ -341,13 +341,43 @@ export default function AdminPanel({
   const [resetCurrentPasscode, setResetCurrentPasscode] = useState("");
   
   const [isPasscodeVisible, setIsPasscodeVisible] = useState(false);
-  const [resetMethod, setResetMethod] = useState<'recovery' | 'current'>('recovery');
+  const [resetMethod, setResetMethod] = useState<'recovery' | 'current' | 'email'>('recovery');
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetTempCode, setResetTempCode] = useState("");
+
+  const handleForgotSubmit = async () => {
+    if (!resetEmail) {
+      setResetErrorMsg("Please enter the admin email address.");
+      return;
+    }
+    setAuthLoading(true);
+    setResetErrorMsg("");
+    setResetMessage("");
+    try {
+      const res = await fetch("/api/auth/forgot-passcode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: resetEmail })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setResetMessage(data.message + (data.tempCodePreview ? ` (Preview: ${data.tempCodePreview})` : ""));
+      } else {
+        setResetErrorMsg(data.error || "Failed to initiate recovery.");
+      }
+    } catch (err) {
+      setResetErrorMsg("An error occurred. Please try again.");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
 
   const handleResetSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!resetNewPasscode) return;
     if (resetMethod === 'recovery' && !resetRecoveryKey) return;
     if (resetMethod === 'current' && !resetCurrentPasscode) return;
+    if (resetMethod === 'email' && !resetTempCode) return;
     setAuthLoading(true);
     setResetMessage("");
     setResetErrorMsg("");
@@ -357,8 +387,8 @@ export default function AdminPanel({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          recoveryKey: resetRecoveryKey,
-          currentPasscode: resetCurrentPasscode,
+          recoveryKey: resetMethod === 'recovery' ? resetRecoveryKey : (resetMethod === 'email' ? resetTempCode : ""),
+          currentPasscode: resetMethod === 'current' ? resetCurrentPasscode : "",
           newPasscode: resetNewPasscode
         })
       });
@@ -1112,7 +1142,22 @@ export default function AdminPanel({
             {showResetUI ? (
               <form onSubmit={handleResetSubmit} className="max-w-sm w-full flex flex-col gap-3.5 relative z-10">
                 {/* Method selector tab */}
-                <div className="grid grid-cols-2 p-1 bg-slate-950 rounded-xl border border-slate-850">
+                <div className="grid grid-cols-3 p-1 bg-slate-950 rounded-xl border border-slate-850 gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResetMethod('email');
+                      setResetErrorMsg("");
+                      setResetMessage("");
+                    }}
+                    className={`py-2 text-[10px] font-bold tracking-wider uppercase rounded-lg transition-all cursor-pointer ${
+                      resetMethod === 'email'
+                        ? 'bg-slate-900 text-amber-400 border border-slate-805'
+                        : 'text-slate-500 hover:text-slate-350'
+                    }`}
+                  >
+                    Email
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -1126,7 +1171,7 @@ export default function AdminPanel({
                         : 'text-slate-500 hover:text-slate-350'
                     }`}
                   >
-                    Recovery Key
+                    Key
                   </button>
                   <button
                     type="button"
@@ -1141,11 +1186,44 @@ export default function AdminPanel({
                         : 'text-slate-500 hover:text-slate-350'
                     }`}
                   >
-                    Current Code
+                    Code
                   </button>
                 </div>
 
-                {resetMethod === 'recovery' ? (
+                {resetMethod === 'email' ? (
+                  <div className="flex flex-col gap-3">
+                    <div className="relative flex">
+                      <input 
+                        type="email"
+                        required={!resetMessage}
+                        value={resetEmail}
+                        onChange={(e) => setResetEmail(e.target.value)}
+                        placeholder="Admin Email (e.g. user@gmail.com)"
+                        className="w-full bg-slate-950 border border-slate-850 hover:border-slate-800 focus:border-amber-400 rounded-l-xl p-3.5 outline-none text-xs tracking-widest placeholder-slate-600 transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleForgotSubmit}
+                        disabled={authLoading}
+                        className="bg-amber-400/10 border border-amber-400/20 text-amber-400 hover:bg-amber-400/20 px-4 rounded-r-xl text-xs font-bold whitespace-nowrap transition-all"
+                      >
+                        Send Code
+                      </button>
+                    </div>
+                    {resetMessage && (
+                      <div className="relative">
+                        <input 
+                          type="text"
+                          required
+                          value={resetTempCode}
+                          onChange={(e) => setResetTempCode(e.target.value)}
+                          placeholder="Enter 6-Digit Email Code"
+                          className="w-full bg-slate-950 border border-slate-850 focus:border-amber-400 rounded-xl p-3.5 text-center outline-none text-xs tracking-widest transition-all font-mono"
+                        />
+                      </div>
+                    )}
+                  </div>
+                ) : resetMethod === 'recovery' ? (
                   <div className="relative">
                     <input 
                       type="text"

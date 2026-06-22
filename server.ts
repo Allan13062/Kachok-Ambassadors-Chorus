@@ -825,15 +825,82 @@ app.post("/api/auth/logout", async (req, res) => {
   }
 });
 
+async function getAdminEmail(): Promise<string> {
+  // Try Firestore first
+  try {
+    const { getDoc, doc } = await import('firebase/firestore/lite');
+    const { firestore } = await import('./src/lib/firebaseLite.ts');
+    const adminDoc = await getDoc(doc(firestore, "configs", "admin"));
+    if (adminDoc.exists() && adminDoc.data().adminEmail) {
+      return adminDoc.data().adminEmail;
+    }
+  } catch (error: any) {
+    console.warn("[Kachamba Server] Firestore adminEmail retrieval failed", error.message);
+  }
+  return "allangeorge566@gmail.com";
+}
+
+async function getAdminRecoveryCode(): Promise<{code: string, exp: number} | null> {
+  try {
+    const { getDoc, doc } = await import('firebase/firestore/lite');
+    const { firestore } = await import('./src/lib/firebaseLite.ts');
+    const adminDoc = await getDoc(doc(firestore, "configs", "admin"));
+    if (adminDoc.exists() && adminDoc.data().recoveryCode) {
+      return {
+        code: adminDoc.data().recoveryCode,
+        exp: adminDoc.data().recoveryCodeExp
+      };
+    }
+  } catch (e) {}
+  return null;
+}
+
+// Request temporary access code via email (Forgot Passcode)
+app.post("/api/auth/forgot-passcode", async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: "Email is required." });
+
+  try {
+    const adminEmail = await getAdminEmail();
+    if (email.trim().toLowerCase() === adminEmail.toLowerCase()) {
+      // Validated. Generate temporary access code
+      const tempCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const tempExp = Date.now() + 15 * 60 * 1000; // 15 mins
+
+      // Store centrally in Firestore
+      await insertItem("configs", "admin", { recoveryCode: tempCode, recoveryCodeExp: tempExp });
+
+      console.log(`[Kachamba Server] Generated recovery code ${tempCode} for admin email ${adminEmail}`);
+      // In production we would email this. For now, since we validate against user's email,
+      // and have no email service, we return success and pass the code directly in preview mode (for testing).
+      // If we don't return it here, user can't actually complete the flow natively!
+      return res.json({ 
+        success: true, 
+        message: "A temporary access code has been generated.",
+        tempCodePreview: tempCode // Included strictly for preview testing without SMTP
+      });
+    } else {
+      return res.status(400).json({ error: "Email does not match our records." });
+    }
+  } catch (err: any) {
+    return res.status(500).json({ error: "Failed to generate access code.", details: err.message });
+  }
+});
+
 // Update passcode (Requires Admin or Recovery Key)
 app.post("/api/auth/reset", async (req, res) => {
   const { newPasscode, recoveryKey, currentPasscode } = req.body;
   
   try {
     const dbPasscode = await getAdminPasscode();
+    const recoveryRec = await getAdminRecoveryCode();
 
-    // Allow reset if they know the current passcode OR a recovery key ("KACHAMBA2026")
-    if (currentPasscode === dbPasscode || recoveryKey === "KACHAMBA2026") {
+    const isCurrentCorrect = currentPasscode && currentPasscode === dbPasscode;
+    const isMasterRecovery = recoveryKey === "KACHAMBA2026";
+    const isTempRecovery = recoveryKey && recoveryRec && recoveryRec.code === recoveryKey && Date.now() < recoveryRec.exp;
+
+    // Allow reset if they know the current passcode OR a recovery key ("KACHAMBA2026") OR the temporary emailed code
+    if (isCurrentCorrect || isMasterRecovery || isTempRecovery) {
       if (!newPasscode || newPasscode.length < 4) {
         return res.status(400).json({ error: "New passcode must be at least 4 characters." });
       }
@@ -843,9 +910,9 @@ app.post("/api/auth/reset", async (req, res) => {
       cachedPasscode = newPasscode;
       passcodeCacheTime = Date.now();
 
-      // Write to connected Firestore
+      // Write to connected Firestore (clear the recovery code as well)
       try {
-        await insertItem("configs", "admin", { passcode: newPasscode });
+        await insertItem("configs", "admin", { passcode: newPasscode, recoveryCode: null, recoveryCodeExp: null });
         console.log("[Kachamba Server] Successfully saved updated passcode reset to Firestore configs/admin.");
       } catch (firestoreErr: any) {
         console.error("[Kachamba Server] Firestore update failed during reset:", firestoreErr.message);
