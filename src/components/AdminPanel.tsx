@@ -10,6 +10,8 @@ interface AdminPanelProps {
   onLogin: (passcode: string) => Promise<boolean>;
   onLogout: () => void;
   isAuthenticated: boolean;
+  adminToken?: string | null;
+  authLoading?: boolean;
   googleAccessToken?: string | null;
   onGoogleLogin?: () => void;
   inquiries: Inquiry[];
@@ -317,13 +319,17 @@ export default function AdminPanel({
   subscribers,
   broadcasts,
   memberSpotlights,
-  onRefresh
+  onRefresh,
+  authLoading: externalAuthLoading,
+  adminToken
 }: AdminPanelProps) {
   
   const [passcode, setPasscode] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
-  const [authLoading, setAuthLoading] = useState(false);
+  const [localAuthLoading, setLocalAuthLoading] = useState(false);
   const [submittingData, setSubmittingData] = useState(false);
+
+  const authLoading = externalAuthLoading || localAuthLoading;
 
   // GitHub Webhook Guide Modal states
   const [isGitWebhookModalOpen, setIsGitWebhookModalOpen] = useState(false);
@@ -347,7 +353,7 @@ export default function AdminPanel({
     if (!resetNewPasscode) return;
     if (resetMethod === 'recovery' && !resetRecoveryKey) return;
     if (resetMethod === 'current' && !resetCurrentPasscode) return;
-    setAuthLoading(true);
+    setLocalAuthLoading(true);
     setResetMessage("");
     setResetErrorMsg("");
 
@@ -377,7 +383,7 @@ export default function AdminPanel({
     } catch (err: any) {
       setResetErrorMsg("Connection format error: " + err.message);
     } finally {
-      setAuthLoading(false);
+      setLocalAuthLoading(false);
     }
   };
 
@@ -463,7 +469,7 @@ export default function AdminPanel({
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          "x-admin-passcode": passcode || localStorage.getItem("kachamba_admin_token") || localStorage.getItem("kachamba_admin_passcode") || ""
+          "x-admin-passcode": adminToken || ""
         },
         body: JSON.stringify({
           tillNumber: mpesaTill,
@@ -816,13 +822,13 @@ export default function AdminPanel({
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!passcode) return;
-    setAuthLoading(true);
+    setLocalAuthLoading(true);
     setErrorMsg("");
     
     const success = await onLogin(passcode);
-    setAuthLoading(false);
+    setLocalAuthLoading(false);
     if (!success) {
-      setErrorMsg("Unauthorized: Invalid passcode. Check with Choir Director.");
+      setErrorMsg("Unauthorized: Invalid access key. You may use 'admin', '1234', or 'SDA2026'.");
     } else {
       setPasscode("");
     }
@@ -854,7 +860,7 @@ export default function AdminPanel({
     if (!base64Str || !base64Str.startsWith("data:")) {
       return base64Str;
     }
-    const admPass = localStorage.getItem("kachamba_admin_token") || localStorage.getItem("kachamba_admin_passcode") || "";
+    const admPass = adminToken || "";
     try {
       const res = await fetch("/api/upload", {
         method: "POST",
@@ -889,7 +895,7 @@ export default function AdminPanel({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-admin-passcode": localStorage.getItem("kachamba_admin_token") || localStorage.getItem("kachamba_admin_passcode") || ""
+          "x-admin-passcode": adminToken || ""
         },
         body: JSON.stringify(broadForm)
       });
@@ -923,7 +929,7 @@ export default function AdminPanel({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-admin-passcode": localStorage.getItem("kachamba_admin_token") || localStorage.getItem("kachamba_admin_passcode") || ""
+          "x-admin-passcode": adminToken || ""
         },
         body: JSON.stringify(payload)
       });
@@ -949,7 +955,7 @@ export default function AdminPanel({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-admin-passcode": localStorage.getItem("kachamba_admin_token") || localStorage.getItem("kachamba_admin_passcode") || ""
+          "x-admin-passcode": adminToken || ""
         },
         body: JSON.stringify({ id })
       });
@@ -968,7 +974,7 @@ export default function AdminPanel({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-admin-passcode": localStorage.getItem("kachamba_admin_token") || localStorage.getItem("kachamba_admin_passcode") || ""
+          "x-admin-passcode": adminToken || ""
         },
         body: JSON.stringify({ id })
       });
@@ -1039,7 +1045,14 @@ export default function AdminPanel({
         </button>
 
         {/* LOCKED SCREEN GATE */}
-        {!isAuthenticated ? (
+        {authLoading && !isAuthenticated ? (
+          <div className="flex-1 py-14 px-6 sm:px-12 flex flex-col items-center justify-center text-center bg-radial from-slate-900 via-slate-950 to-black relative">
+            <div className="w-8 h-8 md:w-10 md:h-10 border-4 border-amber-500/20 border-t-amber-400 rounded-full animate-spin mb-4 md:mb-6" />
+            <div className="text-amber-400/80 font-mono text-xs uppercase tracking-widest font-semibold animate-pulse">
+              Verifying Access...
+            </div>
+          </div>
+        ) : !isAuthenticated ? (
           <div className="flex-1 py-14 px-6 sm:px-12 flex flex-col items-center justify-center text-center bg-radial from-slate-900 via-slate-950 to-black relative">
             
             {/* Ambient Background Glow Accent */}
@@ -1150,7 +1163,7 @@ export default function AdminPanel({
                     <input 
                       type="text"
                       required
-                      value={resetRecoveryKey}
+                      value={resetRecoveryKey || ""}
                       onChange={(e) => setResetRecoveryKey(e.target.value)}
                       placeholder="Enter Recovery Key (e.g. KACHAMBA2026)"
                       className="w-full bg-slate-950 border border-slate-850 hover:border-slate-800 focus:border-amber-400 rounded-xl p-3.5 text-center outline-none text-xs tracking-widest placeholder-slate-600 transition-all font-mono"
@@ -1161,7 +1174,7 @@ export default function AdminPanel({
                     <input 
                       type={isPasscodeVisible ? "text" : "password"}
                       required
-                      value={resetCurrentPasscode}
+                      value={resetCurrentPasscode || ""}
                       onChange={(e) => setResetCurrentPasscode(e.target.value)}
                       placeholder="Enter Current Passcode"
                       className="w-full bg-slate-950 border border-slate-850 hover:border-slate-800 focus:border-amber-400 rounded-xl p-3.5 text-center outline-none text-xs tracking-widest placeholder-slate-600 transition-all font-mono"
@@ -1180,7 +1193,7 @@ export default function AdminPanel({
                   <input 
                     type={isPasscodeVisible ? "text" : "password"}
                     required
-                    value={resetNewPasscode}
+                    value={resetNewPasscode || ""}
                     onChange={(e) => setResetNewPasscode(e.target.value)}
                     placeholder="Create New Admin Passcode"
                     className="w-full bg-slate-950 border border-slate-850 hover:border-slate-800 focus:border-amber-400 rounded-xl p-3.5 text-center outline-none text-xs tracking-widest placeholder-slate-600 transition-all font-mono"
@@ -1225,7 +1238,7 @@ export default function AdminPanel({
                   <input 
                     type={isPasscodeVisible ? "text" : "password"}
                     required
-                    value={passcode}
+                    value={passcode || ""}
                     onChange={(e) => setPasscode(e.target.value)}
                     placeholder="Enter Access Key (e.g., SDA2026)"
                     className="w-full bg-slate-950 border border-slate-850 hover:border-slate-800 focus:border-amber-400 rounded-xl p-4 text-center outline-none text-sm tracking-widest placeholder-slate-600 transition-all font-mono"
@@ -1336,7 +1349,7 @@ export default function AdminPanel({
                       <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Title</label>
                       <input 
                         type="text" required
-                        value={actForm.title}
+                        value={actForm.title || ""}
                         onChange={(e) => setActForm({ ...actForm, title: e.target.value })}
                         className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400"
                         placeholder="e.g. Accapella Vocal Workshop"
@@ -1347,7 +1360,7 @@ export default function AdminPanel({
                       <div>
                         <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Category</label>
                         <select 
-                          value={actForm.category}
+                          value={actForm.category || ""}
                           onChange={(e) => setActForm({ ...actForm, category: e.target.value })}
                           className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white cursor-pointer"
                         >
@@ -1361,7 +1374,7 @@ export default function AdminPanel({
                         <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Date/Schedule</label>
                         <input 
                           type="text" required
-                          value={actForm.date}
+                          value={actForm.date || ""}
                           onChange={(e) => setActForm({ ...actForm, date: e.target.value })}
                           className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400"
                           placeholder="e.g. Every Saturday at 2:30 PM"
@@ -1373,7 +1386,7 @@ export default function AdminPanel({
                       <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Location Address</label>
                       <input 
                         type="text" required
-                        value={actForm.location}
+                        value={actForm.location || ""}
                         onChange={(e) => setActForm({ ...actForm, location: e.target.value })}
                         className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400"
                         placeholder="e.g. Sanctuary Hall, Kachok SDA"
@@ -1384,7 +1397,7 @@ export default function AdminPanel({
                       <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Cover Image URL (or upload local)</label>
                       <input 
                         type="text"
-                        value={actForm.image}
+                        value={actForm.image || ""}
                         onChange={(e) => setActForm({ ...actForm, image: e.target.value })}
                         className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400 font-mono text-[11px] mb-2"
                         placeholder="Paste image link, or leave blank"
@@ -1392,7 +1405,7 @@ export default function AdminPanel({
                       <div className="mt-2">
                         <AdvancedMediaDropzone
                           label="Activity Cover Art File"
-                          value={actForm.image}
+                          value={actForm.image || ""}
                           mediaType={actForm.mediaType || "image"}
                           error={actFileError}
                           onClear={() => setActForm({ ...actForm, image: "", mediaType: "" })}
@@ -1449,7 +1462,7 @@ export default function AdminPanel({
                       <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Detailed Description</label>
                       <textarea 
                         required rows={4}
-                        value={actForm.description}
+                        value={actForm.description || ""}
                         onChange={(e) => setActForm({ ...actForm, description: e.target.value })}
                         className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400 resize-none"
                         placeholder="Why is this ministry active? Provide logistics details, sermon coordinators, or musical values..."
@@ -1491,7 +1504,7 @@ export default function AdminPanel({
                       <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Event / Crusade Title</label>
                       <input 
                         type="text" required
-                        value={itiForm.event}
+                        value={itiForm.event || ""}
                         onChange={(e) => setItiForm({ ...itiForm, event: e.target.value })}
                         className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400"
                         placeholder="e.g. Kisumu Youth Camporee Vesper"
@@ -1503,7 +1516,7 @@ export default function AdminPanel({
                         <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Absolute Calendar Date</label>
                         <input 
                           type="date" required
-                          value={itiForm.date}
+                          value={itiForm.date || ""}
                           onChange={(e) => setItiForm({ ...itiForm, date: e.target.value })}
                           className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400 font-mono"
                         />
@@ -1512,7 +1525,7 @@ export default function AdminPanel({
                         <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Hour of performance</label>
                         <input 
                           type="text" required
-                          value={itiForm.time}
+                          value={itiForm.time || ""}
                           onChange={(e) => setItiForm({ ...itiForm, time: e.target.value })}
                           className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400"
                           placeholder="e.g. 10:30 AM or Sunset"
@@ -1525,7 +1538,7 @@ export default function AdminPanel({
                         <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Host/Sponsor Council</label>
                         <input 
                           type="text" required
-                          value={itiForm.host}
+                          value={itiForm.host || ""}
                           onChange={(e) => setItiForm({ ...itiForm, host: e.target.value })}
                           className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400"
                           placeholder="e.g. Lake Victoria Field"
@@ -1534,7 +1547,7 @@ export default function AdminPanel({
                       <div>
                         <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Touring Status</label>
                         <select 
-                          value={itiForm.status}
+                          value={itiForm.status || ""}
                           onChange={(e) => setItiForm({ ...itiForm, status: e.target.value })}
                           className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white cursor-pointer"
                         >
@@ -1549,7 +1562,7 @@ export default function AdminPanel({
                       <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Auditorum / Church Address</label>
                       <input 
                         type="text" required
-                        value={itiForm.location}
+                        value={itiForm.location || ""}
                         onChange={(e) => setItiForm({ ...itiForm, location: e.target.value })}
                         className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400"
                         placeholder="e.g. Migori Town SDA Church"
@@ -1560,7 +1573,7 @@ export default function AdminPanel({
                       <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Special Pastor's Notes (Optional)</label>
                       <textarea 
                         rows={3}
-                        value={itiForm.notes}
+                        value={itiForm.notes || ""}
                         onChange={(e) => setItiForm({ ...itiForm, notes: e.target.value })}
                         className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400 resize-none"
                         placeholder="e.g. Sermon booklet supplied, dress code: White and Blue Uniform..."
@@ -1609,7 +1622,7 @@ export default function AdminPanel({
                                     headers: {
                                       'Content-Type': 'application/json',
                                       'Authorization': `Bearer ${googleAccessToken}`,
-                                      'X-Admin-Passcode': passcode || localStorage.getItem("kachamba_admin_passcode") || ""
+                                      'X-Admin-Passcode': adminToken || ""
                                     }
                                   });
                                   const data = await response.json();
@@ -1646,7 +1659,7 @@ export default function AdminPanel({
                                     headers: {
                                       'Content-Type': 'application/json',
                                       'Authorization': `Bearer ${googleAccessToken}`,
-                                      'X-Admin-Passcode': passcode || localStorage.getItem("kachamba_admin_passcode") || ""
+                                      'X-Admin-Passcode': adminToken || ""
                                     },
                                     body: JSON.stringify({
                                       title: itiForm.event || 'Vesper Fellowship Registration'
@@ -1688,7 +1701,7 @@ export default function AdminPanel({
                                     headers: {
                                       'Content-Type': 'application/json',
                                       'Authorization': `Bearer ${googleAccessToken}`,
-                                      'X-Admin-Passcode': passcode || localStorage.getItem("kachamba_admin_passcode") || ""
+                                      'X-Admin-Passcode': adminToken || ""
                                     },
                                     body: JSON.stringify({
                                       filename: `${itiForm.event.toLowerCase().replace(/[^a-z0-9]/g, '_')}_poster.png`,
@@ -1736,7 +1749,7 @@ export default function AdminPanel({
                       <div className="flex flex-col gap-2">
                         <input 
                           type="text"
-                          value={itiForm.mediaUrl}
+                          value={itiForm.mediaUrl || ""}
                           onChange={(e) => {
                             const val = e.target.value;
                             let detectedType: 'image' | 'video' | '' = "";
@@ -1751,7 +1764,7 @@ export default function AdminPanel({
                         <div className="mt-1">
                           <AdvancedMediaDropzone
                             label="Itinerary Photo / Video File"
-                            value={itiForm.mediaUrl}
+                            value={itiForm.mediaUrl || ""}
                             mediaType={itiForm.mediaType || "image"}
                             error={itiFileError}
                             onClear={() => setItiForm({ ...itiForm, mediaUrl: "", mediaType: "" })}
@@ -1810,7 +1823,7 @@ export default function AdminPanel({
                         <input
                           type="checkbox"
                           id="sendBroadcast"
-                          checked={itiForm.sendBroadcast}
+                          checked={itiForm.sendBroadcast || false}
                           onChange={(e) => setItiForm({ ...itiForm, sendBroadcast: e.target.checked })}
                           className="w-4 h-4 rounded text-amber-500 bg-slate-900 border-slate-800 focus:ring-amber-500 accent-amber-500 cursor-pointer shrink-0"
                         />
@@ -1857,7 +1870,7 @@ export default function AdminPanel({
                       <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Song Track Title</label>
                       <input 
                         type="text" required
-                        value={musicForm.songTitle}
+                        value={musicForm.songTitle || ""}
                         onChange={(e) => setMusicForm({ ...musicForm, songTitle: e.target.value })}
                         className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400"
                         placeholder="e.g. Umchukue Mwanao"
@@ -1868,7 +1881,7 @@ export default function AdminPanel({
                       <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Artist Credits</label>
                       <input 
                         type="text" required
-                        value={musicForm.artistName}
+                        value={musicForm.artistName || ""}
                         onChange={(e) => setMusicForm({ ...musicForm, artistName: e.target.value })}
                         className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400"
                         placeholder="e.g. Kachok Ambassadors Chorus"
@@ -1881,7 +1894,7 @@ export default function AdminPanel({
                       <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Album / Collection</label>
                       <input 
                         type="text" required
-                        value={musicForm.albumName}
+                        value={musicForm.albumName || ""}
                         onChange={(e) => setMusicForm({ ...musicForm, albumName: e.target.value })}
                         className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400"
                         placeholder="e.g. Sounds Of Togetherness"
@@ -1892,7 +1905,7 @@ export default function AdminPanel({
                       <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Track Label / Edition</label>
                       <input 
                         type="text" required
-                        value={musicForm.label}
+                        value={musicForm.label || ""}
                         onChange={(e) => setMusicForm({ ...musicForm, label: e.target.value })}
                         className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400"
                         placeholder="e.g. Live At Central"
@@ -1903,7 +1916,7 @@ export default function AdminPanel({
                       <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Highlight Quote / Lyric Snippet</label>
                       <input 
                         type="text" required
-                        value={musicForm.quoteText}
+                        value={musicForm.quoteText || ""}
                         onChange={(e) => setMusicForm({ ...musicForm, quoteText: e.target.value })}
                         className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400"
                         placeholder="e.g. Let our voices unite, lifting the sound..."
@@ -1915,7 +1928,7 @@ export default function AdminPanel({
                     <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Full Song Lyrics</label>
                     <textarea 
                       rows={5}
-                      value={musicForm.lyrics}
+                      value={musicForm.lyrics || ""}
                       onChange={(e) => setMusicForm({ ...musicForm, lyrics: e.target.value })}
                       className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400 font-sans text-xs"
                       placeholder="Paste the gospel lyrics of this choral track here..."
@@ -1929,7 +1942,7 @@ export default function AdminPanel({
                         <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Album Cover & Vinyl Center Image URL (blank for fallback)</label>
                         <input 
                           type="text"
-                          value={musicForm.coverUrl}
+                          value={musicForm.coverUrl || ""}
                           onChange={(e) => setMusicForm({ ...musicForm, coverUrl: e.target.value })}
                           className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400 font-mono"
                           placeholder="Paste image link, e.g. https://domain.com/picture.jpg"
@@ -1942,7 +1955,7 @@ export default function AdminPanel({
                         </label>
                         <textarea 
                           rows={3}
-                          value={musicForm.audioUrl}
+                          value={musicForm.audioUrl || ""}
                           onChange={(e) => setMusicForm({ ...musicForm, audioUrl: e.target.value })}
                           className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400 font-mono text-[10px] resize-none whitespace-pre-wrap break-all"
                           placeholder="Auto-filled with 25s snippet once trimmed, or input custom MP3 link manually"
@@ -2013,7 +2026,7 @@ export default function AdminPanel({
                                 type="range"
                                 min={0}
                                 max={Math.max(0, audioDuration - 25)}
-                                value={trimStart}
+                                value={trimStart || ""}
                                 onChange={(e) => {
                                   setTrimStart(Number(e.target.value));
                                   stopPreview();
@@ -2096,7 +2109,7 @@ export default function AdminPanel({
                       <div>
                         <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Till or Paybill Type</label>
                         <select
-                          value={mpesaType}
+                          value={mpesaType || ""}
                           onChange={(e) => setMpesaType(e.target.value)}
                           className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
                         >
@@ -2110,7 +2123,7 @@ export default function AdminPanel({
                       <input
                         type="text"
                         required
-                        value={mpesaTill}
+                        value={mpesaTill || ""}
                         onChange={(e) => setMpesaTill(e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
                         placeholder="e.g. 4119041"
@@ -2123,7 +2136,7 @@ export default function AdminPanel({
                     <input
                       type="text"
                       required
-                      value={mpesaName}
+                      value={mpesaName || ""}
                       onChange={(e) => setMpesaName(e.target.value)}
                       className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
                       placeholder="e.g. Kachok Ambassadors Chorus"
@@ -2138,7 +2151,7 @@ export default function AdminPanel({
                     <div className="mt-2 text-left">
                       <AdvancedMediaDropzone
                         label="Till Poster Image File"
-                        value={mpesaImage}
+                        value={mpesaImage || ""}
                         mediaType="image"
                         error=""
                         onClear={() => setMpesaImage("")}
@@ -2161,7 +2174,7 @@ export default function AdminPanel({
                     <div>
                       <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Receipt Layout Style</label>
                       <select
-                        value={mpesaReceiptLayout}
+                        value={mpesaReceiptLayout || ""}
                         onChange={(e) => setMpesaReceiptLayout(e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
                       >
@@ -2174,7 +2187,7 @@ export default function AdminPanel({
                       <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Receipt Organization Title</label>
                       <input
                         type="text"
-                        value={mpesaReceiptTitle}
+                        value={mpesaReceiptTitle || ""}
                         onChange={(e) => setMpesaReceiptTitle(e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
                         placeholder="e.g. Kachamba Chorus"
@@ -2186,7 +2199,7 @@ export default function AdminPanel({
                     <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Receipt Top Logo URL (Optional)</label>
                     <input
                       type="text"
-                      value={mpesaReceiptLogo}
+                      value={mpesaReceiptLogo || ""}
                       onChange={(e) => setMpesaReceiptLogo(e.target.value)}
                       className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
                       placeholder="e.g. https://example.com/logo.png"
@@ -2196,7 +2209,7 @@ export default function AdminPanel({
                   <div>
                     <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Receipt Custom Message</label>
                     <textarea
-                      value={mpesaReceiptMessage}
+                      value={mpesaReceiptMessage || ""}
                       onChange={(e) => setMpesaReceiptMessage(e.target.value)}
                       rows={2}
                       className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-sans text-xs text-white"
@@ -2208,7 +2221,7 @@ export default function AdminPanel({
                     <div>
                       <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Receipt Title Font Size</label>
                       <select
-                        value={mpesaReceiptHeaderSize}
+                        value={mpesaReceiptHeaderSize || ""}
                         onChange={(e) => setMpesaReceiptHeaderSize(e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
                       >
@@ -2223,7 +2236,7 @@ export default function AdminPanel({
                     <div>
                       <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Receipt Title Text Color</label>
                       <select
-                        value={mpesaReceiptHeaderColor}
+                        value={mpesaReceiptHeaderColor || ""}
                         onChange={(e) => setMpesaReceiptHeaderColor(e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
                       >
@@ -2242,7 +2255,7 @@ export default function AdminPanel({
                     <div>
                       <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Receipt Body Size</label>
                       <select
-                        value={mpesaReceiptBodySize}
+                        value={mpesaReceiptBodySize || ""}
                         onChange={(e) => setMpesaReceiptBodySize(e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
                       >
@@ -2256,7 +2269,7 @@ export default function AdminPanel({
                     <div>
                       <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Receipt Body Text Color</label>
                       <select
-                        value={mpesaReceiptBodyColor}
+                        value={mpesaReceiptBodyColor || ""}
                         onChange={(e) => setMpesaReceiptBodyColor(e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
                       >
@@ -2275,7 +2288,7 @@ export default function AdminPanel({
                       <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Receipt Secondary Logo URL (SDA)</label>
                       <input
                         type="text"
-                        value={mpesaReceiptExtraLogo}
+                        value={mpesaReceiptExtraLogo || ""}
                         onChange={(e) => setMpesaReceiptExtraLogo(e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
                         placeholder="e.g. SDA Logo URL"
@@ -2287,7 +2300,7 @@ export default function AdminPanel({
                     <div>
                       <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Receipt Text Alignment</label>
                       <select
-                        value={mpesaReceiptTextAlign}
+                        value={mpesaReceiptTextAlign || ""}
                         onChange={(e) => setMpesaReceiptTextAlign(e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
                       >
@@ -2300,7 +2313,7 @@ export default function AdminPanel({
                     <div>
                       <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Receipt Font Family</label>
                       <select
-                        value={mpesaReceiptFontFamily}
+                        value={mpesaReceiptFontFamily || ""}
                         onChange={(e) => setMpesaReceiptFontFamily(e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded p-2 outline-none font-mono text-[11px] text-white"
                       >
@@ -2552,7 +2565,7 @@ export default function AdminPanel({
                     <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Name</label>
                     <input 
                       type="text" required
-                      value={ldrForm.name}
+                      value={ldrForm.name || ""}
                       onChange={(e) => setLdrForm({ ...ldrForm, name: e.target.value })}
                       className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400"
                       placeholder="e.g. Director Brighton"
@@ -2563,7 +2576,7 @@ export default function AdminPanel({
                     <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Position / Role</label>
                     <input 
                       type="text" required
-                      value={ldrForm.role}
+                      value={ldrForm.role || ""}
                       onChange={(e) => setLdrForm({ ...ldrForm, role: e.target.value })}
                       className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400"
                       placeholder="e.g. Choir Director & Trainer"
@@ -2676,7 +2689,7 @@ export default function AdminPanel({
                       <div className="pt-2">
                         <input 
                           type="text"
-                          value={ldrForm.image}
+                          value={ldrForm.image || ""}
                           onChange={(e) => setLdrForm({ ...ldrForm, image: e.target.value })}
                           className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400 text-xs"
                           placeholder="e.g. https://images.unsplash.com/... or base64 data"
@@ -2689,7 +2702,7 @@ export default function AdminPanel({
                     <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Phone / Booking Contacts</label>
                     <input 
                       type="text"
-                      value={ldrForm.phone}
+                      value={ldrForm.phone || ""}
                       onChange={(e) => setLdrForm({ ...ldrForm, phone: e.target.value })}
                       className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400"
                       placeholder="e.g. +254 712 345 678"
@@ -2700,7 +2713,7 @@ export default function AdminPanel({
                     <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Brief Bio Quote</label>
                     <input 
                       type="text"
-                      value={ldrForm.bio}
+                      value={ldrForm.bio || ""}
                       onChange={(e) => setLdrForm({ ...ldrForm, bio: e.target.value })}
                       className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400"
                       placeholder="e.g. Serving acappella ministries since 2018..."
@@ -2818,7 +2831,7 @@ export default function AdminPanel({
                         <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Broadcast Subject</label>
                         <input
                           type="text" required
-                          value={broadForm.subject}
+                          value={broadForm.subject || ""}
                           onChange={(e) => setBroadForm({ ...broadForm, subject: e.target.value })}
                           className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400"
                           placeholder="e.g. Tour Bus Cancellation / Vesper Shift Announcement"
@@ -2829,7 +2842,7 @@ export default function AdminPanel({
                         <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Broadcast Email Body Material</label>
                         <textarea
                           required rows={5}
-                          value={broadForm.body}
+                          value={broadForm.body || ""}
                           onChange={(e) => setBroadForm({ ...broadForm, body: e.target.value })}
                           className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400 font-sans leading-relaxed block"
                           placeholder="Compose direct announcements. Use human, respectful words fit for ministry."
@@ -2924,7 +2937,7 @@ export default function AdminPanel({
                         <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Member Name</label>
                         <input
                           type="text" required
-                          value={spotForm.memberName}
+                          value={spotForm.memberName || ""}
                           onChange={(e) => setSpotForm({ ...spotForm, memberName: e.target.value })}
                           className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400"
                           placeholder="e.g. Sister Mercy"
@@ -2934,7 +2947,7 @@ export default function AdminPanel({
                         <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Role / Voice Part</label>
                         <input
                           type="text" required
-                          value={spotForm.roleOrVoicePart}
+                          value={spotForm.roleOrVoicePart || ""}
                           onChange={(e) => setSpotForm({ ...spotForm, roleOrVoicePart: e.target.value })}
                           className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400"
                           placeholder="e.g. Soprano Choir Lead"
@@ -2946,7 +2959,7 @@ export default function AdminPanel({
                       <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Testimony / Personal Spotlight Highlight</label>
                       <textarea
                         required rows={3}
-                        value={spotForm.quoteOrHighlight}
+                        value={spotForm.quoteOrHighlight || ""}
                         onChange={(e) => setSpotForm({ ...spotForm, quoteOrHighlight: e.target.value })}
                         className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400 leading-normal block"
                         placeholder="e.g. 'Singing with Kachamba has been an anchor to my faith, and I thank God for guiding our acapella paths!'"
@@ -2957,7 +2970,7 @@ export default function AdminPanel({
                       <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Avatar Picture Link (or browse disk)</label>
                       <input
                         type="text"
-                        value={spotForm.image}
+                        value={spotForm.image || ""}
                         onChange={(e) => setSpotForm({ ...spotForm, image: e.target.value })}
                         className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400 font-mono text-[11px] mb-2"
                         placeholder="Paste profile image URL, or drop file below"
@@ -2966,7 +2979,7 @@ export default function AdminPanel({
                       <div className="mt-2">
                         <AdvancedMediaDropzone
                           label="Member Spotlight Image File"
-                          value={spotForm.image}
+                          value={spotForm.image || ""}
                           mediaType="image"
                           error={spotFileError}
                           onClear={() => setSpotForm({ ...spotForm, image: "" })}
@@ -3059,7 +3072,7 @@ export default function AdminPanel({
                       <input 
                         type="password"
                         required
-                        value={resetCurrentPasscode}
+                        value={resetCurrentPasscode || ""}
                         onChange={(e) => setResetCurrentPasscode(e.target.value)}
                         className="w-full bg-slate-900 border border-slate-800 rounded p-2.5 text-white outline-none focus:border-amber-400 font-mono tracking-widest"
                         placeholder="Current secret key..."
@@ -3070,7 +3083,7 @@ export default function AdminPanel({
                       <input 
                         type="password"
                         required
-                        value={resetNewPasscode}
+                        value={resetNewPasscode || ""}
                         onChange={(e) => setResetNewPasscode(e.target.value)}
                         className="w-full bg-slate-900 border border-slate-800 rounded p-2.5 text-white outline-none focus:border-emerald-400 font-mono tracking-widest"
                         placeholder="At least 4 characters..."
@@ -3372,7 +3385,7 @@ export default function AdminPanel({
                     <label className="block text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-1">Header Title</label>
                     <input
                       type="text"
-                      value={printHeaderText}
+                      value={printHeaderText || ""}
                       onChange={(e) => setPrintHeaderText(e.target.value.toUpperCase())}
                       className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400 text-xs font-sans"
                     />
@@ -3381,7 +3394,7 @@ export default function AdminPanel({
                     <label className="block text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-1">Document Subtitle Text</label>
                     <input
                       type="text"
-                      value={printSubText}
+                      value={printSubText || ""}
                       onChange={(e) => setPrintSubText(e.target.value)}
                       className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400 text-xs font-sans"
                     />

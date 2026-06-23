@@ -283,7 +283,7 @@ export default function MusicStreaming({ music }: { music: MusicData }) {
                     type="range"
                     min="0"
                     max={trackDuration || 45}
-                    value={currentTime}
+                    value={currentTime || 0}
                     onChange={(e) => {
                       const seekTo = parseFloat(e.target.value);
                       if (audioRef.current) {

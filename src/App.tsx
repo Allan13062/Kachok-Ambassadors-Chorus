@@ -128,7 +128,7 @@ export default function App() {
   const [isChatOpen, setIsChatOpen] = useState(false);
 
   // Custom secure React hook managing centralized admin sessions
-  const { isAdmin, adminToken, login: loginAdmin, logout: logoutAdmin } = useAdminAuth();
+  const { isAdmin, adminToken, authLoading, login: loginAdmin, logout: logoutAdmin } = useAdminAuth();
   const adminPasscode = adminToken;
 
   const [activeSection, setActiveSection] = useState("home");
@@ -149,59 +149,7 @@ export default function App() {
     localStorage.setItem("kachamba_theme", theme);
   }, [theme]);
 
-  // Securely intercept and append server-side session headers to all /api requests
-  useEffect(() => {
-    const originalFetch = window.fetch;
-    const customFetch = function (this: any, input: any, init?: any) {
-      const urlStr = typeof input === "string" ? input : (input && 'url' in input ? (input as any).url : "");
-      if (urlStr && (urlStr.startsWith("/api/") || urlStr.includes("/api/"))) {
-        init = init || {};
-        const headers = new Headers(init.headers || {});
-        if (adminToken && !headers.has("x-admin-token")) {
-          headers.set("x-admin-token", adminToken);
-        }
-        if (user?.uid && !headers.has("x-user-id")) {
-          headers.set("x-user-id", user.uid);
-        }
-        init.headers = headers;
-      }
-      return originalFetch.apply(this || window, [input, init]);
-    };
-
-    try {
-      Object.defineProperty(window, 'fetch', {
-        value: customFetch,
-        configurable: true,
-        writable: true,
-        enumerable: true
-      });
-    } catch (e) {
-      console.warn("Failed to redefine window.fetch with Object.defineProperty, fallback to standard assignment:", e);
-      try {
-        (window as any).fetch = customFetch;
-      } catch (err) {
-        console.error("Critical: Cannot patch window.fetch in this browser environment:", err);
-      }
-    }
-
-    return () => {
-      try {
-        Object.defineProperty(window, 'fetch', {
-          value: originalFetch,
-          configurable: true,
-          writable: true,
-          enumerable: true
-        });
-      } catch (e) {
-        try {
-          (window as any).fetch = originalFetch;
-        } catch (err) {
-          // ignore
-        }
-      }
-    };
-  }, [adminToken, user]);
-
+  // App state markers
   // Editing state markers
   const [actToEdit, setActToEdit] = useState<Activity | null>(null);
   const [itiToEdit, setItiToEdit] = useState<ItineraryItem | null>(null);
@@ -763,6 +711,8 @@ export default function App() {
             onLogin={handleAdminAuth}
             onLogout={handleAdminLogout}
             isAuthenticated={!!adminPasscode}
+            adminToken={adminToken}
+            authLoading={authLoading}
             googleAccessToken={googleAccessToken}
             onGoogleLogin={handleGoogleLogin}
             inquiries={dbData.inquiries}

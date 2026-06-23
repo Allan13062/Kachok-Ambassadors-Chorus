@@ -154,9 +154,23 @@
         "joinedYear": { "type": "string" }
       },
       "required": ["id", "name", "role", "bio"]
+    },
+    "AdminWhitelist": {
+      "title": "AdminWhitelist",
+      "description": "Whitelist of approved administrator emails. Document ID is the email address.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["email"]
     }
   },
   "firestore": {
+    "/admins/{emailId}": {
+      "schema": "AdminWhitelist",
+      "description": "Administrator whitelist keyed by email"
+    },
     "/activities/{activityId}": {
       "schema": "Activity",
       "description": "Outreach and events calendar items"

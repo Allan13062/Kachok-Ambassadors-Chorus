@@ -1558,7 +1558,7 @@ export default function Itinerary({
             <input
               type="text"
               placeholder="Search itinerary events, venues, keywords..."
-              value={itinerarySearch}
+              value={itinerarySearch || ""}
               onChange={(e) => setItinerarySearch(e.target.value)}
               className="w-full bg-slate-900 border border-slate-800 focus:border-amber-500 rounded-xl py-3.5 pl-11 pr-10 text-xs text-white placeholder-slate-500 focus:outline-none transition-all shadow-inner"
             />
@@ -2291,7 +2291,7 @@ export default function Itinerary({
                               <label className="block text-[9px] font-mono text-slate-400 uppercase font-bold tracking-wider mb-1">Or Paste Cloud Media Url</label>
                               <input 
                                 type="text"
-                                value={mediaUrlInput}
+                                value={mediaUrlInput || ""}
                                 onChange={(e) => {
                                   setMediaUrlInput(e.target.value);
                                   setLocalFileBase64(null);

@@ -326,7 +326,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, theme }: Aut
                           <input
                             type="text"
                             required
-                            value={name}
+                            value={name || ""}
                             onChange={(e) => setName(e.target.value)}
                             className={`w-full pl-9 pr-4 py-2.5 rounded-xl border outline-none text-xs transition-all ${
                               isDark 
@@ -341,7 +341,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, theme }: Aut
                       <div>
                         <label className={`block text-[10px] font-mono uppercase tracking-wider mb-1.5 ${isDark ? "text-slate-400" : "text-slate-500"}`}>Voice Part Preference</label>
                         <select
-                          value={voicePart}
+                          value={voicePart || "Soprano"}
                           onChange={(e) => setVoicePart(e.target.value)}
                           className={`w-full p-2.5 rounded-xl border outline-none text-xs transition-all cursor-pointer ${
                             isDark 
@@ -367,7 +367,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, theme }: Aut
                       <input
                         type="email"
                         required
-                        value={email}
+                        value={email || ""}
                         onChange={(e) => setEmail(e.target.value)}
                         className={`w-full pl-9 pr-4 py-2.5 rounded-xl border outline-none text-xs transition-all ${
                           isDark 
@@ -387,7 +387,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, theme }: Aut
                       <input
                         type={showPassword ? "text" : "password"}
                         required
-                        value={password}
+                        value={password || ""}
                         onChange={(e) => setPassword(e.target.value)}
                         className={`w-full pl-9 pr-10 py-2.5 rounded-xl border outline-none text-xs transition-all ${
                           isDark 

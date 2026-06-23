@@ -457,7 +457,7 @@ export default function JoinUs() {
                         <input 
                           type="text" 
                           required
-                          value={formData.name}
+                          value={formData.name || ""}
                           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                           className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-lg p-2.5 outline-none font-sans text-sm focus:ring-1 focus:ring-amber-500/20 text-white transition-all"
                           placeholder="Your official name"
@@ -469,7 +469,7 @@ export default function JoinUs() {
                         <input 
                           type="email" 
                           required
-                          value={formData.email}
+                          value={formData.email || ""}
                           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                           className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-lg p-2.5 outline-none font-sans text-sm focus:ring-1 focus:ring-amber-500/20 text-white transition-all"
                           placeholder="yourname@gmail.com"
@@ -479,7 +479,7 @@ export default function JoinUs() {
                       <div>
                         <label className="block text-xs font-mono text-slate-400 mb-1.5 uppercase tracking-wide">Vocal Part Preference</label>
                         <select 
-                          value={formData.voicePart}
+                          value={formData.voicePart || ""}
                           onChange={(e) => setFormData({ ...formData, voicePart: e.target.value })}
                           className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-lg p-2.5 outline-none font-sans text-sm text-white focus:ring-1 focus:ring-amber-500/20 cursor-pointer transition-all"
                         >
@@ -494,7 +494,7 @@ export default function JoinUs() {
                       <div>
                         <label className="block text-xs font-mono text-slate-400 mb-1.5 uppercase tracking-wide">Musical Experience (Optional)</label>
                         <textarea 
-                          value={formData.experience}
+                          value={formData.experience || ""}
                           onChange={(e) => setFormData({ ...formData, experience: e.target.value })}
                           rows={3}
                           className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-lg p-2.5 outline-none font-sans text-sm focus:ring-1 focus:ring-amber-500/20 text-white transition-all resize-none"
@@ -722,7 +722,7 @@ export default function JoinUs() {
                             <input 
                               type="text" 
                               required
-                              value={phone}
+                              value={phone || ""}
                               onChange={(e) => setPhone(e.target.value)}
                               className="flex-1 bg-transparent p-2.5 outline-none font-mono text-sm text-white"
                               placeholder="712345678"
@@ -778,7 +778,7 @@ export default function JoinUs() {
                                 type="number"
                                 required
                                 min="1"
-                                value={customAmount}
+                                value={customAmount || ""}
                                 onChange={(e) => setCustomAmount(e.target.value)}
                                 className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-lg p-2.5 pl-12 outline-none font-sans text-sm focus:ring-1 focus:ring-amber-500/20 text-white transition-all"
                                 placeholder="Type contribution amount..."

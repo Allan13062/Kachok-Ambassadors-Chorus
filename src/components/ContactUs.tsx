@@ -172,7 +172,7 @@ export default function ContactUs({ bookingSubject, onClearBookingSubject, onInq
                     <input 
                       type="text"
                       required
-                      value={formData.name}
+                      value={formData.name || ""}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       className="w-full bg-slate-900 border border-slate-800 focus:border-amber-500 rounded-lg p-2.5 outline-none focus:ring-1 focus:ring-amber-500/10 text-white transition-all"
                       placeholder="e.g. Pastor John"
@@ -184,7 +184,7 @@ export default function ContactUs({ bookingSubject, onClearBookingSubject, onInq
                     <input 
                       type="email"
                       required
-                      value={formData.email}
+                      value={formData.email || ""}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       className="w-full bg-slate-900 border border-slate-800 focus:border-amber-500 rounded-lg p-2.5 outline-none focus:ring-1 focus:ring-amber-500/10 text-white transition-all"
                       placeholder="e.g. john@church.org"
@@ -196,7 +196,7 @@ export default function ContactUs({ bookingSubject, onClearBookingSubject, onInq
                   <label className="block text-xs font-mono text-slate-400 mb-1 uppercase tracking-wider">Subject</label>
                   <input 
                     type="text"
-                    value={formData.subject}
+                    value={formData.subject || ""}
                     onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
                     className="w-full bg-slate-900 border border-slate-800 focus:border-amber-500 rounded-lg p-2.5 outline-none focus:ring-1 focus:ring-amber-500/10 text-white transition-all"
                     placeholder="e.g. Booking for Youth Campout"
@@ -207,7 +207,7 @@ export default function ContactUs({ bookingSubject, onClearBookingSubject, onInq
                   <label className="block text-xs font-mono text-slate-400 mb-1 uppercase tracking-wider">Detailed Message</label>
                   <textarea 
                     required
-                    value={formData.message}
+                    value={formData.message || ""}
                     onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                     rows={6}
                     className="w-full bg-slate-900 border border-slate-800 focus:border-amber-500 rounded-lg p-2.5 outline-none focus:ring-1 focus:ring-amber-500/10 text-white transition-all resize-none"
