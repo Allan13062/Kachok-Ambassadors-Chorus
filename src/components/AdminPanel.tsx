@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { X, Lock, Eye, Check, ShieldCheck, Mail, Calendar, AlertCircle, Trash2, Plus, EyeOff, Music, Users, CreditCard, Smartphone, CheckCircle, Send, Barcode, Copy, RefreshCw, Key, HelpCircle, Sliders, ChevronUp, ChevronDown, Sparkles, DollarSign, MessageSquare as MessageSquareIcon, Layout, UploadCloud, Film, FileText } from "lucide-react";
+import { auth } from "../lib/firebase";
+import { UserPlus, X, Lock, Eye, Check, ShieldCheck, Mail, Calendar, AlertCircle, Trash2, Plus, EyeOff, Music, Users, CreditCard, Smartphone, CheckCircle, Send, Barcode, Copy, RefreshCw, Key, HelpCircle, Sliders, ChevronUp, ChevronDown, Sparkles, DollarSign, MessageSquare as MessageSquareIcon, Layout, UploadCloud, Film, FileText } from "lucide-react";
 import { Inquiry, Activity, ItineraryItem, MusicData, Leader, Subscriber, Broadcast, MemberSpotlight as MemberSpotlightType } from "../types";
 import ImageEditor from "./ImageEditor";
 import { motion, AnimatePresence } from "motion/react";
@@ -7,9 +8,12 @@ import { motion, AnimatePresence } from "motion/react";
 interface AdminPanelProps {
   isOpen: boolean;
   onClose: () => void;
-  onLogin: (passcode: string) => Promise<boolean>;
+  onLogin: (email: string, password?: string) => Promise<boolean>;
+  onGoogleLoginAdmin: () => Promise<boolean>;
+  onResetPassword: (email: string) => Promise<boolean>;
   onLogout: () => void;
   isAuthenticated: boolean;
+  adminError?: string | null;
   adminToken?: string | null;
   authLoading?: boolean;
   googleAccessToken?: string | null;
@@ -295,12 +299,81 @@ function AdvancedMediaDropzone({
   );
 }
 
+function AddAdminSection({ userEmail }: { userEmail?: string | null }) {
+  const [email, setEmail] = useState('');
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  if (userEmail !== "allangeorge566@gmail.com") {
+    return null;
+  }
+
+  const handleAdd = async () => {
+    if (!email) return;
+    setLoading(true);
+    setMsg('');
+    setErr('');
+    try {
+      const { doc, setDoc } = await import('firebase/firestore');
+      const { db } = await import('../lib/firebase');
+      await setDoc(doc(db, 'admins', email.trim()), {
+        email: email.trim(),
+        role: 'admin',
+        createdAt: new Date().toISOString()
+      }, { merge: true });
+      setMsg('Admin added successfully!');
+      setEmail('');
+    } catch (e: any) {
+      setErr('Failed to add admin: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="bg-slate-950/40 border border-slate-800 p-6 rounded-2xl mb-8">
+      <div className="flex items-center gap-2 text-amber-400 mb-6 bg-slate-950 p-2.5 rounded-lg border border-slate-805 text-sm font-bold uppercase tracking-wider">
+        <UserPlus className="w-5 h-5 text-amber-500" />
+        <span>Admin Management (Super Admin Only)</span>
+      </div>
+      <div className="text-xs text-slate-400 mb-4">
+        Add another administrator by entering their email address. They will be able to log in using Google Sign-In with that email.
+      </div>
+      
+      {msg && <div className="text-emerald-400 text-xs mb-3 font-mono">{msg}</div>}
+      {err && <div className="text-red-400 text-xs mb-3 font-mono">{err}</div>}
+
+      <div className="flex items-center gap-3">
+        <input 
+          type="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          className="flex-1 bg-slate-900 border border-slate-800 rounded p-2.5 text-white outline-none focus:border-amber-400 font-sans"
+          placeholder="e.g. co-admin@example.com"
+        />
+        <button
+          type="button"
+          onClick={handleAdd}
+          disabled={loading}
+          className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 px-4 rounded-lg transition-colors cursor-pointer text-xs uppercase disabled:opacity-50"
+        >
+          {loading ? 'Adding...' : 'Add Admin'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPanel({
   isOpen,
   onClose,
   onLogin,
+  onGoogleLoginAdmin,
+  onResetPassword,
   onLogout,
   isAuthenticated,
+  adminError,
   googleAccessToken = null,
   onGoogleLogin = () => {},
   inquiries,
@@ -324,7 +397,8 @@ export default function AdminPanel({
   adminToken
 }: AdminPanelProps) {
   
-  const [passcode, setPasscode] = useState("");
+  const [adminEmail, setAdminEmail] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [localAuthLoading, setLocalAuthLoading] = useState(false);
   const [submittingData, setSubmittingData] = useState(false);
@@ -350,41 +424,25 @@ export default function AdminPanel({
   
   const handleResetSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!resetNewPasscode) return;
-    if (resetMethod === 'recovery' && !resetRecoveryKey) return;
-    if (resetMethod === 'current' && !resetCurrentPasscode) return;
-    setLocalAuthLoading(true);
-    setResetMessage("");
-    setResetErrorMsg("");
-
-    try {
-      const res = await fetch("/api/auth/reset", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          recoveryKey: resetMethod === 'recovery' ? resetRecoveryKey : "",
-          currentPasscode: resetMethod === 'current' ? resetCurrentPasscode : "",
-          newPasscode: resetNewPasscode
-        })
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setResetMessage("Passcode reset successfully! Check above to login.");
-        setTimeout(() => {
-          setShowResetUI(false);
-          setResetMessage("");
-          setResetRecoveryKey("");
-          setResetNewPasscode("");
-          setResetCurrentPasscode("");
-        }, 3000);
-      } else {
-        setResetErrorMsg(data.error || "Failed to reset passcode.");
-      }
-    } catch (err: any) {
-      setResetErrorMsg("Connection format error: " + err.message);
-    } finally {
-      setLocalAuthLoading(false);
+    if (!adminEmail) {
+      setResetErrorMsg("Please enter your email to reset the password.");
+      return;
     }
+    setLocalAuthLoading(true);
+    setResetErrorMsg("");
+    setResetMessage("");
+    
+    const success = await onResetPassword(adminEmail);
+    if (success) {
+      setResetMessage("Password reset email sent. Please check your inbox.");
+      setTimeout(() => {
+        setShowResetUI(false);
+        setResetMessage("");
+      }, 4000);
+    } else {
+      setResetErrorMsg("Failed to send reset email.");
+    }
+    setLocalAuthLoading(false);
   };
 
   // M-Pesa Config states
@@ -819,18 +877,35 @@ export default function AdminPanel({
     }
   }, [leaderToEdit]);
 
+  useEffect(() => {
+    if (adminError) {
+      setErrorMsg(adminError);
+    }
+  }, [adminError]);
+
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!passcode) return;
+    if (!adminEmail || !adminPassword) return;
     setLocalAuthLoading(true);
     setErrorMsg("");
     
-    const success = await onLogin(passcode);
+    const success = await onLogin(adminEmail, adminPassword);
     setLocalAuthLoading(false);
     if (!success) {
-      setErrorMsg("Unauthorized: Invalid access key. You may use 'admin', '1234', or 'SDA2026'.");
+      // It will be set by the useEffect watching adminError
+      if (!adminError) setErrorMsg("Unauthorized: Invalid credentials or not an admin.");
     } else {
-      setPasscode("");
+      setAdminPassword("");
+    }
+  };
+  
+  const handleGoogleAuthSubmit = async () => {
+    setLocalAuthLoading(true);
+    setErrorMsg("");
+    const success = await onGoogleLoginAdmin();
+    setLocalAuthLoading(false);
+    if (!success) {
+      if (!adminError) setErrorMsg("Unauthorized: Could not sign in with Google or not an admin.");
     }
   };
 
@@ -1123,90 +1198,17 @@ export default function AdminPanel({
             </div>
 
             {showResetUI ? (
-              <form onSubmit={handleResetSubmit} className="max-w-sm w-full flex flex-col gap-3.5 relative z-10">
-                {/* Method selector tab */}
-                <div className="grid grid-cols-2 p-1 bg-slate-950 rounded-xl border border-slate-850 gap-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setResetMethod('recovery');
-                      setResetErrorMsg("");
-                      setResetMessage("");
-                    }}
-                    className={`py-2 text-[10px] font-bold tracking-wider uppercase rounded-lg transition-all cursor-pointer ${
-                      resetMethod === 'recovery'
-                        ? 'bg-slate-900 text-amber-400 border border-slate-805'
-                        : 'text-slate-500 hover:text-slate-350'
-                    }`}
-                  >
-                    Key
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setResetMethod('current');
-                      setResetErrorMsg("");
-                      setResetMessage("");
-                    }}
-                    className={`py-2 text-[10px] font-bold tracking-wider uppercase rounded-lg transition-all cursor-pointer ${
-                      resetMethod === 'current'
-                        ? 'bg-slate-900 text-amber-400 border border-slate-805'
-                        : 'text-slate-500 hover:text-slate-350'
-                    }`}
-                  >
-                    Code
-                  </button>
-                </div>
-
-                {resetMethod === 'recovery' ? (
-                  <div className="relative">
-                    <input 
-                      type="text"
-                      required
-                      value={resetRecoveryKey || ""}
-                      onChange={(e) => setResetRecoveryKey(e.target.value)}
-                      placeholder="Enter Recovery Key (e.g. KACHAMBA2026)"
-                      className="w-full bg-slate-950 border border-slate-850 hover:border-slate-800 focus:border-amber-400 rounded-xl p-3.5 text-center outline-none text-xs tracking-widest placeholder-slate-600 transition-all font-mono"
-                    />
-                  </div>
-                ) : (
-                  <div className="relative">
-                    <input 
-                      type={isPasscodeVisible ? "text" : "password"}
-                      required
-                      value={resetCurrentPasscode || ""}
-                      onChange={(e) => setResetCurrentPasscode(e.target.value)}
-                      placeholder="Enter Current Passcode"
-                      className="w-full bg-slate-950 border border-slate-850 hover:border-slate-800 focus:border-amber-400 rounded-xl p-3.5 text-center outline-none text-xs tracking-widest placeholder-slate-600 transition-all font-mono"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setIsPasscodeVisible(!isPasscodeVisible)}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-350 cursor-pointer"
-                    >
-                      {isPasscodeVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                )}
-
+              <form onSubmit={handleResetSubmit} className="mt-2 max-w-sm w-full flex flex-col gap-3.5 relative z-10">
                 <div className="relative">
                   <input 
-                    type={isPasscodeVisible ? "text" : "password"}
+                    type="email"
                     required
-                    value={resetNewPasscode || ""}
-                    onChange={(e) => setResetNewPasscode(e.target.value)}
-                    placeholder="Create New Admin Passcode"
-                    className="w-full bg-slate-950 border border-slate-850 hover:border-slate-800 focus:border-amber-400 rounded-xl p-3.5 text-center outline-none text-xs tracking-widest placeholder-slate-600 transition-all font-mono"
+                    value={adminEmail || ""}
+                    onChange={(e) => setAdminEmail(e.target.value)}
+                    placeholder="Admin Email Address"
+                    className="w-full bg-slate-950 border border-slate-850 hover:border-slate-800 focus:border-amber-400 rounded-xl p-4 outline-none text-sm placeholder-slate-600 transition-all font-sans text-white"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setIsPasscodeVisible(!isPasscodeVisible)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-350 cursor-pointer"
-                  >
-                    {isPasscodeVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
                 </div>
-
                 <button
                   type="submit"
                   disabled={authLoading}
@@ -1215,11 +1217,10 @@ export default function AdminPanel({
                   {authLoading ? (
                     <div className="flex items-center justify-center gap-2">
                       <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                      <span>Updating Security Key...</span>
+                      <span>Sending...</span>
                     </div>
-                  ) : "Save New Credentials"}
+                  ) : "Send Reset Link"}
                 </button>
-                
                 <button
                   type="button"
                   onClick={() => {
@@ -1236,42 +1237,74 @@ export default function AdminPanel({
               <form onSubmit={handleAuthSubmit} className="mt-2 max-w-sm w-full flex flex-col gap-3.5 relative z-10">
                 <div className="relative">
                   <input 
+                    type="email"
+                    required
+                    value={adminEmail || ""}
+                    onChange={(e) => setAdminEmail(e.target.value)}
+                    placeholder="Admin Email Address"
+                    className="w-full bg-slate-950 border border-slate-850 hover:border-slate-800 focus:border-amber-400 rounded-xl p-4 outline-none text-sm placeholder-slate-600 transition-all font-sans text-white"
+                  />
+                </div>
+                <div className="relative">
+                  <input 
                     type={isPasscodeVisible ? "text" : "password"}
                     required
-                    value={passcode || ""}
-                    onChange={(e) => setPasscode(e.target.value)}
-                    placeholder="Enter Access Key (e.g., SDA2026)"
-                    className="w-full bg-slate-950 border border-slate-850 hover:border-slate-800 focus:border-amber-400 rounded-xl p-4 text-center outline-none text-sm tracking-widest placeholder-slate-600 transition-all font-mono"
+                    value={adminPassword || ""}
+                    onChange={(e) => setAdminPassword(e.target.value)}
+                    placeholder="Admin Password"
+                    className="w-full bg-slate-950 border border-slate-850 hover:border-slate-800 focus:border-amber-400 rounded-xl p-4 outline-none text-sm placeholder-slate-600 transition-all font-sans text-white"
                   />
                   <button
                     type="button"
                     onClick={() => setIsPasscodeVisible(!isPasscodeVisible)}
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-350 cursor-pointer"
                   >
-                    {isPasscodeVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {isPasscodeVisible ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
 
                 <button
                   type="submit"
                   disabled={authLoading}
-                  className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-sans font-extrabold text-xs uppercase tracking-wider py-4 px-6 rounded-xl transition-all cursor-pointer disabled:bg-slate-900 disabled:text-slate-600 shadow-xl shadow-amber-500/10 active:scale-[0.98]"
+                  className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-sans font-extrabold text-xs uppercase tracking-wider py-4 px-6 rounded-xl transition-all cursor-pointer disabled:bg-slate-900 disabled:text-slate-600 shadow-xl shadow-amber-500/10 active:scale-[0.98] flex items-center justify-center gap-2"
                 >
                   {authLoading ? (
-                    <div className="flex items-center justify-center gap-2">
+                    <>
                       <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                      <span>Verifying Authority...</span>
-                    </div>
-                  ) : "Unlock Admin Dashboard"}
+                      Authenticating...
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-4 h-4 shrink-0" />
+                      Secure Login
+                    </>
+                  )}
                 </button>
-
+                
                 <button
                   type="button"
-                  onClick={() => setShowResetUI(true)}
-                  className="text-[10px] text-amber-500/80 hover:text-amber-400 font-extrabold font-mono uppercase tracking-widest transition-colors cursor-pointer mt-1"
+                  onClick={handleGoogleAuthSubmit}
+                  disabled={authLoading}
+                  className="bg-slate-800 hover:bg-slate-700 text-white font-sans font-semibold text-sm py-3 px-6 rounded-xl transition-all cursor-pointer disabled:bg-slate-900 disabled:text-slate-600 border border-slate-700 mt-1 active:scale-[0.98] flex items-center justify-center gap-2"
                 >
-                  Lockout Recovery & Passcode Reset
+                  <svg viewBox="0 0 24 24" className="w-5 h-5" aria-hidden="true">
+                    <path d="M12.0003 4.75C13.7703 4.75 15.3553 5.36 16.6053 6.54998L20.0303 3.125C17.9503 1.19 15.2353 0 12.0003 0C7.31028 0 3.25528 2.69 1.28027 6.60998L5.27028 9.70498C6.21528 6.86 8.87028 4.75 12.0003 4.75Z" fill="#EA4335" />
+                    <path d="M23.49 12.275C23.49 11.49 23.415 10.73 23.3 10H12V14.51H18.47C18.18 15.99 17.34 17.25 16.08 18.1L19.945 21.1C22.2 19.01 23.49 15.92 23.49 12.275Z" fill="#4285F4" />
+                    <path d="M5.26498 14.2949C5.02498 13.5699 4.88501 12.7999 4.88501 11.9999C4.88501 11.1999 5.01998 10.4299 5.26498 9.7049L1.275 6.60986C0.46 8.22986 0 10.0599 0 11.9999C0 13.9399 0.46 15.7699 1.28 17.3899L5.26498 14.2949Z" fill="#FBBC05" />
+                    <path d="M12.0004 24.0001C15.2404 24.0001 17.9654 22.935 19.9454 21.095L16.0804 18.095C15.0054 18.82 13.6204 19.245 12.0004 19.245C8.8704 19.245 6.21537 17.135 5.26537 14.29L1.27539 17.385C3.25539 21.31 7.3104 24.0001 12.0004 24.0001Z" fill="#34A853" />
+                  </svg>
+                  Sign In with Google
                 </button>
+
+                <div className="flex justify-between items-center mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowResetUI(true)}
+                    className="text-[10px] uppercase tracking-widest font-extrabold text-slate-500 hover:text-amber-400 transition-colors cursor-pointer font-mono"
+                  >
+                    Reset Password
+                  </button>
+                </div>
               </form>
             )}
 
@@ -3045,6 +3078,10 @@ export default function AdminPanel({
                 </div>
               </div>
 
+
+              
+              {/* SECTION: ADMIN MANAGEMENT */}
+              <AddAdminSection userEmail={auth.currentUser?.email} />
 
               {/* SECTION C: CHANGE ADMIN PASSCODE */}
               <div className="bg-slate-950/40 border border-slate-800 p-6 rounded-2xl mb-8">

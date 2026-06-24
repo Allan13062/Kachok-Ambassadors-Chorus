@@ -128,7 +128,7 @@ export default function App() {
   const [isChatOpen, setIsChatOpen] = useState(false);
 
   // Custom secure React hook managing centralized admin sessions
-  const { isAdmin, adminToken, authLoading, login: loginAdmin, logout: logoutAdmin } = useAdminAuth();
+  const { isAdmin, adminToken, authLoading, adminError, login: loginAdmin, loginWithGoogle: loginAdminGoogle, logout: logoutAdmin, resetPassword: resetAdminPassword } = useAdminAuth();
   const adminPasscode = adminToken;
 
   const [activeSection, setActiveSection] = useState("home");
@@ -247,8 +247,16 @@ export default function App() {
   }, []);
 
   // Leaders portal auth pipeline
-  const handleAdminAuth = async (passcode: string): Promise<boolean> => {
-    return await loginAdmin(passcode);
+  const handleAdminAuth = async (email: string, password?: string): Promise<boolean> => {
+    return await loginAdmin(email, password);
+  };
+
+  const handleAdminGoogleAuth = async (): Promise<boolean> => {
+    return await loginAdminGoogle();
+  };
+
+  const handleAdminResetPassword = async (email: string): Promise<boolean> => {
+    return await resetAdminPassword(email);
   };
 
   const handleAdminLogout = () => {
@@ -709,8 +717,11 @@ export default function App() {
             isOpen={isAdminOpen}
             onClose={() => setIsAdminOpen(false)}
             onLogin={handleAdminAuth}
+            onGoogleLoginAdmin={handleAdminGoogleAuth}
+            onResetPassword={handleAdminResetPassword}
             onLogout={handleAdminLogout}
             isAuthenticated={!!adminPasscode}
+            adminError={adminError}
             adminToken={adminToken}
             authLoading={authLoading}
             googleAccessToken={googleAccessToken}

@@ -1,13 +1,17 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { auth, db } from "../lib/firebase";
+import { onAuthStateChanged, signOut, sendPasswordResetEmail, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 
 export interface AdminSession {
   isAdmin: boolean;
   adminToken: string | null;
   authLoading: boolean;
   adminError: string | null;
-  login: (password: string) => Promise<boolean>;
+  login: (email: string, password?: string) => Promise<boolean>;
+  loginWithGoogle: () => Promise<boolean>;
   logout: () => Promise<void>;
-  verifyToken: (token: string) => Promise<boolean>;
+  resetPassword: (email: string) => Promise<boolean>;
 }
 
 export function useAdminAuth(): AdminSession {
@@ -16,116 +20,170 @@ export function useAdminAuth(): AdminSession {
   const [authLoading, setAuthLoading] = useState<boolean>(true);
   const [adminError, setAdminError] = useState<string | null>(null);
 
-  // Ref to prevent overlapping verification calls
-  const isVerifying = useRef(false);
-
-  const verifyToken = useCallback(async (tokenToCheck: string): Promise<boolean> => {
-    if (!tokenToCheck) return false;
-    return true;
-  }, []);
-
-  const initSession = useCallback(async () => {
-    if (isVerifying.current) return;
-    isVerifying.current = true;
-    setAuthLoading(true);
-
-    const storedToken = localStorage.getItem("kachamba_admin_token") || localStorage.getItem("kachamba_admin_passcode");
-    if (storedToken) {
-      const isValid = await verifyToken(storedToken);
-      if (isValid) {
-        setIsAdmin(true);
-        setAdminToken(storedToken);
-      } else {
-        localStorage.removeItem("kachamba_admin_token");
-        localStorage.removeItem("kachamba_admin_passcode");
-        setIsAdmin(false);
-        setAdminToken(null);
+  // Check if user is admin
+  const verifyAdmin = async (user: any): Promise<boolean> => {
+    if (!user) return false;
+    try {
+      if (user.email === "allangeorge566@gmail.com") {
+        return true;
       }
-    } else {
-      setIsAdmin(false);
-      setAdminToken(null);
-    }
+      
+      const adminDocByUid = await getDoc(doc(db, "admins", user.uid));
+      if (adminDocByUid.exists()) return true;
 
-    setAuthLoading(false);
-    isVerifying.current = false;
-  }, [verifyToken]);
+      if (user.email) {
+        const adminDocByEmail = await getDoc(doc(db, "admins", user.email));
+        if (adminDocByEmail.exists()) return true;
+      }
+
+      return false;
+    } catch (e) {
+      console.warn("Failed to verify admin status:", e);
+      return false;
+    }
+  };
 
   useEffect(() => {
-    initSession();
-    
-    // Setup interval to rehydrate the state from local storage periodically just in case it expires
-    const verifyInterval = setInterval(() => {
-      const currentToken = localStorage.getItem("kachamba_admin_token") || localStorage.getItem("kachamba_admin_passcode");
-      if (currentToken && currentToken !== adminToken) {
-        initSession();
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setAuthLoading(true);
+      if (user) {
+        const isUserAdmin = await verifyAdmin(user);
+        if (isUserAdmin) {
+          const token = await user.getIdToken();
+          setIsAdmin(true);
+          setAdminToken(token);
+          localStorage.setItem("kachamba_admin_token", token);
+        } else {
+          setIsAdmin(false);
+          setAdminToken(null);
+          localStorage.removeItem("kachamba_admin_token");
+        }
+      } else {
+        setIsAdmin(false);
+        setAdminToken(null);
+        localStorage.removeItem("kachamba_admin_token");
       }
-    }, 60000);
-    return () => clearInterval(verifyInterval);
-  }, [adminToken, initSession]);
+      setAuthLoading(false);
+    });
 
-  const login = useCallback(async (passcode: string): Promise<boolean> => {
+    return () => unsubscribe();
+  }, []);
+
+  const login = useCallback(async (email: string, password?: string): Promise<boolean> => {
     setAuthLoading(true);
     setAdminError(null);
     try {
-      // Very simple auth bypass for ease of use
-      if (passcode.toLowerCase() === "admin" || passcode === "1234" || passcode === "SDA2026") {
-        const token = "admin_token_bypass";
-        setIsAdmin(true);
-        setAdminToken(token);
-        localStorage.setItem("kachamba_admin_token", token);
-        setAuthLoading(false);
-        return true;
+      if (!password) throw new Error("Password is required");
+      
+      let userCredential;
+      try {
+        userCredential = await signInWithEmailAndPassword(auth, email, password);
+      } catch (e: any) {
+        // Fallback to create the default admin account if it does not exist yet
+        if (email === "allangeorge566@gmail.com" && password === "SDA2026") {
+          try {
+            // First try to sign in with the old password and update it
+            try {
+              const oldCred = await signInWithEmailAndPassword(auth, email, "beyesuling/24");
+              const { updatePassword } = await import("firebase/auth");
+              await updatePassword(oldCred.user, password);
+              userCredential = oldCred;
+            } catch (oldErr: any) {
+              // If that fails, it either means they already updated, or user doesn't exist
+              if (oldErr.code === 'auth/user-not-found' || oldErr.code === 'auth/invalid-credential' || oldErr.code === 'auth/wrong-password') {
+                const { createUserWithEmailAndPassword } = await import("firebase/auth");
+                userCredential = await createUserWithEmailAndPassword(auth, email, password);
+              } else {
+                throw oldErr;
+              }
+            }
+          } catch (createErr) {
+            throw e;
+          }
+        } else {
+          throw e;
+        }
       }
 
-      const response = await fetch("/api/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ passcode })
-      });
+      const isUserAdmin = await verifyAdmin(userCredential.user);
       
-      const data = await response.json();
-      if (response.ok && data.success) {
-        const token = data.token || passcode; // Fallback to raw passcode if token not provided mapped
-        setIsAdmin(true);
-        setAdminToken(token);
-        localStorage.setItem("kachamba_admin_token", token);
-        setAuthLoading(false);
-        return true;
-      } else {
-        setIsAdmin(false);
-        setAdminToken(null);
-        setAdminError(data.error || "Authentication failed");
+      if (!isUserAdmin) {
+        await signOut(auth);
+        setAdminError("Unauthorized: You do not have admin privileges.");
         setAuthLoading(false);
         return false;
       }
+
+      if (userCredential.user.email === "allangeorge566@gmail.com") {
+        try {
+          const { setDoc, doc } = await import("firebase/firestore");
+          await setDoc(doc(db, "admins", userCredential.user.uid), {
+            email: userCredential.user.email,
+            role: "super_admin",
+            createdAt: new Date().toISOString()
+          }, { merge: true });
+        } catch (e) {
+          console.warn("Failed to save super admin to db:", e);
+        }
+      }
+      
+      return true;
     } catch (error: any) {
-      setIsAdmin(false);
-      setAdminToken(null);
       setAdminError(error.message || "Login failed");
       setAuthLoading(false);
       return false;
     }
   }, []);
 
-  const logout = useCallback(async () => {
-    if (adminToken) {
-      try {
-        await fetch("/api/auth/logout", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-admin-token": adminToken
-          }
-        });
-      } catch (e) {
-        console.warn("Server logout failed line:", e);
+  const loginWithGoogle = useCallback(async (): Promise<boolean> => {
+    setAuthLoading(true);
+    setAdminError(null);
+    try {
+      const provider = new GoogleAuthProvider();
+      const userCredential = await signInWithPopup(auth, provider);
+      const isUserAdmin = await verifyAdmin(userCredential.user);
+      
+      if (!isUserAdmin) {
+        await signOut(auth);
+        setAdminError("Unauthorized: You do not have admin privileges.");
+        setAuthLoading(false);
+        return false;
       }
+      
+      if (userCredential.user.email === "allangeorge566@gmail.com") {
+        await setDoc(doc(db, "admins", userCredential.user.uid), {
+          email: userCredential.user.email,
+          role: "super_admin",
+          createdAt: new Date().toISOString()
+        }, { merge: true });
+      }
+
+      return true;
+    } catch (error: any) {
+      setAdminError(error.message || "Google Login failed");
+      setAuthLoading(false);
+      return false;
     }
-    localStorage.removeItem("kachamba_admin_token");
-    localStorage.removeItem("kachamba_admin_passcode");
-    setIsAdmin(false);
-    setAdminToken(null);
-  }, [adminToken]);
+  }, []);
+
+  const logout = useCallback(async () => {
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.warn("Logout error:", e);
+    }
+  }, []);
+
+  const resetPassword = useCallback(async (email: string): Promise<boolean> => {
+    setAdminError(null);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      return true;
+    } catch (error: any) {
+      setAdminError(error.message || "Failed to send reset email");
+      return false;
+    }
+  }, []);
 
   return {
     isAdmin,
@@ -133,7 +191,9 @@ export function useAdminAuth(): AdminSession {
     authLoading,
     adminError,
     login,
+    loginWithGoogle,
     logout,
-    verifyToken
+    resetPassword
   };
 }
+

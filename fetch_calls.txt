@@ -1,0 +1,12 @@
+      const fetchMpesaConfig = async () => {
+          const res = await fetch("/api/mpesa/config");
+      fetchMpesaConfig();
+      const res = await fetch("/api/mpesa/config", {
+      const res = await fetch("/api/upload", {
+      const res = await fetch("/api/broadcasts", {
+      const res = await fetch("/api/member-spotlights", {
+      const res = await fetch("/api/subscribers/delete", {
+      const res = await fetch("/api/member-spotlights/delete", {
+                                  const response = await fetch('/api/workspace/meet', {
+                                  const response = await fetch('/api/workspace/form', {
+                                  const response = await fetch('/api/workspace/drive/poster', {
