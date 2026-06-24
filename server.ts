@@ -1058,7 +1058,8 @@ app.post("/api/mpesa/stkpush", async (req, res) => {
         console.log(`[STK Push] Initiating real STK push for ${formattedPhone}, amount: KES ${numericAmount}`);
         
         // Step 1: Generate Access Token
-        const isProd = process.env.MPESA_ENV === "production";
+        // Default to production unless explicitly set to sandbox
+        const isProd = process.env.MPESA_ENV !== "sandbox";
         const baseUrl = isProd ? "https://api.safaricom.co.ke" : "https://sandbox.safaricom.co.ke";
         
         const auth = Buffer.from(`${mpesaConsumerKey}:${mpesaConsumerSecret}`).toString("base64");
@@ -1066,7 +1067,8 @@ app.post("/api/mpesa/stkpush", async (req, res) => {
         const tokenResponse = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
           method: "GET",
           headers: {
-            "Authorization": `Basic ${auth}`
+            "Authorization": `Basic ${auth}`,
+            "User-Agent": "KachambaApp/1.0"
           }
         });
 
@@ -1096,16 +1098,16 @@ app.post("/api/mpesa/stkpush", async (req, res) => {
         const callbackUrl = `${mpesaAppUrl.replace(/\/$/, "")}/api/mpesa/callback`;
 
         const stkPayload = {
-          BusinessShortCode: mpesaStoreNumber,
+          BusinessShortCode: Number(mpesaStoreNumber),
           Password: password,
           Timestamp: timestamp,
           TransactionType: transactionType,
           Amount: numericAmount,
-          PartyA: formattedPhone, // Customer's phone number
-          PartyB: mpesaStoreNumber, // The Organization receiving the funds
-          PhoneNumber: formattedPhone,
+          PartyA: Number(formattedPhone), // Customer's phone number
+          PartyB: Number(mpesaStoreNumber), // The Organization receiving the funds
+          PhoneNumber: Number(formattedPhone),
           CallBackURL: callbackUrl,
-          AccountReference: "KachambaChorus", // Max 12 alphanumeric characters
+          AccountReference: "Kachamba", // Max 12 alphanumeric characters (changed from KachambaChorus)
           TransactionDesc: "Chorus Support"
         };
 
@@ -1113,7 +1115,8 @@ app.post("/api/mpesa/stkpush", async (req, res) => {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${accessToken}`,
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "User-Agent": "KachambaApp/1.0"
           },
           body: JSON.stringify(stkPayload)
         });
@@ -1141,7 +1144,7 @@ app.post("/api/mpesa/stkpush", async (req, res) => {
 
       } catch (err: any) {
         console.error("[STK Push Error] Real API failure:", err);
-        return res.status(502).json({
+        return res.status(400).json({
           error: "Safaricom M-Pesa Link Error: " + err.message,
           clarification: "Check if your MPESA Consumer Key, Secret, Passkey, and Store Number are correctly configured."
         });
@@ -1161,7 +1164,7 @@ app.post("/api/mpesa/stkpush", async (req, res) => {
     }
   } catch (err: any) {
     console.error("[STK Push Error] Backend Crash:", err);
-    return res.status(500).json({ error: "Backend server error: " + err.message });
+    return res.status(400).json({ error: "Backend server error: " + err.message });
   }
 });
 
