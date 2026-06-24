@@ -128,7 +128,7 @@ export default function JoinUs() {
           setTimeout(() => {
             setPushStatus({
               type: "success",
-              message: "✓ Simulated contribution of KES " + finalAmount + " processed successfully! Thank you for supporting Kachamba Chorus ministry!",
+              message: "✓ Simulated contribution of KES " + finalAmount + " processed successfully! Thank you for supporting Kachamba Chorus!",
               refNumber: data.checkoutRequestId || `ws_CO_${Date.now().toString().slice(3)}`
             });
             setIsPushing(false);
@@ -225,7 +225,7 @@ export default function JoinUs() {
       
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9.5);
-      doc.text("Seventh-day Adventist Ambassador Youth Ministry | Kisumu, Kenya", 105, 26, { align: "center" });
+      doc.text("Seventh-day Adventist Youth Ministry | Kisumu, Kenya", 105, 26, { align: "center" });
       doc.setFontSize(8.5);
       doc.text("Email: kachambachorus@gmail.com | Phone: +254 797 450 206", 105, 32, { align: "center" });
 

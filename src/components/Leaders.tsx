@@ -100,7 +100,7 @@ export default function Leaders({ items, isAdmin, onAdd, onEdit, onDelete }: Lea
         <div className="text-center max-w-2xl mx-auto mb-12 md:mb-16">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full text-amber-400 font-mono text-[10px] sm:text-xs tracking-wider uppercase mb-3">
             <Users className="w-3.5 h-3.5" />
-            <span>Kachamba Choral Executive</span>
+            <span>Kachamba Chorus Executive</span>
           </div>
           <h2 className="font-sans font-extrabold text-3xl sm:text-4xl md:text-5xl tracking-tight text-white uppercase">
             Our <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-rose-500 to-amber-300">Leadership</span>
