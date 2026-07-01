@@ -550,7 +550,13 @@ export default function AdminPanel({
           receiptOrder: JSON.stringify(mpesaReceiptOrder)
         })
       });
-      const data = await res.json();
+      let data: any = {};
+      try {
+        const text = await res.text();
+        data = text ? JSON.parse(text) : {};
+      } catch (jsonErr) {
+        data = { error: `Server returned an invalid response (Status ${res.status}).` };
+      }
       if (res.ok && data.success) {
         setMpesaMessage("M-Pesa Billing config saved successfully!");
       } else {
@@ -944,11 +950,36 @@ export default function AdminPanel({
     }
   };
 
+  const compressImage = (base64Str: string, maxWidth = 800): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.src = base64Str;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const ratio = Math.min(maxWidth / img.width, 1);
+        canvas.width = img.width * ratio;
+        canvas.height = img.height * ratio;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL("image/jpeg", 0.7)); // compress heavily
+        } else {
+          resolve(base64Str);
+        }
+      };
+      img.onerror = () => resolve(base64Str); // Fallback
+    });
+  };
+
   const uploadBase64 = async (base64Str: string | undefined | null, defaultFilename = "upload.jpg"): Promise<string | undefined | null> => {
     if (!base64Str || !base64Str.startsWith("data:")) {
       return base64Str;
     }
     const admPass = adminToken || "";
+    let processedBase64 = base64Str;
+    if (base64Str.startsWith("data:image/")) {
+      processedBase64 = await compressImage(base64Str);
+    }
     try {
       const res = await fetch("/api/upload", {
         method: "POST",
@@ -958,17 +989,23 @@ export default function AdminPanel({
         },
         body: JSON.stringify({
           filename: defaultFilename,
-          base64: base64Str
+          base64: processedBase64
         })
       });
       if (res.ok) {
-        const data = await res.json();
-        return data.url;
+        let data: any = {};
+        try {
+          const text = await res.text();
+          data = text ? JSON.parse(text) : {};
+        } catch (jsonErr) {
+          console.error("Failed to parse upload response JSON", jsonErr);
+        }
+        return data.url || processedBase64;
       }
     } catch (err) {
       console.error("Network error during base64 upload:", err);
     }
-    return base64Str;
+    return processedBase64;
   };
 
   const handleBroadcastSubmit = async (e: React.FormEvent) => {
@@ -987,7 +1024,13 @@ export default function AdminPanel({
         },
         body: JSON.stringify(broadForm)
       });
-      const data = await res.json();
+      let data: any = {};
+      try {
+        const text = await res.text();
+        data = text ? JSON.parse(text) : {};
+      } catch (jsonErr) {
+        data = { error: `Server returned an invalid response (Status ${res.status}).` };
+      }
       if (res.ok && data.success) {
         setBroadMsg(`Success: Choral alert broadcasted successfully to all active subscribers (${data.data.sentCount} recipients)!`);
         setBroadForm({ subject: "", body: "" });
@@ -1021,7 +1064,13 @@ export default function AdminPanel({
         },
         body: JSON.stringify(payload)
       });
-      const data = await res.json();
+      let data: any = {};
+      try {
+        const text = await res.text();
+        data = text ? JSON.parse(text) : {};
+      } catch (jsonErr) {
+        data = { error: `Server returned an invalid response (Status ${res.status}).` };
+      }
       if (res.ok && data.success) {
         setSpotMsg("Success: New WhatsApp-style spotlight status update created! It will stay active for exactly 48 hours.");
         setSpotForm({ memberName: "", roleOrVoicePart: "", quoteOrHighlight: "", image: "" });

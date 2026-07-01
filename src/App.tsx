@@ -357,8 +357,13 @@ export default function App() {
         })
       });
       if (res.ok) {
-        const data = await res.json();
-        return data.url;
+        try {
+          const text = await res.text();
+          const data = text ? JSON.parse(text) : {};
+          return data.url || processedBase64;
+        } catch (jsonErr) {
+          console.error("Failed to parse upload response JSON in App.tsx:", jsonErr);
+        }
       } else {
         console.error("Base64 upload failed on server, using fallback inline data.");
       }

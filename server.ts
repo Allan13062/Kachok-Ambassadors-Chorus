@@ -207,11 +207,22 @@ async function syncLocalFile(section: string, operation: string, data: any) {
 
 // Lazy load Gemini AI to prevent crash if key is missing on startup
 let aiClient: GoogleGenAI | null = null;
-function getGeminiClient(): GoogleGenAI | null {
+function getGeminiClient(customKey?: string): GoogleGenAI | null {
   try {
-    const key = process.env.GEMINI_API_KEY;
+    const key = customKey || process.env.GEMINI_API_KEY;
     if (!key || key === "MY_GEMINI_API_KEY") {
       return null;
+    }
+    if (customKey) {
+      // Return a dedicated client instance for custom request keys to avoid cross-session key contamination
+      return new GoogleGenAI({
+        apiKey: customKey,
+        httpOptions: {
+          headers: {
+            "User-Agent": "aistudio-build",
+          },
+        },
+      });
     }
     if (!aiClient) {
       aiClient = new GoogleGenAI({
@@ -1748,7 +1759,9 @@ app.post("/api/chat", async (req, res) => {
     "- Format with beautiful markdown lists and bold text where relevant.\n" +
     "- Since you are a representative of Christ's choir, always end with a short encouraging benediction (e.g., 'Blessings in Christ', 'Singing His praises!') or a warm scripture mention.";
 
-  const ai = getGeminiClient();
+  // Support custom API key passed from header (localStorage-backed for custom deployments)
+  const customApiKey = req.headers["x-gemini-key"] as string | undefined;
+  const ai = getGeminiClient(customApiKey);
 
   if (!ai) {
     console.log("GEMINI_API_KEY is not configured yet. Using fallback simulated AI responses.");

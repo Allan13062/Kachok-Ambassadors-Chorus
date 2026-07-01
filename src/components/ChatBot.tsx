@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { MessageSquare, X, Send, Bot, User, Minimize2, ArrowUpRight, Search, MapPin, Zap } from "lucide-react";
+import { MessageSquare, X, Send, Bot, User, Minimize2, ArrowUpRight, Search, MapPin, Zap, Settings, Key } from "lucide-react";
 import { ChatMessage } from "../types";
 import { motion, useDragControls } from "motion/react";
 
@@ -45,6 +45,11 @@ export default function ChatBot({ isOpen, onClose, onOpen }: ChatBotProps) {
     return localStorage.getItem("kachamba_inquiry_helper_dismissed") === "true";
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [customKey, setCustomKey] = useState(() => {
+    return localStorage.getItem("kachamba_custom_gemini_key") || "";
+  });
+  const [saveStatus, setSaveStatus] = useState("");
 
   // Suggested quick prompts trigger beautiful answers instantly
   const quickPrompts = [
@@ -91,11 +96,17 @@ export default function ChatBot({ isOpen, onClose, onOpen }: ChatBotProps) {
         text: m.text
       }));
 
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json"
+      };
+      const storedKey = localStorage.getItem("kachamba_custom_gemini_key");
+      if (storedKey) {
+        headers["x-gemini-key"] = storedKey;
+      }
+
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: headers,
         body: JSON.stringify({ messages: payloadMessages, feature: aiMode })
       });
       const data = await res.json();
@@ -199,14 +210,83 @@ export default function ChatBot({ isOpen, onClose, onOpen }: ChatBotProps) {
                 </span>
               </div>
             </div>
-            <button 
-              onClick={onClose}
-              onPointerDown={(e) => e.stopPropagation()}
-              className="text-slate-400 hover:text-white hover:bg-slate-800 p-1.5 rounded-lg cursor-pointer transition-colors"
-            >
-              <Minimize2 className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1.5" onPointerDown={(e) => e.stopPropagation()}>
+              <button 
+                onClick={() => setShowSettings(!showSettings)}
+                className={`p-1.5 rounded-lg cursor-pointer transition-colors ${
+                  showSettings ? "text-amber-400 bg-slate-800" : "text-slate-400 hover:text-white hover:bg-slate-800"
+                }`}
+                title="API Key Configuration"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={onClose}
+                className="text-slate-400 hover:text-white hover:bg-slate-800 p-1.5 rounded-lg cursor-pointer transition-colors"
+                title="Minimize chat"
+              >
+                <Minimize2 className="w-4 h-4" />
+              </button>
+            </div>
           </div>
+
+          {/* Settings Panel */}
+          {showSettings && (
+            <div className="bg-slate-950 border-b border-slate-800 px-5 py-4 flex flex-col gap-2.5 font-sans text-xs text-slate-300">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-amber-400 font-bold uppercase tracking-wider text-[11px]">
+                  <Key className="w-3.5 h-3.5" />
+                  <span>Custom Gemini API Key</span>
+                </div>
+                {saveStatus && (
+                  <span className="text-[11px] text-emerald-400 font-medium animate-pulse">
+                    {saveStatus}
+                  </span>
+                )}
+              </div>
+              <p className="text-slate-400 leading-normal text-[11px]">
+                If your live deployment has no server-side key configured, paste your key below. It is stored securely in your browser's local storage and proxied to the secure server API.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  placeholder="Paste AI Studio Key"
+                  value={customKey}
+                  onChange={(e) => setCustomKey(e.target.value)}
+                  className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500/50"
+                />
+                <button
+                  onClick={() => {
+                    if (customKey.trim()) {
+                      localStorage.setItem("kachamba_custom_gemini_key", customKey.trim());
+                      setSaveStatus("Saved successfully!");
+                      setTimeout(() => setSaveStatus(""), 3000);
+                    } else {
+                      localStorage.removeItem("kachamba_custom_gemini_key");
+                      setSaveStatus("Key cleared.");
+                      setTimeout(() => setSaveStatus(""), 3000);
+                    }
+                  }}
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 px-3 py-1.5 rounded-lg font-bold transition-colors cursor-pointer"
+                >
+                  Save
+                </button>
+                {localStorage.getItem("kachamba_custom_gemini_key") && (
+                  <button
+                    onClick={() => {
+                      localStorage.removeItem("kachamba_custom_gemini_key");
+                      setCustomKey("");
+                      setSaveStatus("Cleared successfully!");
+                      setTimeout(() => setSaveStatus(""), 3000);
+                    }}
+                    className="bg-rose-600 hover:bg-rose-500 text-white px-2.5 py-1.5 rounded-lg font-bold transition-colors cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Messages Loop Container */}
           <div className="flex-1 overflow-y-auto px-5 py-6 flex flex-col gap-4 font-sans text-sm bg-slate-900/60 custom-scrollbar">
