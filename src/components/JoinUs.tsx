@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Music, Star, Mic, CheckCircle, CreditCard, Smartphone, Coins, Eye, X, Info, Send, Barcode } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { jsPDF } from "jspdf";
-import sdaLogo from "../assets/sda-logo.png";
+const sdaLogo = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Seventh-day_Adventist_Church_logo_svg.svg/320px-Seventh-day_Adventist_Church_logo_svg.svg.png";
 
 export default function JoinUs() {
   const [activeTab, setActiveTab] = useState<"audition" | "mpesa">("audition");

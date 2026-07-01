@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Mail, Lock, User, Eye, EyeOff, X, Facebook, AlertCircle, Check, ArrowRight, Shield, Music, Sparkles } from "lucide-react";
+import { Mail, Lock, User, Eye, EyeOff, X, Facebook, AlertCircle, Check, ArrowRight, Shield, Music } from "lucide-react";
 import { auth, db } from "../lib/firebase";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, updateProfile, setPersistence, browserLocalPersistence, browserSessionPersistence } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
@@ -112,12 +112,41 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, theme }: Aut
             });
           }
 
+          // Sync with server database!
+          let voicePartVal = "Listener";
+          let roleVal = "member";
+          try {
+            const syncRes = await fetch("/api/auth/social", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                provider: "google",
+                email: userCredential.user.email,
+                name: userCredential.user.displayName
+              })
+            });
+            if (syncRes.ok) {
+              const syncData = await syncRes.json();
+              if (syncData.user) {
+                voicePartVal = syncData.user.voicePart || "Listener";
+                roleVal = syncData.user.role || "member";
+              }
+            }
+          } catch (syncErr) {
+            console.warn("Failed to sync social login with backend database:", syncErr);
+          }
+
           setSuccessMsg(`Successfully authenticated via Google!`);
           setTimeout(() => {
             onAuthSuccess({
               uid: userCredential.user.uid,
               email: userCredential.user.email,
-              name: userCredential.user.displayName,
+              displayName: userCredential.user.displayName,
+              photoURL: userCredential.user.photoURL,
+              voicePart: voicePartVal,
+              role: roleVal
             });
             onClose();
             resetForm();

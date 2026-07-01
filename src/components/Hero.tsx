@@ -94,15 +94,6 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
               />
             </div>
           </motion.div>
-
-          {/* Hero Badge */}
-          <motion.div 
-            variants={itemVariants}
-            whileHover={{ scale: 1.05 }}
-            className="mt-2 flex items-center gap-2 bg-blue-500/15 border border-amber-500/30 text-amber-400 font-mono text-xs tracking-wider uppercase px-4 py-1.5 rounded-full shadow-inner"
-          >
-            <span>An Adventist Youth Ministry</span>
-          </motion.div>
         </div>
 
         {/* Main Heading */}

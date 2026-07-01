@@ -1490,6 +1490,7 @@ app.post("/api/itinerary", requireAdmin, async (req, res) => {
 
           localDb.broadcasts.push(autoBroadcast);
           await saveLocalDb(localDb);
+          await syncLocalFile("broadcasts", "insert", autoBroadcast);
 
           console.log("\n======================================================================");
           console.log(`📡 AUTOMATIC CHORAL DISPATCH SENT TO ${subscribersCount} RECIPIENTS`);

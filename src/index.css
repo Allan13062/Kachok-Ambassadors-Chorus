@@ -8,6 +8,20 @@
   --font-mono: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-glacial: "Glacial Indifference", sans-serif;
   --font-archivoblack: "Archivo Black", sans-serif;
+
+  --color-slate-350: #a1b0cb;
+  --color-slate-450: #64748b;
+  --color-slate-550: #475569;
+  --color-slate-705: #334155;
+  --color-slate-750: #1e293b;
+  --color-slate-805: #111a2e;
+  --color-slate-850: #0f172a;
+  --color-slate-905: #090d16;
+  --color-slate-1050: #020617;
+  --color-amber-405: #fbbf24;
+  --color-amber-450: #f59e0b;
+  --color-amber-550: #d97706;
+  --color-amber-605: #b45309;
 }
 
 .font-glacial {
@@ -44,6 +58,22 @@ html.light, .light {
   color-scheme: light;
   background-color: #f8fafc !important;
   color: #0f172a !important;
+
+  /* Overrides for tailwind custom amber variables inside light mode */
+  --color-amber-50: #f0f9ff !important;
+  --color-amber-100: #e0f2fe !important;
+  --color-amber-200: #bae6fd !important;
+  --color-amber-300: #7dd3fc !important;
+  --color-amber-400: #38bdf8 !important;
+  --color-amber-405: #3b82f6 !important;
+  --color-amber-450: #2563eb !important;
+  --color-amber-500: #2563eb !important;
+  --color-amber-550: #1d4ed8 !important;
+  --color-amber-600: #1d4ed8 !important;
+  --color-amber-605: #1e40af !important;
+  --color-amber-700: #1d4ed8 !important;
+  --color-amber-800: #1e3a8a !important;
+  --color-amber-900: #172554 !important;
 }
 
 .light h1, .light h2, .light h3, .light h4, .light h5, .light h6 {
@@ -51,34 +81,191 @@ html.light, .light {
 }
 
 /* Base text overrides */
-.light .text-white,
 .light .text-slate-50,
 .light .text-slate-100,
 .light .text-slate-200 {
   color: #0f172a !important;
 }
-.light .bg-slate-950,
-.light .bg-slate-900,
-.light .bg-slate-800 {
+.light h1.text-white,
+.light h2.text-white,
+.light h3.text-white,
+.light h4.text-white,
+.light p.text-white {
+  color: #0f172a !important;
+}
+
+/* Shift Kachamba Chorus Logo color to a custom premium white & blue */
+.light img[alt*="Kachamba Chorus"],
+.light img[alt*="Kachamba"],
+.light img[alt*="Choir Logo"],
+.light img[alt*="Logo"]:not([alt*="SDA"]) {
+  filter: hue-rotate(185deg) saturate(150%) brightness(1.1) contrast(1.05) drop-shadow(0 2px 4px rgba(59, 130, 246, 0.15)) !important;
+}
+
+/* Ensure colored backgrounds, buttons, and active indicators keep white text */
+.light button,
+.light button *,
+.light [class*="bg-amber-"] *,
+.light [class*="bg-blue-"] *,
+.light [class*="bg-emerald-"] *,
+.light [class*="bg-rose-"] *,
+.light [class*="bg-red-"] *,
+.light [class*="bg-green-"] * {
+  --tw-text-opacity: 1 !important;
+}
+.light button.text-white,
+.light button .text-white,
+.light .bg-amber-500 .text-white,
+.light .bg-amber-600 .text-white,
+.light .bg-blue-600 .text-white,
+.light .bg-emerald-500 .text-white,
+.light .bg-rose-500 .text-white,
+.light .bg-red-500 .text-white,
+.light .text-white-force {
+  color: #ffffff !important;
+}
+.light .bg-slate-950 {
   background-color: #ffffff !important;
   border-color: #cbd5e1 !important;
   color: #0f172a !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.04), 0 2px 4px -2px rgba(0, 0, 0, 0.04) !important;
+}
+.light .bg-slate-900 {
+  background-color: #f8fafc !important;
+  border-color: #b2c1d3 !important;
+  color: #0f172a !important;
+}
+.light .bg-slate-800,
+.light .bg-slate-850 {
+  background-color: #f1f5f9 !important;
+  border-color: #94a3b8 !important;
+  color: #0f172a !important;
+}
+.light [class*="bg-slate-950/"],
+.light [class*="bg-slate-900/"],
+.light [class*="bg-slate-800/"],
+.light [class*="bg-slate-950\\/"],
+.light [class*="bg-slate-900\\/"],
+.light [class*="bg-slate-800\\/"] {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+.light input,
+.light select,
+.light textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+.light input:focus,
+.light select:focus,
+.light textarea:focus {
+  border-color: #3b82f6 !important;
+  outline: none !important;
+}
+.light input::placeholder,
+.light textarea::placeholder {
+  color: #475569 !important;
 }
 .light .border-slate-800,
 .light .border-slate-850,
-.light .border-slate-700 {
-  border-color: #e2e8f0 !important;
+.light .border-slate-700,
+.light .border-slate-900,
+.light [class*="border-slate-"] {
+  border-color: #b2c1d3 !important;
 }
 .light .text-slate-350,
 .light .text-slate-300 {
-  color: #334155 !important;
+  color: #0f172a !important;
 }
 .light .text-slate-450,
 .light .text-slate-400 {
-  color: #475569 !important;
+  color: #1e293b !important;
 }
 .light .text-slate-500 {
-  color: #64748b !important;
+  color: #334155 !important;
+}
+.light [class*="text-slate-300/"],
+.light [class*="text-slate-400/"],
+.light [class*="text-slate-500/"],
+.light [class*="text-slate-300\\/"],
+.light [class*="text-slate-400\\/"],
+.light [class*="text-slate-500\\/"] {
+  color: #1e293b !important;
+}
+
+/* Explicit standard-class amber-to-blue overrides for complete safety */
+.light .text-amber-50 { color: #f0f9ff !important; }
+.light .text-amber-100 { color: #e0f2fe !important; }
+.light .text-amber-200 { color: #bae6fd !important; }
+.light .text-amber-300 { color: #0284c7 !important; }
+.light .text-amber-400 { color: #2563eb !important; }
+.light .text-amber-450 { color: #2563eb !important; }
+.light .text-amber-500 { color: #1d4ed8 !important; }
+.light .text-amber-550 { color: #1d4ed8 !important; }
+.light .text-amber-600 { color: #1e40af !important; }
+.light .text-amber-605 { color: #1e40af !important; }
+.light .text-amber-700 { color: #1e40af !important; }
+.light .text-amber-800 { color: #1e3a8a !important; }
+.light .text-amber-900 { color: #172554 !important; }
+
+/* Translucent standard backgrounds */
+.light [class*="bg-amber-500/10"],
+.light [class*="bg-amber-500\\/10"],
+.light [class*="bg-amber-500/15"],
+.light [class*="bg-amber-500\\/15"] {
+  background-color: rgba(59, 130, 246, 0.12) !important;
+  color: #2563eb !important;
+}
+.light [class*="bg-amber-400/10"],
+.light [class*="bg-amber-400\\/10"] {
+  background-color: rgba(59, 130, 246, 0.08) !important;
+  color: #2563eb !important;
+}
+
+.light .bg-amber-50 { background-color: #f0f9ff !important; }
+.light .bg-amber-100 { background-color: #e0f2fe !important; }
+.light .bg-amber-200 { background-color: #bae6fd !important; }
+.light .bg-amber-300 { background-color: #7dd3fc !important; }
+.light .bg-amber-400 { background-color: #38bdf8 !important; }
+.light .bg-amber-500 { background-color: #2563eb !important; }
+.light .bg-amber-600 { background-color: #1d4ed8 !important; }
+.light .bg-amber-700 { background-color: #1d4ed8 !important; }
+
+.light .border-amber-300 { border-color: #93c5fd !important; }
+.light .border-amber-400 { border-color: #60a5fa !important; }
+.light .border-amber-500 { border-color: #3b82f6 !important; }
+.light .border-amber-600 { border-color: #2563eb !important; }
+.light [class*="border-amber-"] { border-color: #93c5fd !important; }
+
+.light .focus\:border-amber-400:focus { border-color: #3b82f6 !important; }
+.light .focus\:border-amber-500:focus { border-color: #2563eb !important; }
+.light .focus-within\:border-amber-500:focus-within { border-color: #2563eb !important; }
+
+.light .ring-amber-500 { --tw-ring-color: #3b82f6 !important; }
+.light [class*="ring-amber-500/"],
+.light [class*="ring-amber-500\\/"] {
+  --tw-ring-color: rgba(59, 130, 246, 0.2) !important;
+}
+
+.light [class*="shadow-amber-500/"],
+.light [class*="shadow-amber-500\\/"] {
+  box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.1), 0 2px 4px -2px rgba(59, 130, 246, 0.1) !important;
+}
+
+/* Light theme custom scrollbars */
+.light .custom-scrollbar::-webkit-scrollbar-track,
+.light::-webkit-scrollbar-track {
+  background: #f1f5f9 !important;
+}
+.light .custom-scrollbar::-webkit-scrollbar-thumb,
+.light::-webkit-scrollbar-thumb {
+  background: rgba(59, 130, 246, 0.3) !important;
+}
+.light .custom-scrollbar::-webkit-scrollbar-thumb:hover,
+.light::-webkit-scrollbar-thumb:hover {
+  background: rgba(59, 130, 246, 0.5) !important;
 }
 
 /* Home / Hero Section */
@@ -107,7 +294,7 @@ html.light, .light {
   font-weight: 700 !important;
 }
 .light #home h1 {
-  background-image: linear-gradient(to right, #9a3412, #c2410c, #1d4ed8) !important;
+  background-image: linear-gradient(to right, #1e40af, #2563eb, #38bdf8) !important;
   color: transparent !important;
   -webkit-background-clip: text;
   background-clip: text;
@@ -127,7 +314,7 @@ html.light, .light {
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
 }
 .light #home .bg-slate-950\/80 .text-amber-400 {
-  color: #b45309 !important;
+  color: #2563eb !important;
 }
 .light #home .bg-slate-950\/80 .text-slate-500 {
   color: #475569 !important;
@@ -150,64 +337,64 @@ html.light, .light {
 .light #home .border-slate-800\/60 {
   border-color: #cbd5e1 !important;
 }
-
-/* Itinerary Section */
-.light #itinerary {
-  background-color: #f8fafc !important;
-  border-color: #e2e8f0 !important;
-}
-.light #itinerary h2 {
-  color: #0f172a !important;
-}
-.light #itinerary .bg-slate-950\/60,
-.light #itinerary .bg-slate-950\/40 {
-  background-color: #ffffff !important;
-  border-color: #cbd5e1 !important;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05) !important;
-}
-.light #itinerary .text-amber-300 {
-  color: #b45309 !important; /* Rich amber-700 */
-}
-.light #itinerary .text-amber-300:hover {
-  color: #92400e !important;
-}
-.light #itinerary .bg-slate-900 {
-  background-color: #f1f5f9 !important;
-  border-color: #e2e8f0 !important;
-  color: #1e293b !important;
-}
-.light #itinerary .bg-slate-900 .text-amber-500 {
-  color: #b45309 !important;
-}
-.light #itinerary .border-slate-800 {
-  border-color: #e2e8f0 !important;
-}
-.light #itinerary p.italic {
-  background-color: #f1f5f9 !important;
-  border-color: #f59e0b !important;
-  color: #334155 !important;
-}
-
-/* Activities Section */
-.light #activities {
-  background-color: #ffffff !important;
-  border-color: #e2e8f0 !important;
-}
-.light #activities h2 {
-  color: #0f172a !important;
-}
-.light #activities .bg-slate-900\/80 {
-  background-color: #ffffff !important;
-  border-color: #cbd5e1 !important;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05) !important;
-}
-.light #activities .border-slate-800 {
-  border-color: #e2e8f0 !important;
-}
-.light #activities .text-amber-300,
-.light #activities .text-amber-400 {
-  color: #b45309 !important;
-}
+ 
+ /* Itinerary Section */
+ .light #itinerary {
+   background-color: #f8fafc !important;
+   border-color: #e2e8f0 !important;
+ }
+ .light #itinerary h2 {
+   color: #0f172a !important;
+ }
+ .light #itinerary .bg-slate-950\/60,
+ .light #itinerary .bg-slate-950\/40 {
+   background-color: #ffffff !important;
+   border-color: #cbd5e1 !important;
+   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05) !important;
+ }
+ .light #itinerary .text-amber-300 {
+   color: #2563eb !important; /* Modern Blue */
+ }
+ .light #itinerary .text-amber-300:hover {
+   color: #1d4ed8 !important;
+ }
+ .light #itinerary .bg-slate-900 {
+   background-color: #f1f5f9 !important;
+   border-color: #e2e8f0 !important;
+   color: #1e293b !important;
+ }
+ .light #itinerary .bg-slate-900 .text-amber-500 {
+   color: #2563eb !important;
+ }
+ .light #itinerary .border-slate-800 {
+   border-color: #e2e8f0 !important;
+ }
+ .light #itinerary p.italic {
+   background-color: #eff6ff !important;
+   border-color: #3b82f6 !important;
+   color: #1e293b !important;
+ }
+ 
+ /* Activities Section */
+ .light #activities {
+   background-color: #ffffff !important;
+   border-color: #e2e8f0 !important;
+ }
+ .light #activities h2 {
+   color: #0f172a !important;
+ }
+ .light #activities .bg-slate-900\/80 {
+   background-color: #ffffff !important;
+   border-color: #cbd5e1 !important;
+   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05) !important;
+ }
+ .light #activities .border-slate-800 {
+   border-color: #e2e8f0 !important;
+ }
+ .light #activities .text-amber-300,
+ .light #activities .text-amber-400 {
+   color: #2563eb !important;
+ }
 .light #activities h3 {
   color: #0f172a !important;
 }
@@ -348,7 +535,7 @@ html.light, .light {
   color: #475569 !important;
 }
 .light footer a:hover {
-  color: #d97706 !important;
+  color: #2563eb !important;
 }
 .light footer p {
   color: #64748b !important;
@@ -360,7 +547,7 @@ html.light, .light {
   color: #64748b !important;
 }
 .light footer h4 {
-  color: #b45309 !important;
+  color: #1e40af !important;
 }
 
 /* ==========================================

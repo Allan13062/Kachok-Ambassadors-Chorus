@@ -126,6 +126,7 @@ export default function App() {
   // UI state managers
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [adminScrollTarget, setAdminScrollTarget] = useState<string | null>(null);
 
   // Custom secure React hook managing centralized admin sessions
   const { isAdmin, adminToken, authLoading, adminError, login: loginAdmin, loginWithGoogle: loginAdminGoogle, logout: logoutAdmin, resetPassword: resetAdminPassword } = useAdminAuth();
@@ -269,6 +270,7 @@ export default function App() {
     setActToEdit(null);
     setItiToEdit(null);
     setLdrToEdit(null);
+    setAdminScrollTarget(null);
   };
 
   // Inquiry actions (Admin panel)
@@ -613,7 +615,7 @@ export default function App() {
             spotlights={dbData.memberSpotlights}
             isAdmin={!!adminPasscode}
             onLaunchAdmin={() => {
-              // Open admin panel direct to Spotlight section if desired
+              setAdminScrollTarget("spotlight");
               setIsAdminOpen(true);
             }}
           />
@@ -628,10 +630,12 @@ export default function App() {
             onRefresh={fetchData}
             onAdd={() => {
               setItiToEdit(null);
+              setAdminScrollTarget("itinerary");
               setIsAdminOpen(true);
             }}
             onEdit={(item) => {
               setItiToEdit(item);
+              setAdminScrollTarget("itinerary");
               setIsAdminOpen(true);
             }}
             onDelete={handleDeleteItinerary}
@@ -650,10 +654,12 @@ export default function App() {
             isAdmin={!!adminPasscode}
             onAdd={() => {
               setActToEdit(null);
+              setAdminScrollTarget("activities");
               setIsAdminOpen(true);
             }}
             onEdit={(activity) => {
               setActToEdit(activity);
+              setAdminScrollTarget("activities");
               setIsAdminOpen(true);
             }}
             onDelete={handleDeleteActivity}
@@ -667,10 +673,12 @@ export default function App() {
             isAdmin={!!adminPasscode}
             onAdd={() => {
               setLdrToEdit(null);
+              setAdminScrollTarget("leaders");
               setIsAdminOpen(true);
             }}
             onEdit={(leader) => {
               setLdrToEdit(leader);
+              setAdminScrollTarget("leaders");
               setIsAdminOpen(true);
             }}
             onDelete={handleDeleteLeader}
@@ -715,7 +723,10 @@ export default function App() {
         {isAdminOpen && (
           <AdminPanel 
             isOpen={isAdminOpen}
-            onClose={() => setIsAdminOpen(false)}
+            onClose={() => {
+              setIsAdminOpen(false);
+              setAdminScrollTarget(null);
+            }}
             onLogin={handleAdminAuth}
             onGoogleLoginAdmin={handleAdminGoogleAuth}
             onResetPassword={handleAdminResetPassword}
@@ -745,6 +756,7 @@ export default function App() {
             broadcasts={dbData.broadcasts}
             memberSpotlights={dbData.memberSpotlights}
             onRefresh={fetchData}
+            scrollToSection={adminScrollTarget}
           />
         )}
       </AnimatePresence>

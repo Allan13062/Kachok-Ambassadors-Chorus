@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Clock, Quote, X, ChevronLeft, ChevronRight, User, Sparkles } from "lucide-react";
+import { Clock, Quote, X, ChevronLeft, ChevronRight, User, Bell } from "lucide-react";
 import { MemberSpotlight as MemberSpotlightType } from "../types";
 
 interface MemberSpotlightProps {
@@ -118,7 +118,7 @@ export default function MemberSpotlight({ spotlights, isAdmin, onLaunchAdmin }: 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <div>
             <div className="flex items-center gap-1.5 text-amber-500 font-mono text-[10px] tracking-widest uppercase font-bold">
-              <Sparkles className="w-3.5 h-3.5" />
+              <Bell className="w-3.5 h-3.5" />
               <span>Personal Testimony Alerts</span>
             </div>
             <h3 className="font-sans font-extrabold text-lg sm:text-xl text-white tracking-tight uppercase">

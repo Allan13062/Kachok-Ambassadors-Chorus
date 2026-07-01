@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { auth } from "../lib/firebase";
-import { UserPlus, X, Lock, Eye, Check, ShieldCheck, Mail, Calendar, AlertCircle, Trash2, Plus, EyeOff, Music, Users, CreditCard, Smartphone, CheckCircle, Send, Barcode, Copy, RefreshCw, Key, HelpCircle, Sliders, ChevronUp, ChevronDown, Sparkles, DollarSign, MessageSquare as MessageSquareIcon, Layout, UploadCloud, Film, FileText } from "lucide-react";
+import { UserPlus, X, Lock, Eye, Check, ShieldCheck, Mail, Calendar, AlertCircle, Trash2, Plus, EyeOff, Music, Users, CreditCard, Smartphone, CheckCircle, Send, Barcode, Copy, RefreshCw, Key, HelpCircle, Sliders, ChevronUp, ChevronDown, DollarSign, MessageSquare as MessageSquareIcon, Layout, UploadCloud, Film, FileText } from "lucide-react";
 import { Inquiry, Activity, ItineraryItem, MusicData, Leader, Subscriber, Broadcast, MemberSpotlight as MemberSpotlightType } from "../types";
 import ImageEditor from "./ImageEditor";
 import { motion, AnimatePresence } from "motion/react";
@@ -41,6 +41,7 @@ interface AdminPanelProps {
   broadcasts: Broadcast[];
   memberSpotlights: MemberSpotlightType[];
   onRefresh: () => void;
+  scrollToSection?: string | null;
 }
 
 interface AdvancedMediaDropzoneProps {
@@ -394,7 +395,8 @@ export default function AdminPanel({
   memberSpotlights,
   onRefresh,
   authLoading: externalAuthLoading,
-  adminToken
+  adminToken,
+  scrollToSection
 }: AdminPanelProps) {
   
   const [adminEmail, setAdminEmail] = useState("");
@@ -882,6 +884,17 @@ export default function AdminPanel({
       setErrorMsg(adminError);
     }
   }, [adminError]);
+
+  useEffect(() => {
+    if (isOpen && isAuthenticated && scrollToSection) {
+      setTimeout(() => {
+        const el = document.getElementById(`admin-${scrollToSection}-section`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 300);
+    }
+  }, [isOpen, isAuthenticated, scrollToSection]);
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1371,7 +1384,7 @@ export default function AdminPanel({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 
                 {/* 1. Activities Form */}
-                <div className="bg-slate-950/40 border border-slate-800 p-6 rounded-2xl">
+                <div id="admin-activities-section" className="bg-slate-950/40 border border-slate-800 p-6 rounded-2xl">
                   <div className="flex items-center gap-2 text-amber-400 mb-4 bg-slate-950 p-2 rounded-lg font-bold border border-slate-805 text-sm uppercase tracking-wide">
                     <Plus className="w-4 h-4" />
                     <span>{activityToEdit ? "Edit Ministry Program" : "Create Modern Ministry"}</span>
@@ -1514,7 +1527,7 @@ export default function AdminPanel({
 
 
                 {/* 2. Itinerary Edit Form */}
-                <div className="bg-slate-950/40 border border-slate-800 p-6 rounded-2xl">
+                <div id="admin-itinerary-section" className="bg-slate-950/40 border border-slate-800 p-6 rounded-2xl">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 bg-slate-950 p-2.5 rounded-lg border border-slate-805 text-sm uppercase tracking-wide">
                     <div className="flex items-center gap-2 text-amber-400 font-bold">
                       <Calendar className="w-4 h-4" />
@@ -1880,7 +1893,7 @@ export default function AdminPanel({
 
 
               {/* SECTION C: MANAGE MUSIC SINGLE STREAMING */}
-              <div className="bg-slate-950/40 border border-slate-800 p-6 rounded-2xl">
+              <div id="admin-music-section" className="bg-slate-950/40 border border-slate-800 p-6 rounded-2xl">
                 <div className="flex items-center gap-2 text-amber-400 mb-6 bg-slate-950 p-2.5 rounded-lg border border-slate-805 text-sm font-bold uppercase tracking-wider">
                   <Music className="w-5 h-5 text-amber-500" />
                   <span>Configure Dynamic Choral Track Player</span>
@@ -2375,7 +2388,7 @@ export default function AdminPanel({
                         {mpesaReceiptOrder.map((block, idx) => {
                           const blockLabels: Record<string, { label: string, color: string, icon: any }> = {
                             successIcon: { label: "✅ Success Accent Circle", color: "from-emerald-500/10 to-emerald-600/5 text-emerald-400 border-emerald-500/20", icon: CheckCircle },
-                            header: { label: "📝 Receipt Title & Header", color: "from-blue-500/10 to-blue-600/5 text-blue-400 border-blue-500/20", icon: Sparkles },
+                            header: { label: "📝 Receipt Title & Header", color: "from-blue-500/10 to-blue-600/5 text-blue-400 border-blue-500/20", icon: Layout },
                             amount: { label: "💵 Main Transaction Amount", color: "from-amber-500/10 to-amber-600/5 text-amber-400 border-amber-500/20", icon: DollarSign },
                             message: { label: "💬 Custom Thank You Message", color: "from-purple-500/10 to-purple-600/5 text-purple-400 border-purple-500/20", icon: MessageSquareIcon },
                             details: { label: "📊 Transaction Details Table", color: "from-pink-500/10 to-pink-600/5 text-pink-400 border-pink-500/20", icon: FileText },
@@ -2580,7 +2593,7 @@ export default function AdminPanel({
               </div>
 
               {/* SECTION: MANAGE LEADERS / COUNCIL STEWARDS */}
-              <div className="bg-slate-950/40 border border-slate-800 p-6 rounded-2xl">
+              <div id="admin-leaders-section" className="bg-slate-950/40 border border-slate-800 p-6 rounded-2xl">
                 <div className="flex items-center gap-2 text-amber-400 mb-4 bg-slate-950 p-2.5 rounded-lg border border-slate-805 text-sm font-bold uppercase tracking-wider">
                   <Users className="w-5 h-5 text-amber-500" />
                   <span>{leaderToEdit ? "Edit Leader Steward" : "Add Leader Steward"}</span>
@@ -2941,9 +2954,9 @@ export default function AdminPanel({
 
 
               {/* CUSTOM SECTION: WHATSAPP MEMBER SPOTLIGHTS */}
-              <div className="bg-slate-950/40 border border-slate-800 p-6 rounded-2xl">
+              <div id="admin-spotlight-section" className="bg-slate-950/40 border border-slate-800 p-6 rounded-2xl">
                 <div className="flex items-center gap-2 text-amber-400 mb-6 bg-slate-950 p-2.5 rounded-lg border border-slate-805 text-sm font-bold uppercase tracking-wider">
-                  <Sparkles className="w-5 h-5 text-amber-500" />
+                  <Users className="w-5 h-5 text-amber-500" />
                   <span>Personal Member Spotlight Status updates</span>
                 </div>
 
@@ -3582,7 +3595,7 @@ export default function AdminPanel({
                   }`}>
                     {/* Logo */}
                     <img
-                      src="/src/assets/sda-logo.png"
+                      src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Seventh-day_Adventist_Church_logo_svg.svg/320px-Seventh-day_Adventist_Church_logo_svg.svg.png"
                       alt="SDA Logo"
                       className="w-14 h-14 object-contain shrink-0"
                       onError={(e) => {

@@ -12,7 +12,7 @@ import { User as FirebaseUser } from "firebase/auth";
 import { doc, getDoc, setDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { jsPDF } from "jspdf";
-import sdaLogo from "../assets/sda-logo.png";
+const sdaLogo = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Seventh-day_Adventist_Church_logo_svg.svg/320px-Seventh-day_Adventist_Church_logo_svg.svg.png";
 
 interface ItineraryProps {
   items: ItineraryItem[];

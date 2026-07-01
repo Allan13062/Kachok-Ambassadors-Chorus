@@ -116,7 +116,7 @@ export default function ChatBot({ isOpen, onClose, onOpen }: ChatBotProps) {
           {
             id: "error-" + Date.now(),
             role: "assistant",
-            text: "My apologies. I had trouble connecting to my Gemini brain. No worries though, you can always contact our Coordinator directly at `kachambachorus@gmail.com` or '0797450206'!",
+            text: "My apologies. I had trouble connecting to the Ambassador helper system. No worries though, you can always contact our Coordinator directly at `kachambachorus@gmail.com` or '0797450206'!",
             timestamp: new Date()
           }
         ]);
