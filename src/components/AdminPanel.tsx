@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { auth } from "../lib/firebase";
+import { auth, storage } from "../lib/firebase";
+import { ref, uploadString, getDownloadURL } from "firebase/storage";
 import { UserPlus, X, Lock, Eye, Check, ShieldCheck, Mail, Calendar, AlertCircle, Trash2, Plus, EyeOff, Music, Users, CreditCard, Smartphone, CheckCircle, Send, Barcode, Copy, RefreshCw, Key, HelpCircle, Sliders, ChevronUp, ChevronDown, DollarSign, MessageSquare as MessageSquareIcon, Layout, UploadCloud, Film, FileText } from "lucide-react";
 import { Inquiry, Activity, ItineraryItem, MusicData, Leader, Subscriber, Broadcast, MemberSpotlight as MemberSpotlightType } from "../types";
 import ImageEditor from "./ImageEditor";
@@ -975,35 +976,19 @@ export default function AdminPanel({
     if (!base64Str || !base64Str.startsWith("data:")) {
       return base64Str;
     }
-    const admPass = adminToken || "";
     let processedBase64 = base64Str;
     if (base64Str.startsWith("data:image/")) {
       processedBase64 = await compressImage(base64Str);
     }
     try {
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-passcode": admPass
-        },
-        body: JSON.stringify({
-          filename: defaultFilename,
-          base64: processedBase64
-        })
-      });
-      if (res.ok) {
-        let data: any = {};
-        try {
-          const text = await res.text();
-          data = text ? JSON.parse(text) : {};
-        } catch (jsonErr) {
-          console.error("Failed to parse upload response JSON", jsonErr);
-        }
-        return data.url || processedBase64;
-      }
+      // Direct upload to Firebase Storage to bypass local backend storage and base64 DB limitations!
+      const uniqueFilename = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${defaultFilename}`;
+      const fileRef = ref(storage, `uploads/${uniqueFilename}`);
+      await uploadString(fileRef, processedBase64, "data_url");
+      const downloadUrl = await getDownloadURL(fileRef);
+      return downloadUrl;
     } catch (err) {
-      console.error("Network error during base64 upload:", err);
+      console.error("Network error during direct base64 upload in AdminPanel:", err);
     }
     return processedBase64;
   };

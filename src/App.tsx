@@ -345,30 +345,15 @@ export default function App() {
     }
 
     try {
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-passcode": adminPasscode
-        },
-        body: JSON.stringify({
-          filename: defaultFilename,
-          base64: processedBase64
-        })
-      });
-      if (res.ok) {
-        try {
-          const text = await res.text();
-          const data = text ? JSON.parse(text) : {};
-          return data.url || processedBase64;
-        } catch (jsonErr) {
-          console.error("Failed to parse upload response JSON in App.tsx:", jsonErr);
-        }
-      } else {
-        console.error("Base64 upload failed on server, using fallback inline data.");
-      }
+      // Direct upload to Firebase Storage to bypass local backend storage and base64 DB limitations!
+      const uniqueFilename = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${defaultFilename}`;
+      const fileRef = ref(storage, `uploads/${uniqueFilename}`);
+      
+      await uploadString(fileRef, processedBase64, "data_url");
+      const downloadUrl = await getDownloadURL(fileRef);
+      return downloadUrl;
     } catch (err) {
-      console.error("Network error during base64 upload:", err);
+      console.error("Network error during direct base64 upload to Firebase Storage:", err);
     }
     return processedBase64;
   };

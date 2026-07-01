@@ -1918,7 +1918,10 @@ app.post("/api/leaders", requireAdmin, async (req, res) => {
         await db.insert(leaders).values(newLeader);
       }
     } catch (pgErr: any) {
-      console.warn("[Cloud SQL Sync Warning] Could not insert leader in Postgres, saved locally");
+      console.error("[Cloud SQL Sync Error] Could not insert leader in Postgres:", pgErr);
+      try {
+        fs.appendFileSync(path.join(process.cwd(), "data", "db_errors.log"), `[Insert Leader Error] ${new Date().toISOString()}: ${pgErr.stack || pgErr.message}\n`);
+      } catch (e) {}
     }
     
     res.json({ success: true, data: newLeader });
@@ -1975,7 +1978,10 @@ app.put("/api/leaders/:id", requireAdmin, async (req, res) => {
         }).where(eq(leaders.id, id));
       }
     } catch (pgErr: any) {
-      console.warn("[Cloud SQL Sync Warning] Could not update leader in Postgres, saved locally");
+      console.error("[Cloud SQL Sync Error] Could not update leader in Postgres:", pgErr);
+      try {
+        fs.appendFileSync(path.join(process.cwd(), "data", "db_errors.log"), `[Update Leader Error] ${new Date().toISOString()}: ${pgErr.stack || pgErr.message}\n`);
+      } catch (e) {}
     }
 
     res.json({ success: true, data: updated });
