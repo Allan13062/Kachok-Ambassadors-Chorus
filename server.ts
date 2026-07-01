@@ -208,21 +208,26 @@ async function syncLocalFile(section: string, operation: string, data: any) {
 // Lazy load Gemini AI to prevent crash if key is missing on startup
 let aiClient: GoogleGenAI | null = null;
 function getGeminiClient(): GoogleGenAI | null {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key || key === "MY_GEMINI_API_KEY") {
+  try {
+    const key = process.env.GEMINI_API_KEY;
+    if (!key || key === "MY_GEMINI_API_KEY") {
+      return null;
+    }
+    if (!aiClient) {
+      aiClient = new GoogleGenAI({
+        apiKey: key,
+        httpOptions: {
+          headers: {
+            "User-Agent": "aistudio-build",
+          },
+        },
+      });
+    }
+    return aiClient;
+  } catch (err: any) {
+    console.error("[Kachamba Server] Error initializing Gemini client:", err.message || err);
     return null;
   }
-  if (!aiClient) {
-    aiClient = new GoogleGenAI({
-      apiKey: key,
-      httpOptions: {
-        headers: {
-          "User-Agent": "aistudio-build",
-        },
-      },
-    });
-  }
-  return aiClient;
 }
 
 // -------------- CLOUD SQL SEEDER --------------
@@ -1787,11 +1792,11 @@ app.post("/api/chat", async (req, res) => {
       parts: [{ text: msg.text }]
     }));
 
-    let modelStr = "gemini-2.5-flash";
+    let modelStr = "gemini-3.5-flash";
     let tools: any[] = [];
     
     if (req.body.feature === 'lite') {
-      modelStr = "gemini-2.5-flash"; // gemini-2.0-flash-lite does not exist yet maybe, let's stick to safe
+      modelStr = "gemini-3.5-flash"; // Use the standard gemini-3.5-flash model for Q&A tasks
     } else if (req.body.feature === 'search') {
       tools = [{ googleSearch: {} }];
     } else if (req.body.feature === 'maps') {
