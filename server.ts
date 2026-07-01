@@ -31,6 +31,14 @@ if (!fs.existsSync(uploadsDir)) {
 app.use(express.json({ limit: "150mb" }));
 app.use(express.urlencoded({ limit: "150mb", extended: true }));
 
+// Prevent caching on all dynamic API endpoints to ensure updates reflect instantly
+app.use("/api", (req, res, next) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  next();
+});
+
 // Enable CORS for all routes (to support preview iframe canvas drawing and cropping)
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -42,16 +50,21 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve uploads folder statically with proper CORS headers
+// Serve uploads folder statically with proper CORS headers and cache revalidation
 app.use("/uploads", (req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "*");
+  // Force browser to revalidate uploaded assets so replacements are visible instantly
+  res.setHeader("Cache-Control", "no-cache");
   if (req.method === "OPTIONS") {
     return res.sendStatus(200);
   }
   next();
-}, express.static(uploadsDir));
+}, express.static(uploadsDir, {
+  etag: true,
+  lastModified: true
+}));
 
 // Fast In-Memory Passcode Cache to prevent Database slowness
 let cachedPasscode: string | null = null;
@@ -2258,8 +2271,31 @@ async function startServer() {
   } else if (!process.env.VERCEL) {
     // Production Mode serves static files from dist (Skipped on Vercel as it serves static files naturally)
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
+    
+    // Serve static files with targeted caching headers to prevent HTML or unhashed asset caching
+    app.use(express.static(distPath, {
+      setHeaders: (res, filepath) => {
+        const lowerPath = filepath.toLowerCase();
+        if (lowerPath.endsWith(".html")) {
+          // Never cache the index.html file so page refreshes always fetch the latest bundle hashes
+          res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+          res.setHeader("Pragma", "no-cache");
+          res.setHeader("Expires", "0");
+        } else if (lowerPath.includes("/assets/")) {
+          // Vite hashed bundles are safe to cache aggressively for high-performance delivery
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        } else {
+          // Keep other assets (logos, images, etc.) revalidating with no-cache so changes propagate immediately
+          res.setHeader("Cache-Control", "no-cache");
+        }
+      }
+    }));
+
     app.get("*", (req, res) => {
+      // Force no-cache on catch-all HTML fallback as well
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
