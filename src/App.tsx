@@ -6,8 +6,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { onAuthStateChanged, User as FirebaseUser, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
-import { auth, db, storage } from "./lib/firebase";
-import { ref, uploadString, getDownloadURL } from "firebase/storage";
+import { auth, db } from "./lib/firebase";
 import { useAdminAuth } from "./hooks/useAdminAuth";
 import Header from "./components/Header";
 import Hero from "./components/Hero";
@@ -345,15 +344,25 @@ export default function App() {
     }
 
     try {
-      // Direct upload to Firebase Storage to bypass local backend storage and base64 DB limitations!
-      const uniqueFilename = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${defaultFilename}`;
-      const fileRef = ref(storage, `uploads/${uniqueFilename}`);
-      
-      await uploadString(fileRef, processedBase64, "data_url");
-      const downloadUrl = await getDownloadURL(fileRef);
-      return downloadUrl;
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-passcode": adminPasscode
+        },
+        body: JSON.stringify({
+          filename: defaultFilename,
+          base64: processedBase64
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.url || processedBase64;
+      } else {
+        console.error("Base64 upload failed on server, using fallback inline data.");
+      }
     } catch (err) {
-      console.error("Network error during direct base64 upload to Firebase Storage:", err);
+      console.error("Network error during base64 upload:", err);
     }
     return processedBase64;
   };

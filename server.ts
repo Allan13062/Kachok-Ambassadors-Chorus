@@ -14,7 +14,7 @@ import { Readable } from "stream";
 
 import { db } from "./src/db/index.ts";
 import { getLocalDb, saveLocalDb, insertItem, deleteItem, getSession, deleteSession } from "./dbStorage.ts";
-import { activities, itinerary, leaders, inquiries, musicConfig, adminConfig } from "./src/db/schema.ts";
+import { activities, itinerary, leaders, inquiries, musicConfig, adminConfig, uploads, users } from "./src/db/schema.ts";
 import { eq } from "drizzle-orm";
 
 const app = express();
@@ -344,6 +344,23 @@ async function seedCloudSqlFromLocalDb() {
             label: m.label || "",
             lyrics: m.lyrics || ""
           }).onConflictDoNothing();
+        }
+
+        if (localData.users && Array.isArray(localData.users)) {
+          for (const u of localData.users) {
+            await db.insert(users).values({
+              uid: u.uid,
+              email: u.email,
+              displayName: u.displayName || "",
+              photoURL: u.photoURL || "",
+              voicePart: u.voicePart || "Listener",
+              providerId: u.providerId || "email",
+              password: u.password || "",
+              role: u.role || "user",
+              isLeader: u.isLeader ? "true" : "false",
+              createdAt: u.createdAt || new Date().toISOString()
+            }).onConflictDoNothing();
+          }
         }
         console.log("[Kachamba Cloud SQL] Seeded database tables successfully.");
       } else {
@@ -1658,6 +1675,26 @@ app.post("/api/auth/signup", async (req, res) => {
     await saveLocalDb(localDb);
     await syncLocalFile("users", "insert", newUser);
 
+    if (isDbAvailable()) {
+      try {
+        await db.insert(users).values({
+          uid: newUser.uid,
+          email: newUser.email,
+          displayName: newUser.displayName,
+          photoURL: newUser.photoURL,
+          voicePart: newUser.voicePart,
+          providerId: newUser.providerId,
+          password: newUser.password,
+          role: "user",
+          isLeader: "false",
+          createdAt: newUser.createdAt
+        });
+        console.log(`[Users DB] Saved user ${newUser.displayName} to Neon Postgres.`);
+      } catch (pgErr: any) {
+        console.warn("[Users DB Warning] Could not save user to Postgres on signup:", pgErr.message);
+      }
+    }
+
     // Return user object without confidential passcode
     const { password: _, ...secureUser } = newUser;
     res.status(201).json({ success: true, user: secureUser });
@@ -1675,12 +1712,48 @@ app.post("/api/auth/login", async (req, res) => {
   }
 
   try {
-    let localDb: any = await getLocalDb();
-
-    localDb.users = localDb.users || [];
     const normalizedEmail = email.trim().toLowerCase();
-    
-    const user = localDb.users.find((u: any) => u.email === normalizedEmail && u.password === password);
+    let user: any = null;
+
+    if (isDbAvailable()) {
+      try {
+        const records = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
+        if (records.length > 0 && records[0].password === password) {
+          user = records[0];
+          console.log(`[Users DB] Authenticated user ${user.displayName || user.email} via Neon Postgres.`);
+        }
+      } catch (dbErr: any) {
+        console.warn("[Users DB Warning] Failed to query Neon for login:", dbErr.message);
+      }
+    }
+
+    if (!user) {
+      let localDb: any = await getLocalDb();
+      localDb.users = localDb.users || [];
+      const localUser = localDb.users.find((u: any) => u.email === normalizedEmail && u.password === password);
+      if (localUser) {
+        user = localUser;
+        console.log(`[Users DB] Authenticated user ${user.displayName || user.email} via local JSON fallback.`);
+        // Replicate to Postgres in background if active but not saved yet
+        if (isDbAvailable()) {
+          db.insert(users).values({
+            uid: localUser.uid,
+            email: localUser.email,
+            displayName: localUser.displayName || "",
+            photoURL: localUser.photoURL || "",
+            voicePart: localUser.voicePart || "Listener",
+            providerId: localUser.providerId || "email",
+            password: localUser.password || "",
+            role: localUser.role || "user",
+            isLeader: localUser.isLeader ? "true" : "false",
+            createdAt: localUser.createdAt || new Date().toISOString()
+          }).onConflictDoNothing()
+            .then(() => console.log(`[Users DB] Replicated local user ${localUser.email} to Neon Postgres.`))
+            .catch(err => console.warn("[Users DB] Background replication failed:", err.message));
+        }
+      }
+    }
+
     if (!user) {
       return res.status(401).json({ error: "Incorrect email or password. Please verify and try again, or Sign Up." });
     }
@@ -1724,6 +1797,26 @@ app.post("/api/auth/social", async (req, res) => {
       localDb.users.push(user);
       await saveLocalDb(localDb);
       await syncLocalFile("users", "insert", user);
+
+      if (isDbAvailable()) {
+        try {
+          await db.insert(users).values({
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName || "",
+            photoURL: user.photoURL || "",
+            voicePart: user.voicePart || "Listener",
+            providerId: user.providerId || provider,
+            password: "",
+            role: "user",
+            isLeader: "false",
+            createdAt: user.createdAt
+          });
+          console.log(`[Users DB] Saved social user ${user.displayName} to Neon Postgres.`);
+        } catch (pgErr: any) {
+          console.warn("[Users DB Warning] Could not save social user to Postgres:", pgErr.message);
+        }
+      }
     }
 
     res.json({ success: true, user });
@@ -2010,22 +2103,123 @@ app.delete("/api/leaders/:id", requireAdmin, async (req, res) => {
   }
 });
 
-// 16. Local File Upload Route (Admin)
+// 16. Persistent File Upload Route (Admin)
+// Stores uploaded files persistently in Postgres/Neon, falling back to Firestore/local memory.
 app.post("/api/upload", requireAdmin, async (req, res) => {
   const { filename, base64 } = req.body;
   if (!base64) {
     return res.status(400).json({ error: "No file content specified under base64 parameter." });
   }
 
-  // Always return the Base64 Data URI directly to be stored persistently in Firestore.
-  // This bypasses local ephemeral filesystem storage which gets wiped on Cloud Run container restarts.
-  // By compressing the image on the client side, we stay well under Firebase 1MB limits.
-  return res.json({ 
-    success: true, 
-    url: base64, // The UI will store this Data URI directly in the database
-    filename: filename,
-    mimeType: ""
-  });
+  // Generate a unique ID for the uploaded file
+  const fileId = "file-" + Date.now() + "-" + Math.random().toString(36).substring(2, 9);
+
+  // Extract Mime Type from Base64 header if present, otherwise default to image/jpeg
+  let mimeType = "image/jpeg";
+  const matches = base64.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-+.]+);base64,/);
+  if (matches) {
+    mimeType = matches[1];
+  }
+
+  try {
+    if (isDbAvailable()) {
+      // 1. If Neon/Postgres is connected and available, save file persistently in Postgres "uploads" table.
+      // This bypasses local ephemeral storage and Firestore's 1MB limit entirely!
+      await db.insert(uploads).values({
+        id: fileId,
+        filename: filename || "uploaded_file",
+        mimeType: mimeType,
+        base64: base64
+      });
+      console.log(`[Uploads] Saved file ${fileId} (${filename}) to Neon Postgres.`);
+    } else {
+      // 2. If SQL is offline/unavailable, replicate/save to Firestore "uploads" collection as a fallback
+      // Since Firestore has a 1MB limit, this will only succeed if the file is <1MB, but it's a great zero-config fallback.
+      await syncLocalFile("uploads", "insert", {
+        id: fileId,
+        filename: filename || "uploaded_file",
+        mimeType: mimeType,
+        base64: base64
+      });
+      console.log(`[Uploads Fallback] Saved file ${fileId} (${filename}) to Firestore.`);
+    }
+
+    // Return the stable public URL pointing to our download/serving API route
+    const fileUrl = `/api/uploads/${fileId}`;
+    return res.json({ 
+      success: true, 
+      url: fileUrl,
+      filename: filename,
+      mimeType: mimeType
+    });
+  } catch (err: any) {
+    console.error("[Upload Error] Failed to save uploaded file:", err.message);
+    // If saving to DB fails, fallback to returning the inline base64 data URI to keep things functional
+    return res.json({
+      success: true,
+      url: base64,
+      filename: filename,
+      mimeType: mimeType
+    });
+  }
+});
+
+// Serve persistent files from either Postgres (primary) or Firestore (fallback)
+app.get("/api/uploads/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    let fileRecord: any = null;
+
+    if (isDbAvailable()) {
+      try {
+        const records = await db.select().from(uploads).where(eq(uploads.id, id)).limit(1);
+        if (records.length > 0) {
+          fileRecord = records[0];
+        }
+      } catch (dbErr: any) {
+        console.warn(`[Uploads Server] Failed to query Neon for file ${id}:`, dbErr.message);
+      }
+    }
+
+    // Fallback: Check local/Firestore uploads
+    if (!fileRecord) {
+      try {
+        const localDb = await getLocalDb();
+        // Since we synced to Firestore, let's see if we can find it in Firestore
+        const { getDoc, doc } = await import('firebase/firestore/lite');
+        const { firestore } = await import('./src/lib/firebaseLite.ts');
+        const fileDoc = await getDoc(doc(firestore, "uploads", id));
+        if (fileDoc.exists()) {
+          fileRecord = fileDoc.data();
+        }
+      } catch (err: any) {
+        console.warn(`[Uploads Server] Failed to query Firestore fallback for file ${id}:`, err.message);
+      }
+    }
+
+    if (!fileRecord || !fileRecord.base64) {
+      return res.status(404).send("File not found");
+    }
+
+    const base64Str = fileRecord.base64;
+    const matches = base64Str.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-+.]+);base64,(.*)$/);
+    if (matches) {
+      const contentType = matches[1];
+      const dataBuffer = Buffer.from(matches[2], 'base64');
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Cache-Control", "public, max-age=31536000"); // Cache permanently for speed
+      return res.send(dataBuffer);
+    } else {
+      // If not in data URI format, parse as raw base64 or send directly
+      const dataBuffer = Buffer.from(base64Str, 'base64');
+      res.setHeader("Content-Type", fileRecord.mimeType || "application/octet-stream");
+      res.setHeader("Cache-Control", "public, max-age=31536000");
+      return res.send(dataBuffer);
+    }
+  } catch (error: any) {
+    console.error(`[Uploads Server Error] Failed to serve file ${id}:`, error.message);
+    res.status(500).send("Internal Server Error: " + error.message);
+  }
 });
 
 

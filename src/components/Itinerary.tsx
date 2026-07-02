@@ -10,8 +10,7 @@ import {
 
 import { User as FirebaseUser } from "firebase/auth";
 import { doc, getDoc, setDoc, arrayUnion, arrayRemove } from "firebase/firestore";
-import { db, storage } from "../lib/firebase";
-import { ref, uploadString, getDownloadURL } from "firebase/storage";
+import { db } from "../lib/firebase";
 import { jsPDF } from "jspdf";
 const sdaLogo = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Seventh-day_Adventist_Church_logo_svg.svg/320px-Seventh-day_Adventist_Church_logo_svg.svg.png";
 
@@ -1134,17 +1133,29 @@ export default function Itinerary({
     if (localFileBase64) {
       setFileError(null);
       try {
-        // Direct upload to Firebase Storage to bypass local backend storage and base64 DB limitations!
         const defaultFilename = localFileType === "video" ? "uploaded_video.mp4" : "uploaded_photo.jpg";
-        const uniqueFilename = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${defaultFilename}`;
-        const fileRef = ref(storage, `uploads/${uniqueFilename}`);
-        
-        await uploadString(fileRef, localFileBase64, "data_url");
-        const downloadUrl = await getDownloadURL(fileRef);
-        finalMediaUrl = downloadUrl;
+        const res = await fetch("/api/upload", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-admin-passcode": adminPasscode
+          },
+          body: JSON.stringify({
+            filename: defaultFilename,
+            base64: localFileBase64
+          })
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || "Server upload failed.");
+        }
+
+        const data = await res.json();
+        finalMediaUrl = data.url;
         finalMediaType = localFileType || "image";
       } catch (err: any) {
-        setFileError(err.message || "Failed to upload file to Firebase Storage.");
+        setFileError(err.message || "Failed to upload file to Server.");
         setSavingId(null);
         return;
       }

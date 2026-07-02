@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { auth, storage } from "../lib/firebase";
-import { ref, uploadString, getDownloadURL } from "firebase/storage";
+import { auth } from "../lib/firebase";
 import { UserPlus, X, Lock, Eye, Check, ShieldCheck, Mail, Calendar, AlertCircle, Trash2, Plus, EyeOff, Music, Users, CreditCard, Smartphone, CheckCircle, Send, Barcode, Copy, RefreshCw, Key, HelpCircle, Sliders, ChevronUp, ChevronDown, DollarSign, MessageSquare as MessageSquareIcon, Layout, UploadCloud, Film, FileText } from "lucide-react";
 import { Inquiry, Activity, ItineraryItem, MusicData, Leader, Subscriber, Broadcast, MemberSpotlight as MemberSpotlightType } from "../types";
 import ImageEditor from "./ImageEditor";
@@ -673,6 +672,18 @@ export default function AdminPanel({
   const [showActStudio, setShowActStudio] = useState(false);
   const [showItiStudio, setShowItiStudio] = useState(false);
 
+  const renderLoadingOrLabel = (isLoading: boolean, label: string, loadingLabel: string) => {
+    if (isLoading) {
+      return (
+        <span className="flex items-center justify-center gap-2">
+          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+          <span>{loadingLabel}</span>
+        </span>
+      );
+    }
+    return <span>{label}</span>;
+  };
+
   // Audio Snippet Trimmer parameter states
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
@@ -981,14 +992,25 @@ export default function AdminPanel({
       processedBase64 = await compressImage(base64Str);
     }
     try {
-      // Direct upload to Firebase Storage to bypass local backend storage and base64 DB limitations!
-      const uniqueFilename = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${defaultFilename}`;
-      const fileRef = ref(storage, `uploads/${uniqueFilename}`);
-      await uploadString(fileRef, processedBase64, "data_url");
-      const downloadUrl = await getDownloadURL(fileRef);
-      return downloadUrl;
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-passcode": adminToken || ""
+        },
+        body: JSON.stringify({
+          filename: defaultFilename,
+          base64: processedBase64
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.url || processedBase64;
+      } else {
+        console.error("Base64 upload failed on server, using fallback inline data.");
+      }
     } catch (err) {
-      console.error("Network error during direct base64 upload in AdminPanel:", err);
+      console.error("Network error during base64 upload in AdminPanel:", err);
     }
     return processedBase64;
   };
@@ -1554,7 +1576,13 @@ export default function AdminPanel({
                       disabled={submittingData}
                       className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 rounded transition-colors cursor-pointer"
                     >
-                      {submittingData ? "Saving..." : (activityToEdit ? "Update Ministry Program" : "Establish New Ministry")}
+                      {renderLoadingOrLabel(
+                        submittingData,
+                        activityToEdit ? "Update Ministry Program" : "Establish New Ministry",
+                        actForm.image && actForm.image.startsWith("data:") 
+                          ? "Uploading Banner Image..." 
+                          : "Saving Ministry Program..."
+                      )}
                     </button>
                   </form>
                 </div>
@@ -1918,7 +1946,13 @@ export default function AdminPanel({
                       disabled={submittingData}
                       className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-sans font-bold py-3 rounded-lg transition-colors cursor-pointer w-full text-center text-xs mt-2"
                     >
-                      {submittingData ? "Saving..." : (itineraryToEdit ? "Update Tour Schedule" : "Add Tour Schedule")}
+                      {renderLoadingOrLabel(
+                        submittingData,
+                        itineraryToEdit ? "Update Tour Schedule" : "Add Tour Schedule",
+                        itiForm.mediaUrl && itiForm.mediaUrl.startsWith("data:") 
+                          ? "Uploading Tour Media..." 
+                          : "Scheduling Tour Mission..."
+                      )}
                     </button>
                   </form>
                 </div>
@@ -2160,7 +2194,13 @@ export default function AdminPanel({
                     disabled={musicSaving}
                     className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-sans font-bold py-3 rounded-lg transition-colors cursor-pointer w-full text-center text-xs"
                   >
-                    {musicSaving ? "Saving Settings..." : "Save Track & Player Metadata"}
+                    {renderLoadingOrLabel(
+                      musicSaving,
+                      "Save Track & Player Metadata",
+                      ((musicForm.audioUrl && musicForm.audioUrl.startsWith("data:")) || (musicForm.coverUrl && musicForm.coverUrl.startsWith("data:")))
+                        ? "Uploading Music Assets..."
+                        : "Saving Track Settings..."
+                    )}
                   </button>
                 </form>
               </div>
@@ -2806,7 +2846,13 @@ export default function AdminPanel({
                       disabled={ldrSaving}
                       className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-sans font-bold py-3 rounded-lg transition-colors cursor-pointer w-full text-center text-xs"
                     >
-                      {ldrSaving ? "Saving Steward..." : leaderToEdit ? "Update Leadership Record" : "Enlist Council Steward"}
+                      {renderLoadingOrLabel(
+                        ldrSaving,
+                        leaderToEdit ? "Update Leadership Record" : "Enlist Council Steward",
+                        ldrForm.image && ldrForm.image.startsWith("data:") 
+                          ? "Uploading Profile Photo..." 
+                          : "Saving Steward Profile..."
+                      )}
                     </button>
                   </div>
                 </form>
@@ -2934,7 +2980,7 @@ export default function AdminPanel({
                         disabled={broadSaving}
                         className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold py-2.5 rounded-lg transition-colors cursor-pointer text-center text-xs font-sans mt-1"
                       >
-                        {broadSaving ? "Sending Dispatches..." : "🚀 Disseminate Choral Alert"}
+                        {renderLoadingOrLabel(broadSaving, "🚀 Disseminate Choral Alert", "Broadcasting Choral Alert...")}
                       </button>
                     </form>
                   </div>
@@ -3076,7 +3122,13 @@ export default function AdminPanel({
                       disabled={spotSaving}
                       className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-sans font-bold py-3 rounded-lg transition-colors cursor-pointer w-full text-center text-xs mt-1"
                     >
-                      {spotSaving ? "Creating Status..." : "⚡ Post Circular Status Highlight"}
+                      {renderLoadingOrLabel(
+                        spotSaving,
+                        "⚡ Post Circular Status Highlight",
+                        spotForm.image && spotForm.image.startsWith("data:") 
+                          ? "Uploading Spotlight Status Image..." 
+                          : "Publishing Spotlight Status..."
+                      )}
                     </button>
                   </form>
 
