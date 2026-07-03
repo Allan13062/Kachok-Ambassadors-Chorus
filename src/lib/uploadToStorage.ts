@@ -1,9 +1,9 @@
-import { storage } from './firebase';
-  import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+const CLOUDINARY_CLOUD_NAME = "epd4yag0";
+  const CLOUDINARY_UPLOAD_PRESET = "ml_default";
 
   /**
-   * Uploads a base64 data URL to Firebase Storage and returns a permanent public download URL.
-   * Files are stored under uploads/<timestamp>-<random>.<ext>
+   * Uploads a base64 data URL to Cloudinary and returns a permanent public URL.
+   * Supports both images and videos via the 'auto' resource type.
    */
   export async function uploadToFirebaseStorage(
     base64DataUrl: string,
@@ -12,13 +12,21 @@ import { storage } from './firebase';
     const response = await fetch(base64DataUrl);
     const blob = await response.blob();
 
-    const fileId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-    const ext = filename.split('.').pop()?.split('?')[0] || 'jpg';
-    const storagePath = `uploads/${fileId}.${ext}`;
+    const formData = new FormData();
+    formData.append("file", blob, filename);
+    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
 
-    const storageRef = ref(storage, storagePath);
-    await uploadBytes(storageRef, blob, { contentType: blob.type });
+    const res = await fetch(
+      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`,
+      { method: "POST", body: formData }
+    );
 
-    return await getDownloadURL(storageRef);
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Cloudinary upload failed (${res.status}): ${err}`);
+    }
+
+    const data = await res.json();
+    return data.secure_url as string;
   }
   
