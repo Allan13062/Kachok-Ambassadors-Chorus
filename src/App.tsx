@@ -7,6 +7,7 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { onAuthStateChanged, User as FirebaseUser, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
 import { auth, db } from "./lib/firebase";
+import { uploadToFirebaseStorage } from "./lib/uploadToStorage";
 import { useAdminAuth } from "./hooks/useAdminAuth";
 import Header from "./components/Header";
 import Hero from "./components/Hero";
@@ -334,15 +335,22 @@ export default function App() {
     if (!base64Str || !base64Str.startsWith("data:")) {
       return base64Str;
     }
-    
-    // Admin uploads only
-    if (!adminPasscode) return base64Str;
-    
+
     let processedBase64 = base64Str;
     if (base64Str.startsWith("data:image/")) {
-        processedBase64 = await compressImage(base64Str);
+      processedBase64 = await compressImage(base64Str);
     }
 
+    // Primary: upload to Firebase Storage (durable, works from Vercel)
+    try {
+      const url = await uploadToFirebaseStorage(processedBase64, defaultFilename);
+      return url;
+    } catch (storageErr) {
+      console.warn("Firebase Storage upload failed, falling back to server upload:", storageErr);
+    }
+
+    // Fallback: server-side upload (Postgres/Firestore)
+    if (!adminPasscode) return processedBase64;
     try {
       const res = await fetch("/api/upload", {
         method: "POST",
@@ -359,10 +367,10 @@ export default function App() {
         const data = await res.json();
         return data.url || processedBase64;
       } else {
-        console.error("Base64 upload failed on server, using fallback inline data.");
+        console.error("Fallback server upload also failed.");
       }
     } catch (err) {
-      console.error("Network error during base64 upload:", err);
+      console.error("Network error during fallback upload:", err);
     }
     return processedBase64;
   };
