@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Mail, Lock, User, Eye, EyeOff, X, Facebook, AlertCircle, Check, ArrowRight, Shield, Music, Loader2 } from "lucide-react";
 import { auth, db } from "../lib/firebase";
-import { setPersistence, browserLocalPersistence, browserSessionPersistence, signInWithPopup, GoogleAuthProvider } from "firebase/auth";
+import { setPersistence, browserLocalPersistence, browserSessionPersistence, signInWithPopup, GoogleAuthProvider, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 
 interface AuthModalProps {
@@ -47,40 +47,101 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, theme }: Aut
     setSuccessMsg("");
 
     try {
-      const endpoint = isSignUp ? "/api/auth/signup" : "/api/auth/login";
-      const payload = isSignUp ? { name, email, password, voicePart } : { email, password };
+      // 1. Set persistence
+      await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
 
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload)
-      });
+      let userData: any;
 
-      const data = await response.json();
+      if (isSignUp) {
+        // 2. Register new user in Firebase Auth
+        const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        const uid = userCredential.user.uid;
 
-      if (!response.ok) {
-        throw new Error(data.error || "Authentication request failed.");
+        // 3. Save profile to Firestore
+        const userRef = doc(db, "users", uid);
+        userData = {
+          uid,
+          email: email.trim().toLowerCase(),
+          displayName: name.trim(),
+          photoURL: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(name.trim())}`,
+          voicePart: voicePart || "Listener",
+          providerId: "email",
+          createdAt: new Date().toISOString(),
+          role: "member"
+        };
+        await setDoc(userRef, userData);
+
+        setSuccessMsg("Account created successfully!");
+      } else {
+        // 4. Sign in existing user in Firebase Auth
+        const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
+        const uid = userCredential.user.uid;
+
+        // 5. Get profile from Firestore
+        const userRef = doc(db, "users", uid);
+        const userSnap = await getDoc(userRef);
+
+        if (userSnap.exists()) {
+          userData = userSnap.data();
+        } else {
+          // Fallback if record doesn't exist yet in Firestore
+          userData = {
+            uid,
+            email: userCredential.user.email || email.trim().toLowerCase(),
+            displayName: userCredential.user.displayName || email.trim().split("@")[0],
+            photoURL: userCredential.user.photoURL || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(email)}`,
+            voicePart: "Listener",
+            providerId: "email",
+            createdAt: new Date().toISOString(),
+            role: "member"
+          };
+          await setDoc(userRef, userData);
+        }
+
+        setSuccessMsg("Logged in successfully!");
       }
 
-      setSuccessMsg(isSignUp ? "Account created successfully!" : "Logged in successfully!");
-      
+      // Sync with server if needed
+      try {
+        await fetch("/api/auth/social", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            provider: "email",
+            email: userData.email,
+            name: userData.displayName
+          })
+        });
+      } catch (syncErr) {
+        console.warn("Failed to sync auth with server:", syncErr);
+      }
+
       setTimeout(() => {
         onAuthSuccess({
-          uid: data.user.uid,
-          email: data.user.email,
-          displayName: data.user.displayName,
-          photoURL: data.user.photoURL,
-          voicePart: data.user.voicePart || voicePart,
-          role: data.user.role || "member"
+          uid: userData.uid,
+          email: userData.email,
+          displayName: userData.displayName,
+          photoURL: userData.photoURL,
+          voicePart: userData.voicePart || voicePart,
+          role: userData.role || "member"
         });
         onClose();
         resetForm();
       }, 1500);
 
     } catch (err: any) {
-      setErrorMsg(err.message || "An unexpected auth error occurred. Please try again.");
+      console.error("Firebase auth error details:", err);
+      if (err.code === "auth/email-already-in-use") {
+        setErrorMsg("An account with this email address already exists in Firebase.");
+      } else if (err.code === "auth/weak-password") {
+        setErrorMsg("The password is too weak. It must be at least 6 characters.");
+      } else if (err.code === "auth/invalid-credential" || err.code === "auth/wrong-password" || err.code === "auth/user-not-found") {
+        setErrorMsg("Incorrect email or password. Please verify and try again.");
+      } else {
+        setErrorMsg(err.message || "An unexpected auth error occurred. Please try again.");
+      }
     } finally {
       setLoading(false);
     }

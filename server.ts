@@ -17,6 +17,27 @@ import { db } from "./src/db/index.ts";
 import { getLocalDb, saveLocalDb, insertItem, deleteItem, getSession, deleteSession } from "./dbStorage.ts";
 import { activities, itinerary, leaders, inquiries, musicConfig, adminConfig, uploads, users } from "./src/db/schema.ts";
 import { eq } from "drizzle-orm";
+import { v2 as cloudinary } from "cloudinary";
+
+// Helper to lazy-initialize Cloudinary client with credentials
+function getCloudinaryClient() {
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME || "epd4yag0";
+  const apiKey = process.env.CLOUDINARY_API_KEY || "637956393284218";
+  const apiSecret = process.env.CLOUDINARY_API_SECRET || "utaluAXBEK0fP7eEVKEuWhuk-ZY";
+
+  if (!cloudName || !apiKey || !apiSecret) {
+    return null;
+  }
+
+  cloudinary.config({
+    cloud_name: cloudName,
+    api_key: apiKey,
+    api_secret: apiSecret,
+    secure: true
+  });
+
+  return cloudinary;
+}
 
 const app = express();
 const PORT = 3000;
@@ -2176,6 +2197,22 @@ app.post("/api/upload", requireAdmin, async (req, res) => {
   }
 
   try {
+    const cloudinaryClient = getCloudinaryClient();
+    if (cloudinaryClient) {
+      console.log(`[Uploads] Cloudinary configuration detected. Uploading ${filename || "file"} to Cloudinary...`);
+      const uploadResult = await cloudinaryClient.uploader.upload(base64, {
+        folder: "kachamba_sync",
+        resource_type: "auto"
+      });
+      console.log(`[Uploads] Successfully saved file to Cloudinary: ${uploadResult.secure_url}`);
+      return res.json({
+        success: true,
+        url: uploadResult.secure_url,
+        filename: filename || "uploaded_file",
+        mimeType: mimeType
+      });
+    }
+
     if (isDbAvailable()) {
       // 1. If Neon/Postgres is connected and available, save file persistently in Postgres "uploads" table.
       // This bypasses local ephemeral storage and Firestore's 1MB limit entirely!
