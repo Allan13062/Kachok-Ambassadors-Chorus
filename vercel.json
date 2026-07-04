@@ -1,15 +1,13 @@
 {
-    "framework": "vite",
-    "outputDirectory": "dist",
-    "rewrites": [
-      {
-        "source": "/api/(.*)",
-        "destination": "/api/index.ts"
-      },
-      {
-        "source": "/(.*)",
-        "destination": "/index.html"
-      }
-    ]
-  }
-  
+  "framework": "vite",
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index.ts"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

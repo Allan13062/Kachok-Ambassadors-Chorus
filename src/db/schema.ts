@@ -81,17 +81,6 @@ export const uploads = pgTable("uploads", {
   createdAt: timestamp("created_at").defaultNow()
 });
 
-// Gallery table for admin-managed photos and videos
-export const gallery = pgTable("gallery", {
-  id: text("id").primaryKey(),
-  title: text("title").notNull(),
-  category: text("category").notNull().default("General"),
-  description: text("description").notNull().default(""),
-  url: text("url").notNull(),
-  mediaType: text("media_type").notNull().default("image"),
-  createdAt: timestamp("created_at").defaultNow()
-});
-
 // Users table to store login credentials, roles, and profiles in Neon Postgres
 export const users = pgTable("users", {
   uid: text("uid").primaryKey(),

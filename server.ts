@@ -15,8 +15,29 @@ import { Readable } from "stream";
 
 import { db } from "./src/db/index.ts";
 import { getLocalDb, saveLocalDb, insertItem, deleteItem, getSession, deleteSession } from "./dbStorage.ts";
-import { activities, itinerary, leaders, inquiries, musicConfig, adminConfig, uploads, users, gallery } from "./src/db/schema.ts";
+import { activities, itinerary, leaders, inquiries, musicConfig, adminConfig, uploads, users } from "./src/db/schema.ts";
 import { eq } from "drizzle-orm";
+import { v2 as cloudinary } from "cloudinary";
+
+// Helper to lazy-initialize Cloudinary client with credentials
+function getCloudinaryClient() {
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME || "epd4yag0";
+  const apiKey = process.env.CLOUDINARY_API_KEY || "637956393284218";
+  const apiSecret = process.env.CLOUDINARY_API_SECRET || "utaluAXBEK0fP7eEVKEuWhuk-ZY";
+
+  if (!cloudName || !apiKey || !apiSecret) {
+    return null;
+  }
+
+  cloudinary.config({
+    cloud_name: cloudName,
+    api_key: apiKey,
+    api_secret: apiSecret,
+    secure: true
+  });
+
+  return cloudinary;
+}
 
 const app = express();
 const PORT = 3000;
@@ -470,21 +491,6 @@ app.get("/api/db", async (req, res) => {
       } catch (e) {}
     }
 
-    let galleryList: any[] = [];
-    try {
-      if (isDbAvailable()) {
-        galleryList = await db.select().from(gallery).orderBy(gallery.createdAt);
-      } else {
-        const localData = await getLocalDb();
-        galleryList = localData.gallery || [];
-      }
-    } catch (e) {
-      try {
-        const localData = await getLocalDb();
-        galleryList = localData.gallery || [];
-      } catch (_) {}
-    }
-
     res.json({
       activities: allActs,
       itinerary: allIti,
@@ -493,8 +499,7 @@ app.get("/api/db", async (req, res) => {
       inquiries: inquiriesList,
       subscribers: subscribersList,
       broadcasts: broadcastsList,
-      memberSpotlights: memberSpotlightsList,
-      gallery: galleryList
+      memberSpotlights: memberSpotlightsList
     });
   } catch (error: any) {
     if (true) {
@@ -509,7 +514,6 @@ app.get("/api/db", async (req, res) => {
         localData.subscribers = localData.subscribers || [];
         localData.broadcasts = localData.broadcasts || [];
         localData.memberSpotlights = localData.memberSpotlights || [];
-        localData.gallery = localData.gallery || [];
         localData.music = localData.music || {
           songTitle: "Umchukue Mwanao",
           artistName: "Kachok Ambassadors Chorus",
@@ -536,7 +540,6 @@ app.get("/api/db", async (req, res) => {
       subscribers: [],
       broadcasts: [],
       memberSpotlights: [],
-      gallery: [],
       music: {
         songTitle: "Umchukue Mwanao",
         artistName: "Kachok Ambassadors Chorus",
@@ -2194,6 +2197,22 @@ app.post("/api/upload", requireAdmin, async (req, res) => {
   }
 
   try {
+    const cloudinaryClient = getCloudinaryClient();
+    if (cloudinaryClient) {
+      console.log(`[Uploads] Cloudinary configuration detected. Uploading ${filename || "file"} to Cloudinary...`);
+      const uploadResult = await cloudinaryClient.uploader.upload(base64, {
+        folder: "kachamba_sync",
+        resource_type: "auto"
+      });
+      console.log(`[Uploads] Successfully saved file to Cloudinary: ${uploadResult.secure_url}`);
+      return res.json({
+        success: true,
+        url: uploadResult.secure_url,
+        filename: filename || "uploaded_file",
+        mimeType: mimeType
+      });
+    }
+
     if (isDbAvailable()) {
       // 1. If Neon/Postgres is connected and available, save file persistently in Postgres "uploads" table.
       // This bypasses local ephemeral storage and Firestore's 1MB limit entirely!
@@ -2605,122 +2624,6 @@ async function startServer() {
     })();
   });
 }
-
-// ---- GALLERY CRUD ROUTES ----
-
-// Get all gallery photos (public)
-app.get("/api/gallery", async (req, res) => {
-  try {
-    // Try Postgres first
-    if (isDbAvailable()) {
-      try {
-        const photos = await db.select().from(gallery).orderBy(gallery.createdAt);
-        return res.json({ success: true, data: photos });
-      } catch (pgErr: any) {
-        console.warn("[Gallery] Postgres read failed, falling back to local:", pgErr.message);
-      }
-    }
-    // Fallback: local/Firestore
-    const localData = await getLocalDb();
-    return res.json({ success: true, data: localData.gallery || [] });
-  } catch (err: any) {
-    res.status(500).json({ error: "Failed to load gallery: " + err.message });
-  }
-});
-
-// Add gallery photo (Admin)
-app.post("/api/gallery", requireAdmin, async (req, res) => {
-  const { title, category, description, url, mediaType } = req.body;
-  if (!title || !url) {
-    return res.status(400).json({ error: "Title and media URL are required." });
-  }
-  const id = "gal-" + Date.now();
-  const newPhoto = {
-    id,
-    title,
-    category: category || "General",
-    description: description || "",
-    url,
-    mediaType: mediaType || "image",
-    createdAt: new Date().toISOString()
-  };
-  try {
-    // Primary: save to Firestore/local (always works)
-    const localDb: any = await getLocalDb();
-    localDb.gallery = localDb.gallery || [];
-    localDb.gallery.push(newPhoto);
-    await saveLocalDb(localDb);
-    await syncLocalFile("gallery", "insert", newPhoto);
-
-    // Secondary: also save to Postgres if available
-    try {
-      if (isDbAvailable()) {
-        await db.insert(gallery).values({ ...newPhoto, createdAt: undefined });
-      }
-    } catch (pgErr: any) {
-      console.warn("[Gallery] Postgres insert failed, saved to Firestore only:", pgErr.message);
-    }
-
-    res.json({ success: true, data: newPhoto });
-  } catch (err: any) {
-    res.status(500).json({ error: "Failed to save gallery photo: " + err.message });
-  }
-});
-
-// Update gallery photo (Admin)
-app.put("/api/gallery/:id", requireAdmin, async (req, res) => {
-  const { id } = req.params;
-  const { title, category, description, url, mediaType } = req.body;
-  try {
-    // Update local/Firestore
-    const localDb: any = await getLocalDb();
-    localDb.gallery = localDb.gallery || [];
-    const idx = localDb.gallery.findIndex((p: any) => p.id === id);
-    if (idx !== -1) {
-      localDb.gallery[idx] = { ...localDb.gallery[idx], title, category: category || "General", description: description || "", url, mediaType: mediaType || "image" };
-      await saveLocalDb(localDb);
-      await syncLocalFile("gallery", "update", localDb.gallery[idx]);
-    }
-
-    // Also update Postgres if available
-    try {
-      if (isDbAvailable()) {
-        await db.update(gallery).set({ title, category: category || "General", description: description || "", url, mediaType: mediaType || "image" }).where(eq(gallery.id, id));
-      }
-    } catch (pgErr: any) {
-      console.warn("[Gallery] Postgres update failed:", pgErr.message);
-    }
-
-    res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ error: "Failed to update gallery photo: " + err.message });
-  }
-});
-
-// Delete gallery photo (Admin)
-app.delete("/api/gallery/:id", requireAdmin, async (req, res) => {
-  const { id } = req.params;
-  try {
-    // Delete from local/Firestore
-    const localDb: any = await getLocalDb();
-    localDb.gallery = (localDb.gallery || []).filter((p: any) => p.id !== id);
-    await saveLocalDb(localDb);
-    await syncLocalFile("gallery", "delete", id);
-
-    // Also delete from Postgres if available
-    try {
-      if (isDbAvailable()) {
-        await db.delete(gallery).where(eq(gallery.id, id));
-      }
-    } catch (pgErr: any) {
-      console.warn("[Gallery] Postgres delete failed:", pgErr.message);
-    }
-
-    res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ error: "Failed to delete gallery photo: " + err.message });
-  }
-});
 
 // Only start the standalone server if we're not running in a Serverless environment (like Vercel)
 if (!process.env.VERCEL && process.env.NODE_ENV !== "test") {

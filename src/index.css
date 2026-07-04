@@ -60,20 +60,20 @@ html.light, .light {
   color: #0f172a !important;
 
   /* Overrides for tailwind custom amber variables inside light mode */
-  --color-amber-50: #f0f9ff !important;
-  --color-amber-100: #e0f2fe !important;
-  --color-amber-200: #bae6fd !important;
-  --color-amber-300: #7dd3fc !important;
-  --color-amber-400: #38bdf8 !important;
-  --color-amber-405: #3b82f6 !important;
-  --color-amber-450: #2563eb !important;
+  --color-amber-50: #eff6ff !important;
+  --color-amber-100: #dbeafe !important;
+  --color-amber-200: #bfdbfe !important;
+  --color-amber-300: #2563eb !important;
+  --color-amber-400: #1d4ed8 !important;
+  --color-amber-405: #1e40af !important;
+  --color-amber-450: #1e40af !important;
   --color-amber-500: #2563eb !important;
-  --color-amber-550: #1d4ed8 !important;
-  --color-amber-600: #1d4ed8 !important;
-  --color-amber-605: #1e40af !important;
-  --color-amber-700: #1d4ed8 !important;
+  --color-amber-550: #1e40af !important;
+  --color-amber-600: #1e40af !important;
+  --color-amber-605: #172554 !important;
+  --color-amber-700: #172554 !important;
   --color-amber-800: #1e3a8a !important;
-  --color-amber-900: #172554 !important;
+  --color-amber-900: #0f172a !important;
 }
 
 .light h1, .light h2, .light h3, .light h4, .light h5, .light h6 {
@@ -126,18 +126,21 @@ html.light, .light {
 }
 .light .bg-slate-950 {
   background-color: #ffffff !important;
+  background-image: none !important;
   border-color: #cbd5e1 !important;
   color: #0f172a !important;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.04), 0 2px 4px -2px rgba(0, 0, 0, 0.04) !important;
 }
 .light .bg-slate-900 {
   background-color: #f8fafc !important;
+  background-image: none !important;
   border-color: #b2c1d3 !important;
   color: #0f172a !important;
 }
 .light .bg-slate-800,
 .light .bg-slate-850 {
   background-color: #f1f5f9 !important;
+  background-image: none !important;
   border-color: #94a3b8 !important;
   color: #0f172a !important;
 }
@@ -148,8 +151,32 @@ html.light, .light {
 .light [class*="bg-slate-900\\/"],
 .light [class*="bg-slate-800\\/"] {
   background-color: #f1f5f9 !important;
+  background-image: none !important;
   border-color: #cbd5e1 !important;
   color: #0f172a !important;
+}
+
+/* Ensure modal/overlay screens are premium translucent blurs in light mode instead of solid light gray */
+.light .fixed[class*="bg-slate-950"],
+.light .fixed [class*="bg-slate-950"],
+.light .fixed[class*="bg-slate-900"],
+.light .fixed [class*="bg-slate-900"],
+.light [class*="fixed"][class*="bg-slate-"],
+.light [class*="fixed"] [class*="bg-slate-"] {
+  background-color: rgba(255, 255, 255, 0.75) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  background-image: none !important;
+}
+
+/* Make sure all transparent text gradients are gorgeous, high-contrast, and extremely legible in light mode */
+.light .text-transparent.bg-clip-text,
+.light [class*="text-transparent"][class*="bg-clip-text"] {
+  color: #1d4ed8 !important; /* Fallback for older browsers */
+  -webkit-text-fill-color: transparent !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  background-image: linear-gradient(to right, #1e3a8a, #2563eb, #0f172a) !important;
 }
 .light input,
 .light select,
@@ -294,11 +321,11 @@ html.light, .light {
   font-weight: 700 !important;
 }
 .light #home h1 {
-  background-image: linear-gradient(to right, #1e40af, #2563eb, #38bdf8) !important;
+  background-image: linear-gradient(to right, #1e3a8a, #2563eb, #1e40af) !important;
   color: transparent !important;
-  -webkit-background-clip: text;
-  background-clip: text;
-  filter: drop-shadow(0 2px 4px rgba(255,255,255,1)) drop-shadow(0 0 8px rgba(255,255,255,0.9));
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  filter: none !important;
 }
 .light #home button.bg-slate-850 {
   background-color: #ffffff !important;

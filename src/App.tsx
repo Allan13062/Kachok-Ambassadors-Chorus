@@ -7,7 +7,6 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { onAuthStateChanged, User as FirebaseUser, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
 import { auth, db } from "./lib/firebase";
-import { uploadToFirebaseStorage } from "./lib/uploadToStorage";
 import { useAdminAuth } from "./hooks/useAdminAuth";
 import Header from "./components/Header";
 import Hero from "./components/Hero";
@@ -21,7 +20,7 @@ import ChatBot from "./components/ChatBot";
 import AdminPanel from "./components/AdminPanel";
 import Leaders from "./components/Leaders";
 import AuthModal from "./components/AuthModal";
-import { Activity, ItineraryItem, Inquiry, MusicData, Leader, Subscriber, Broadcast, MemberSpotlight as MemberSpotlightType, GalleryPhoto } from "./types";
+import { Activity, ItineraryItem, Inquiry, MusicData, Leader, Subscriber, Broadcast, MemberSpotlight as MemberSpotlightType } from "./types";
 import MemberSpotlight from "./components/MemberSpotlight";
 import { Music, Heart, Calendar, Compass, Star, Facebook, Youtube } from "lucide-react";
 
@@ -101,7 +100,6 @@ export default function App() {
     subscribers: Subscriber[];
     broadcasts: Broadcast[];
     memberSpotlights: MemberSpotlightType[];
-    gallery: GalleryPhoto[];
   }>({
     activities: [],
     itinerary: [],
@@ -109,8 +107,7 @@ export default function App() {
     leaders: [],
     subscribers: [],
     broadcasts: [],
-    memberSpotlights: [],
-    gallery: []
+    memberSpotlights: []
   });
 
   const [music, setMusic] = useState<MusicData>({
@@ -198,8 +195,7 @@ export default function App() {
           leaders: data.leaders || [],
           subscribers: data.subscribers || [],
           broadcasts: data.broadcasts || [],
-          memberSpotlights: data.memberSpotlights || [],
-          gallery: data.gallery || []
+          memberSpotlights: data.memberSpotlights || []
         });
         if (data.music) {
           setMusic(data.music);
@@ -338,22 +334,15 @@ export default function App() {
     if (!base64Str || !base64Str.startsWith("data:")) {
       return base64Str;
     }
-
+    
+    // Admin uploads only
+    if (!adminPasscode) return base64Str;
+    
     let processedBase64 = base64Str;
     if (base64Str.startsWith("data:image/")) {
-      processedBase64 = await compressImage(base64Str);
+        processedBase64 = await compressImage(base64Str);
     }
 
-    // Primary: upload to Firebase Storage (durable, works from Vercel)
-    try {
-      const url = await uploadToFirebaseStorage(processedBase64, defaultFilename);
-      return url;
-    } catch (storageErr) {
-      console.warn("Firebase Storage upload failed, falling back to server upload:", storageErr);
-    }
-
-    // Fallback: server-side upload (Postgres/Firestore)
-    if (!adminPasscode) return processedBase64;
     try {
       const res = await fetch("/api/upload", {
         method: "POST",
@@ -370,10 +359,10 @@ export default function App() {
         const data = await res.json();
         return data.url || processedBase64;
       } else {
-        console.error("Fallback server upload also failed.");
+        console.error("Base64 upload failed on server, using fallback inline data.");
       }
     } catch (err) {
-      console.error("Network error during fallback upload:", err);
+      console.error("Network error during base64 upload:", err);
     }
     return processedBase64;
   };
@@ -583,35 +572,6 @@ export default function App() {
     }
   };
 
-  const handleSaveGalleryPhoto = async (formData: any): Promise<boolean> => {
-    if (!adminPasscode) return false;
-    try {
-      const mediaUrl = await uploadBase64IfNeeded(formData.url, formData.mediaType === "video" ? "gallery_video.mp4" : "gallery_photo.jpg");
-      const payload = { ...formData, url: mediaUrl };
-      const method = formData.id ? "PUT" : "POST";
-      const endpoint = formData.id ? `/api/gallery/${formData.id}` : "/api/gallery";
-      const res = await fetch(endpoint, {
-        method,
-        headers: { "Content-Type": "application/json", "x-admin-passcode": adminPasscode },
-        body: JSON.stringify(payload)
-      });
-      if (res.ok) { fetchData(); return true; }
-    } catch { console.error("Failed to save gallery photo."); }
-    return false;
-  };
-
-  const handleDeleteGalleryPhoto = async (id: string) => {
-    if (!adminPasscode) return;
-    if (!confirm("Remove this photo/video from the gallery?")) return;
-    try {
-      const res = await fetch(`/api/gallery/${id}`, {
-        method: "DELETE",
-        headers: { "x-admin-passcode": adminPasscode }
-      });
-      if (res.ok) fetchData();
-    } catch { console.error("Gallery deletion failed."); }
-  };
-
   return (
     <div className={`min-h-screen overflow-x-hidden flex flex-col font-sans antialiased selection:bg-amber-500/20 selection:text-amber-300 transition-colors duration-300 ${
       theme === "dark" 
@@ -731,7 +691,7 @@ export default function App() {
 
         {/* Dynamic Photo Gallery */}
         <FadeInSection>
-          <Gallery photos={dbData.gallery} />
+          <Gallery />
         </FadeInSection>
 
         {/* Join Us Recruitment Section */}
@@ -794,9 +754,6 @@ export default function App() {
             subscribers={dbData.subscribers}
             broadcasts={dbData.broadcasts}
             memberSpotlights={dbData.memberSpotlights}
-            galleryPhotos={dbData.gallery}
-            onSaveGalleryPhoto={handleSaveGalleryPhoto}
-            onDeleteGalleryPhoto={handleDeleteGalleryPhoto}
             onRefresh={fetchData}
             scrollToSection={adminScrollTarget}
           />

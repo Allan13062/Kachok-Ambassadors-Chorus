@@ -1,5 +1,5 @@
 import React from "react";
-import { ChevronRight, Calendar, Volume2, ChevronDown } from "lucide-react";
+import { ChevronRight, Calendar, Volume2, ChevronDown, Users, Music } from "lucide-react";
 import { motion } from "motion/react";
 
 interface HeroProps {
@@ -154,27 +154,94 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
           <span className="block font-sans not-italic font-bold text-slate-400 text-xs mt-2 uppercase tracking-wider drop-shadow-sm">— Psalm 104:33</span>
         </motion.div>
 
-        {/* Simple stats bar */}
+        {/* Modern Stats Grid - Optimized for Mobile & Web */}
         <motion.div 
           variants={itemVariants}
-          className="mt-16 grid grid-cols-2 sm:grid-cols-4 gap-8 bg-slate-950/80 border border-slate-800/80 px-8 py-6 rounded-2xl max-w-3xl w-full shadow-xl"
+          className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 max-w-4xl w-full px-2 sm:px-0"
         >
-          <div className="text-center">
-            <motion.div whileHover={{ scale: 1.1 }} className="text-3xl font-bold font-sans text-amber-400">40+</motion.div>
-            <div className="text-xs font-sans text-slate-500 uppercase tracking-widest mt-1">Active Singers</div>
-          </div>
-          <div className="text-center border-l border-slate-800/80">
-            <motion.div whileHover={{ scale: 1.1 }} className="text-3xl font-bold font-sans text-amber-400">4</motion.div>
-            <div className="text-xs font-sans text-slate-500 uppercase tracking-widest mt-1">SDA Parts (SATB)</div>
-          </div>
-          <div className="text-center border-l border-slate-800/80">
-            <motion.div whileHover={{ scale: 1.1 }} className="text-3xl font-bold font-sans text-amber-400">12+</motion.div>
-            <div className="text-xs font-sans text-slate-500 uppercase tracking-widest mt-1">Annual Events</div>
-          </div>
-          <div className="text-center border-l border-slate-800/80">
-            <motion.div whileHover={{ scale: 1.1 }} className="text-3xl font-bold font-sans text-amber-400">100%</motion.div>
-            <div className="text-xs font-sans text-slate-500 uppercase tracking-widest mt-1">SDA Youth Vocal</div>
-          </div>
+          {/* Card 1 */}
+          <motion.div 
+            whileHover={{ y: -5, scale: 1.02 }}
+            className="relative group overflow-hidden bg-gradient-to-b from-slate-900/60 to-slate-950/80 backdrop-blur-md border border-slate-800/60 p-4 sm:p-5 rounded-2xl shadow-lg transition-all duration-300 hover:border-amber-500/30 hover:shadow-amber-500/5"
+          >
+            <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-amber-500/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full bg-amber-500/5 blur-xl group-hover:bg-amber-500/10 transition-colors duration-500" />
+            
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 rounded-xl bg-slate-950 border border-slate-800/80 group-hover:border-amber-500/20 group-hover:bg-amber-500/5 transition-all duration-300 text-amber-400">
+                <Users className="w-4 h-4 sm:w-5 sm:h-5" />
+              </div>
+            </div>
+            <div className="text-2xl sm:text-3xl font-extrabold font-sans text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-amber-500">
+              40+
+            </div>
+            <div className="text-[10px] sm:text-xs font-semibold font-sans text-slate-400 group-hover:text-slate-200 transition-colors uppercase tracking-wider mt-1 leading-snug">
+              Active Singers
+            </div>
+          </motion.div>
+
+          {/* Card 2 */}
+          <motion.div 
+            whileHover={{ y: -5, scale: 1.02 }}
+            className="relative group overflow-hidden bg-gradient-to-b from-slate-900/60 to-slate-950/80 backdrop-blur-md border border-slate-800/60 p-4 sm:p-5 rounded-2xl shadow-lg transition-all duration-300 hover:border-amber-500/30 hover:shadow-amber-500/5"
+          >
+            <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-amber-500/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full bg-amber-500/5 blur-xl group-hover:bg-amber-500/10 transition-colors duration-500" />
+            
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 rounded-xl bg-slate-950 border border-slate-800/80 group-hover:border-amber-500/20 group-hover:bg-amber-500/5 transition-all duration-300 text-amber-400">
+                <Music className="w-4 h-4 sm:w-5 sm:h-5" />
+              </div>
+            </div>
+            <div className="text-2xl sm:text-3xl font-extrabold font-sans text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-amber-500">
+              4
+            </div>
+            <div className="text-[10px] sm:text-xs font-semibold font-sans text-slate-400 group-hover:text-slate-200 transition-colors uppercase tracking-wider mt-1 leading-snug">
+              SDA Parts (SATB)
+            </div>
+          </motion.div>
+
+          {/* Card 3 */}
+          <motion.div 
+            whileHover={{ y: -5, scale: 1.02 }}
+            className="relative group overflow-hidden bg-gradient-to-b from-slate-900/60 to-slate-950/80 backdrop-blur-md border border-slate-800/60 p-4 sm:p-5 rounded-2xl shadow-lg transition-all duration-300 hover:border-amber-500/30 hover:shadow-amber-500/5"
+          >
+            <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-amber-500/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full bg-amber-500/5 blur-xl group-hover:bg-amber-500/10 transition-colors duration-500" />
+            
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 rounded-xl bg-slate-950 border border-slate-800/80 group-hover:border-amber-500/20 group-hover:bg-amber-500/5 transition-all duration-300 text-amber-400">
+                <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
+              </div>
+            </div>
+            <div className="text-2xl sm:text-3xl font-extrabold font-sans text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-amber-500">
+              12+
+            </div>
+            <div className="text-[10px] sm:text-xs font-semibold font-sans text-slate-400 group-hover:text-slate-200 transition-colors uppercase tracking-wider mt-1 leading-snug">
+              Annual Events
+            </div>
+          </motion.div>
+
+          {/* Card 4 */}
+          <motion.div 
+            whileHover={{ y: -5, scale: 1.02 }}
+            className="relative group overflow-hidden bg-gradient-to-b from-slate-900/60 to-slate-950/80 backdrop-blur-md border border-slate-800/60 p-4 sm:p-5 rounded-2xl shadow-lg transition-all duration-300 hover:border-amber-500/30 hover:shadow-amber-500/5"
+          >
+            <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-amber-500/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full bg-amber-500/5 blur-xl group-hover:bg-amber-500/10 transition-colors duration-500" />
+            
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 rounded-xl bg-slate-950 border border-slate-800/80 group-hover:border-amber-500/20 group-hover:bg-amber-500/5 transition-all duration-300 text-amber-400">
+                <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" />
+              </div>
+            </div>
+            <div className="text-2xl sm:text-3xl font-extrabold font-sans text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-amber-500">
+              100%
+            </div>
+            <div className="text-[10px] sm:text-xs font-semibold font-sans text-slate-400 group-hover:text-slate-200 transition-colors uppercase tracking-wider mt-1 leading-snug">
+              SDA Youth Vocal
+            </div>
+          </motion.div>
         </motion.div>
       </motion.div>
 
