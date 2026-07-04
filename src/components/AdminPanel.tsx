@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { auth } from "../lib/firebase";
-import { UserPlus, X, Lock, Eye, Check, ShieldCheck, Mail, Calendar, AlertCircle, Trash2, Plus, EyeOff, Music, Users, CreditCard, Smartphone, CheckCircle, Send, Barcode, Copy, RefreshCw, Key, HelpCircle, Sliders, ChevronUp, ChevronDown, DollarSign, MessageSquare as MessageSquareIcon, Layout, UploadCloud, Film, FileText } from "lucide-react";
-import { Inquiry, Activity, ItineraryItem, MusicData, Leader, Subscriber, Broadcast, MemberSpotlight as MemberSpotlightType } from "../types";
+import { UserPlus, X, Lock, Eye, Check, ShieldCheck, Mail, Calendar, AlertCircle, Trash2, Plus, EyeOff, Music, Users, CreditCard, Smartphone, CheckCircle, Send, Barcode, Copy, RefreshCw, Key, HelpCircle, Sliders, ChevronUp, ChevronDown, DollarSign, MessageSquare as MessageSquareIcon, Layout, UploadCloud, Film, FileText, Image as ImageIcon } from "lucide-react";
+import { Inquiry, Activity, ItineraryItem, MusicData, Leader, Subscriber, Broadcast, MemberSpotlight as MemberSpotlightType, GalleryPhoto } from "../types";
 import ImageEditor from "./ImageEditor";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -40,6 +40,9 @@ interface AdminPanelProps {
   subscribers: Subscriber[];
   broadcasts: Broadcast[];
   memberSpotlights: MemberSpotlightType[];
+  galleryPhotos: GalleryPhoto[];
+  onSaveGalleryPhoto: (data: any) => Promise<boolean>;
+  onDeleteGalleryPhoto: (id: string) => void;
   onRefresh: () => void;
   scrollToSection?: string | null;
 }
@@ -393,6 +396,9 @@ export default function AdminPanel({
   subscribers,
   broadcasts,
   memberSpotlights,
+  galleryPhotos,
+  onSaveGalleryPhoto,
+  onDeleteGalleryPhoto,
   onRefresh,
   authLoading: externalAuthLoading,
   adminToken,
@@ -589,6 +595,19 @@ export default function AdminPanel({
   });
 
   const [actFileError, setActFileError] = useState("");
+
+  // Gallery form state
+  const [galForm, setGalForm] = useState<{
+    id: string;
+    title: string;
+    category: string;
+    description: string;
+    url: string;
+    mediaType: 'image' | 'video' | '';
+  }>({ id: "", title: "", category: "General", description: "", url: "", mediaType: "" });
+  const [galFileError, setGalFileError] = useState("");
+  const [galSaving, setGalSaving] = useState(false);
+  const [galMessage, setGalMessage] = useState("");
 
   const [itiForm, setItiForm] = useState<{
     event: string;
@@ -1127,6 +1146,26 @@ export default function AdminPanel({
       }
     } catch (err) {
       console.error("Failed to delete member spotlight:", err);
+    }
+  };
+
+  const handleGalSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!galForm.title || !galForm.url) {
+      setGalFileError("Title and media are required.");
+      return;
+    }
+    setGalSaving(true);
+    setGalMessage("");
+    setGalFileError("");
+    const result = await onSaveGalleryPhoto(galForm);
+    setGalSaving(false);
+    if (result) {
+      setGalMessage(galForm.id ? "Gallery item updated!" : "Photo/video added to gallery!");
+      setGalForm({ id: "", title: "", category: "General", description: "", url: "", mediaType: "" });
+      setTimeout(() => setGalMessage(""), 4000);
+    } else {
+      setGalFileError("Failed to save gallery item.");
     }
   };
 
@@ -1959,6 +1998,148 @@ export default function AdminPanel({
 
               </div>
 
+              {/* GALLERY MANAGEMENT SECTION */}
+              <div id="admin-gallery-section" className="bg-slate-950/40 border border-slate-800 p-6 rounded-2xl">
+                <div className="flex items-center gap-2 text-amber-400 mb-6 bg-slate-950 p-2.5 rounded-lg border border-slate-805 text-sm font-bold uppercase tracking-wider">
+                  <ImageIcon className="w-5 h-5 text-amber-500" />
+                  <span>Gallery — Upload Photos & Videos</span>
+                </div>
+
+                {/* Add / Edit Form */}
+                <form onSubmit={handleGalSubmit} className="flex flex-col gap-4 text-xs mb-8">
+                  <div>
+                    <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Photo / Video Title</label>
+                    <input
+                      type="text" required
+                      value={galForm.title}
+                      onChange={(e) => setGalForm({ ...galForm, title: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400"
+                      placeholder="e.g. Kisumu Youth Camporee Choir"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Category</label>
+                      <input
+                        type="text"
+                        value={galForm.category}
+                        onChange={(e) => setGalForm({ ...galForm, category: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400"
+                        placeholder="e.g. Concerts, Outreach, Rehearsal"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Media Type</label>
+                      <select
+                        value={galForm.mediaType}
+                        onChange={(e) => setGalForm({ ...galForm, mediaType: e.target.value as 'image' | 'video' | '' })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white cursor-pointer"
+                      >
+                        <option value="image">Photo</option>
+                        <option value="video">Video</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Description (optional)</label>
+                    <textarea
+                      rows={2}
+                      value={galForm.description}
+                      onChange={(e) => setGalForm({ ...galForm, description: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400 resize-none"
+                      placeholder="Brief caption or description..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Upload Photo or Video</label>
+                    <AdvancedMediaDropzone
+                      label="Gallery Media"
+                      value={galForm.url}
+                      mediaType={galForm.mediaType as any}
+                      error={galFileError}
+                      onClear={() => setGalForm({ ...galForm, url: "", mediaType: "" })}
+                      onFileSelect={(dataUrl, type) => setGalForm({ ...galForm, url: dataUrl, mediaType: type })}
+                      onError={setGalFileError}
+                    />
+                  </div>
+                  {galMessage && (
+                    <div className="text-emerald-400 text-[10px] font-mono bg-emerald-950/20 border border-emerald-900/30 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                      <CheckCircle className="w-3.5 h-3.5 shrink-0" /> {galMessage}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      disabled={galSaving}
+                      className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 rounded transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      {galSaving ? "Uploading..." : galForm.id ? "Update Gallery Item" : "Add to Gallery"}
+                    </button>
+                    {galForm.id && (
+                      <button
+                        type="button"
+                        onClick={() => setGalForm({ id: "", title: "", category: "General", description: "", url: "", mediaType: "" })}
+                        className="px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded transition-colors cursor-pointer text-[10px]"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                </form>
+
+                {/* Gallery Items List */}
+                {galleryPhotos.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-3">
+                      {galleryPhotos.length} item{galleryPhotos.length !== 1 ? "s" : ""} in gallery
+                    </div>
+                    {galleryPhotos.map((photo) => (
+                      <div key={photo.id} className="flex items-center gap-3 bg-slate-900/60 border border-slate-800 rounded-xl p-3">
+                        <div className="w-12 h-12 rounded-lg overflow-hidden bg-slate-800 shrink-0 flex items-center justify-center">
+                          {photo.mediaType === "video" ? (
+                            <Film className="w-6 h-6 text-blue-400" />
+                          ) : (
+                            <img src={photo.url} alt={photo.title} className="w-full h-full object-cover" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white text-xs font-semibold truncate">{photo.title}</p>
+                          <p className="text-slate-500 text-[10px] font-mono">{photo.category} · {photo.mediaType || "image"}</p>
+                        </div>
+                        <div className="flex gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setGalForm({
+                              id: photo.id,
+                              title: photo.title,
+                              category: photo.category,
+                              description: photo.description,
+                              url: photo.url,
+                              mediaType: photo.mediaType
+                            })}
+                            className="p-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onDeleteGalleryPhoto(photo.id)}
+                            className="p-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {galleryPhotos.length === 0 && (
+                  <div className="text-center py-8 text-slate-500 font-mono text-[10px] uppercase tracking-widest">
+                    No gallery items yet. Upload your first photo or video above.
+                  </div>
+                )}
+              </div>
 
               {/* SECTION C: MANAGE MUSIC SINGLE STREAMING */}
               <div id="admin-music-section" className="bg-slate-950/40 border border-slate-800 p-6 rounded-2xl">
