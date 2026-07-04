@@ -87,3 +87,13 @@ export interface MemberSpotlight {
   image?: string;
   createdAt: string;
 }
+
+export interface GalleryPhoto {
+  id: string;
+  title: string;
+  category: string;
+  description: string;
+  url: string;
+  mediaType: 'image' | 'video' | '';
+  createdAt?: string;
+}
