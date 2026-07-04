@@ -21,10 +21,12 @@ const app = express();
 const PORT = 3000;
 const DB_PATH = path.join(process.cwd(), "data", "db.json");
 
-// Ensure uploads folder exists
-const uploadsDir = path.join(process.cwd(), "uploads");
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+// Ensure uploads folder exists (skip on Vercel - filesystem is read-only; uploads go to Cloudinary)
+if (!process.env.VERCEL) {
+  const uploadsDir = path.join(process.cwd(), "uploads");
+  try {
+    if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+  } catch (_) {}
 }
 
 // Middleware to parse JSON and Urlencoded with 150mb limit
