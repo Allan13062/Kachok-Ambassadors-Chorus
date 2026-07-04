@@ -474,8 +474,16 @@ app.get("/api/db", async (req, res) => {
     try {
       if (isDbAvailable()) {
         galleryList = await db.select().from(gallery).orderBy(gallery.createdAt);
+      } else {
+        const localData = await getLocalDb();
+        galleryList = localData.gallery || [];
       }
-    } catch (e) {}
+    } catch (e) {
+      try {
+        const localData = await getLocalDb();
+        galleryList = localData.gallery || [];
+      } catch (_) {}
+    }
 
     res.json({
       activities: allActs,
@@ -501,6 +509,7 @@ app.get("/api/db", async (req, res) => {
         localData.subscribers = localData.subscribers || [];
         localData.broadcasts = localData.broadcasts || [];
         localData.memberSpotlights = localData.memberSpotlights || [];
+        localData.gallery = localData.gallery || [];
         localData.music = localData.music || {
           songTitle: "Umchukue Mwanao",
           artistName: "Kachok Ambassadors Chorus",
@@ -527,6 +536,7 @@ app.get("/api/db", async (req, res) => {
       subscribers: [],
       broadcasts: [],
       memberSpotlights: [],
+      gallery: [],
       music: {
         songTitle: "Umchukue Mwanao",
         artistName: "Kachok Ambassadors Chorus",
@@ -2601,11 +2611,18 @@ async function startServer() {
 // Get all gallery photos (public)
 app.get("/api/gallery", async (req, res) => {
   try {
+    // Try Postgres first
     if (isDbAvailable()) {
-      const photos = await db.select().from(gallery).orderBy(gallery.createdAt);
-      return res.json({ success: true, data: photos });
+      try {
+        const photos = await db.select().from(gallery).orderBy(gallery.createdAt);
+        return res.json({ success: true, data: photos });
+      } catch (pgErr: any) {
+        console.warn("[Gallery] Postgres read failed, falling back to local:", pgErr.message);
+      }
     }
-    return res.json({ success: true, data: [] });
+    // Fallback: local/Firestore
+    const localData = await getLocalDb();
+    return res.json({ success: true, data: localData.gallery || [] });
   } catch (err: any) {
     res.status(500).json({ error: "Failed to load gallery: " + err.message });
   }
@@ -2624,10 +2641,26 @@ app.post("/api/gallery", requireAdmin, async (req, res) => {
     category: category || "General",
     description: description || "",
     url,
-    mediaType: mediaType || "image"
+    mediaType: mediaType || "image",
+    createdAt: new Date().toISOString()
   };
   try {
-    await db.insert(gallery).values(newPhoto);
+    // Primary: save to Firestore/local (always works)
+    const localDb: any = await getLocalDb();
+    localDb.gallery = localDb.gallery || [];
+    localDb.gallery.push(newPhoto);
+    await saveLocalDb(localDb);
+    await syncLocalFile("gallery", "insert", newPhoto);
+
+    // Secondary: also save to Postgres if available
+    try {
+      if (isDbAvailable()) {
+        await db.insert(gallery).values({ ...newPhoto, createdAt: undefined });
+      }
+    } catch (pgErr: any) {
+      console.warn("[Gallery] Postgres insert failed, saved to Firestore only:", pgErr.message);
+    }
+
     res.json({ success: true, data: newPhoto });
   } catch (err: any) {
     res.status(500).json({ error: "Failed to save gallery photo: " + err.message });
@@ -2639,13 +2672,25 @@ app.put("/api/gallery/:id", requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { title, category, description, url, mediaType } = req.body;
   try {
-    await db.update(gallery).set({
-      title: title,
-      category: category || "General",
-      description: description || "",
-      url: url,
-      mediaType: mediaType || "image"
-    }).where(eq(gallery.id, id));
+    // Update local/Firestore
+    const localDb: any = await getLocalDb();
+    localDb.gallery = localDb.gallery || [];
+    const idx = localDb.gallery.findIndex((p: any) => p.id === id);
+    if (idx !== -1) {
+      localDb.gallery[idx] = { ...localDb.gallery[idx], title, category: category || "General", description: description || "", url, mediaType: mediaType || "image" };
+      await saveLocalDb(localDb);
+      await syncLocalFile("gallery", "update", localDb.gallery[idx]);
+    }
+
+    // Also update Postgres if available
+    try {
+      if (isDbAvailable()) {
+        await db.update(gallery).set({ title, category: category || "General", description: description || "", url, mediaType: mediaType || "image" }).where(eq(gallery.id, id));
+      }
+    } catch (pgErr: any) {
+      console.warn("[Gallery] Postgres update failed:", pgErr.message);
+    }
+
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: "Failed to update gallery photo: " + err.message });
@@ -2656,7 +2701,21 @@ app.put("/api/gallery/:id", requireAdmin, async (req, res) => {
 app.delete("/api/gallery/:id", requireAdmin, async (req, res) => {
   const { id } = req.params;
   try {
-    await db.delete(gallery).where(eq(gallery.id, id));
+    // Delete from local/Firestore
+    const localDb: any = await getLocalDb();
+    localDb.gallery = (localDb.gallery || []).filter((p: any) => p.id !== id);
+    await saveLocalDb(localDb);
+    await syncLocalFile("gallery", "delete", id);
+
+    // Also delete from Postgres if available
+    try {
+      if (isDbAvailable()) {
+        await db.delete(gallery).where(eq(gallery.id, id));
+      }
+    } catch (pgErr: any) {
+      console.warn("[Gallery] Postgres delete failed:", pgErr.message);
+    }
+
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: "Failed to delete gallery photo: " + err.message });
