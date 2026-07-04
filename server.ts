@@ -21,9 +21,9 @@ const app = express();
 const PORT = 3000;
 const DB_PATH = path.join(process.cwd(), "data", "db.json");
 
-// Ensure uploads folder exists (skip on Vercel - filesystem is read-only; uploads go to Cloudinary)
+// Ensure uploads folder exists (skip mkdir on Vercel - filesystem is read-only; uploads go to Cloudinary)
+const uploadsDir = path.join(process.cwd(), "uploads");
 if (!process.env.VERCEL) {
-  const uploadsDir = path.join(process.cwd(), "uploads");
   try {
     if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
   } catch (_) {}
