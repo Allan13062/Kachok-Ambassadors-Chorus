@@ -21,9 +21,9 @@ import { v2 as cloudinary } from "cloudinary";
 
 // Helper to lazy-initialize Cloudinary client with credentials
 function getCloudinaryClient() {
-  const cloudName = process.env.CLOUDINARY_CLOUD_NAME || "epd4yag0";
-  const apiKey = process.env.CLOUDINARY_API_KEY || "637956393284218";
-  const apiSecret = process.env.CLOUDINARY_API_SECRET || "utaluAXBEK0fP7eEVKEuWhuk-ZY";
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+  const apiKey = process.env.CLOUDINARY_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
 
   if (!cloudName || !apiKey || !apiSecret) {
     return null;
@@ -161,9 +161,6 @@ async function getAdminPasscode(): Promise<string> {
 
 // Authentication middleware using Firestore sessions and roles as the source of truth
 async function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
-  // Admin login is disabled. Bypass authentication.
-  return next();
-  
   const code = req.headers["x-admin-passcode"] as string;
   const token = (req.headers["x-admin-token"] || req.headers["x-admin-passcode"]) as string;
   const userId = req.headers["x-user-id"] as string;
@@ -2198,8 +2195,36 @@ app.delete("/api/leaders/:id", requireAdmin, async (req, res) => {
   }
 });
 
+// 15b. Signed Direct-to-Cloudinary Upload Signature (Admin)
+// Vercel serverless functions hard-cap request/response bodies at 4.5MB, so
+// routing full image/video bytes through /api/upload as base64 JSON fails in
+// production for anything beyond a small photo. This endpoint instead issues
+// a short-lived signature so the browser can upload the file bytes directly
+// to Cloudinary — the payload that touches our serverless function is just
+// this tiny JSON signature, never the media itself.
+// See: https://vercel.com/docs/functions/limitations
+app.post("/api/upload/signature", requireAdmin, (req, res) => {
+  const cloudinaryClient = getCloudinaryClient();
+  if (!cloudinaryClient) {
+    return res.status(503).json({ error: "Cloudinary is not configured on the server (missing CLOUDINARY_* environment variables)." });
+  }
+  const timestamp = Math.round(Date.now() / 1000);
+  const folder = "kachamba_sync";
+  const config = cloudinaryClient.config();
+  const signature = cloudinaryClient.utils.api_sign_request({ timestamp, folder }, config.api_secret as string);
+  res.json({
+    signature,
+    timestamp,
+    folder,
+    apiKey: config.api_key,
+    cloudName: config.cloud_name
+  });
+});
+
 // 16. Persistent File Upload Route (Admin)
 // Stores uploaded files persistently in Postgres/Neon, falling back to Firestore/local memory.
+// NOTE: kept for small files and as a fallback when Cloudinary isn't configured — new code should
+// prefer uploadMedia() from src/lib/mediaUpload.ts, which uses the signed route above.
 app.post("/api/upload", requireAdmin, async (req, res) => {
   const { filename, base64 } = req.body;
   if (!base64) {
