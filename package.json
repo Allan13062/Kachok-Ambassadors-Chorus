@@ -5,12 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "npm install && vite build && esbuild ./server.ts --bundle --platform=node --format=cjs --external:dotenv --external:express --external:vite --external:@google/genai --external:googleapis --external:drizzle-orm --external:drizzle-orm/* --external:cloudinary --external:pg --external:firebase --external:firebase/* --sourcemap --outfile=dist/server.cjs",
+    "build": "npm install && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit",
-    "db:push": "drizzle-kit push --config=src/db/drizzle.config.ts"
+    "lint": "tsc --noEmit"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -43,4 +42,4 @@
     "typescript": "~5.8.2",
     "vite": "^6.2.3"
   }
-}    
+}
