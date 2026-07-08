@@ -468,6 +468,10 @@ export default function AdminPanel({
   const [mpesaMessage, setMpesaMessage] = useState("");
   const [mpesaError, setMpesaError] = useState("");
 
+  // Saved M-Pesa receipts state
+  const [mpesaReceipts, setMpesaReceipts] = useState<any[]>([]);
+  const [loadingReceipts, setLoadingReceipts] = useState(false);
+
   const dragItem = React.useRef<any>(null);
   const dragOverItem = React.useRef<any>(null);
 
@@ -478,6 +482,21 @@ export default function AdminPanel({
     dragItem.current = null;
     dragOverItem.current = null;
     setMpesaReceiptOrder(orderCopy);
+  };
+
+  const fetchMpesaReceiptsList = async () => {
+    setLoadingReceipts(true);
+    try {
+      const res = await fetch("/api/mpesa/receipts");
+      if (res.ok) {
+        const data = await res.json();
+        setMpesaReceipts(data.receipts || []);
+      }
+    } catch (err) {
+      console.error("Failed to load mpesa receipts", err);
+    } finally {
+      setLoadingReceipts(false);
+    }
   };
 
   useEffect(() => {
@@ -515,7 +534,9 @@ export default function AdminPanel({
           console.error("Failed to load mpesa config", err);
         }
       };
+
       fetchMpesaConfig();
+      fetchMpesaReceiptsList();
     }
   }, [isOpen, isAuthenticated]);
 
@@ -2663,6 +2684,80 @@ export default function AdminPanel({
                     </div>
                   </div>
                 </div>
+                </div>
+
+                {/* SAVED CLOUDINARY TRANSACTION RECEIPTS LIST */}
+                <div className="mt-8 pt-8 border-t border-slate-800/80">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                    <div>
+                      <h4 className="text-sm font-sans font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-emerald-400" />
+                        <span>Saved Cloudinary Transaction Receipts</span>
+                      </h4>
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        High-fidelity transaction receipts generated and automatically stored in your Cloudinary space and Firestore database.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={fetchMpesaReceiptsList}
+                      disabled={loadingReceipts}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:bg-slate-800 text-[10px] font-mono text-slate-350 hover:text-white transition-colors cursor-pointer"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${loadingReceipts ? 'animate-spin' : ''}`} />
+                      <span>{loadingReceipts ? 'Syncing...' : 'Sync Cloudinary Receipts'}</span>
+                    </button>
+                  </div>
+
+                  {mpesaReceipts.length === 0 ? (
+                    <div className="text-center py-10 bg-slate-950/20 rounded-2xl border border-slate-900/60 p-6">
+                      <FileText className="w-8 h-8 text-slate-600 mx-auto mb-3" />
+                      <p className="text-xs text-slate-400 font-sans">No saved receipts found in Cloudinary database yet.</p>
+                      <p className="text-[10px] text-slate-500 font-mono mt-1">Receipts are automatically synced here whenever contributors complete M-Pesa donations.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/20">
+                      <table className="w-full text-left text-xs font-sans">
+                        <thead className="bg-slate-950 text-slate-400 font-mono text-[10px] uppercase tracking-widest border-b border-slate-800">
+                          <tr>
+                            <th className="p-4 font-semibold">Receipt Code</th>
+                            <th className="p-4 font-semibold">Contributor</th>
+                            <th className="p-4 font-semibold">Amount</th>
+                            <th className="p-4 font-semibold">Donor Phone</th>
+                            <th className="p-4 font-semibold">Transaction Date</th>
+                            <th className="p-4 font-semibold text-center">Receipt File (Cloudinary)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-900 font-sans text-slate-300">
+                          {mpesaReceipts.map((rcpt: any) => (
+                            <tr key={rcpt.id} className="hover:bg-slate-900/30 transition-colors">
+                              <td className="p-4 font-mono font-bold text-white text-xs">{rcpt.receiptNo}</td>
+                              <td className="p-4 text-xs font-semibold">{rcpt.contributorName}</td>
+                              <td className="p-4 text-xs text-emerald-400 font-bold font-mono">KES {rcpt.amount}.00</td>
+                              <td className="p-4 text-xs font-mono">+{rcpt.phone}</td>
+                              <td className="p-4 text-xs text-slate-400 font-mono">{rcpt.date}</td>
+                              <td className="p-4 text-center">
+                                {rcpt.pdfUrl ? (
+                                  <a
+                                    href={rcpt.pdfUrl}
+                                    target="_blank"
+                                    rel="noreferrer referrer"
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 text-[10px] font-mono text-emerald-400 hover:text-emerald-300 transition-colors font-bold"
+                                  >
+                                    <FileText className="w-3.5 h-3.5" />
+                                    <span>View PDF Receipt</span>
+                                  </a>
+                                ) : (
+                                  <span className="text-[10px] text-slate-500 font-mono">No URL</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               </div>
 

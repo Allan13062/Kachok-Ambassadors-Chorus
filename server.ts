@@ -841,6 +841,36 @@ app.get("/api/proxy-audio", (req, res) => {
   proxyAudioWithRedirect(targetUrl, req, res);
 });
 
+// Endpoint to securely proxy image links to bypass CORS, canvas taint issues for PDF rendering
+app.get("/api/proxy-image", async (req, res) => {
+  const imageUrl = req.query.url as string;
+  if (!imageUrl) {
+    return res.status(400).send("Missing target image source URL");
+  }
+
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "*");
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+
+  try {
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch image: ${response.statusText}`);
+    }
+    const contentType = response.headers.get("content-type") || "image/jpeg";
+    const buffer = await response.arrayBuffer();
+    res.setHeader("Content-Type", contentType);
+    return res.send(Buffer.from(buffer));
+  } catch (err: any) {
+    console.error("Image proxy error for URL:", imageUrl, err);
+    return res.status(500).send("Failed to proxy image: " + err.message);
+  }
+});
+
 // 2. Authenticate passcode
 app.post("/api/auth", async (req, res) => {
   const { passcode } = req.body;
@@ -1283,6 +1313,90 @@ app.post("/api/mpesa/callback", (req, res) => {
   } catch (err: any) {
     console.error("[M-Pesa Webhook] Error processing callback:", err.message);
     return res.status(500).json({ ResultCode: 1, ResultDesc: "Internal Server Error" });
+  }
+});
+
+// POST Endpoint to save transaction receipts in Cloudinary and Firestore/Database
+app.post("/api/mpesa/receipt/save", async (req, res) => {
+  const { receiptNo, amount, phone, date, pdfBase64, contributorName } = req.body;
+  if (!receiptNo || !pdfBase64) {
+    return res.status(400).json({ error: "Receipt number and PDF base64 data are required." });
+  }
+
+  try {
+    let pdfUrl = "";
+    
+    // Lazy-initialize Cloudinary
+    const cloudinaryClient = getCloudinaryClient();
+    if (cloudinaryClient) {
+      console.log(`[Receipt Cloudinary] Uploading receipt ${receiptNo} to Cloudinary...`);
+      // Cloudinary upload can take a data URI or a base64 string
+      // Prepend data URI prefix if not present
+      const uploadPayload = pdfBase64.startsWith("data:") ? pdfBase64 : `data:application/pdf;base64,${pdfBase64}`;
+      const uploadResult = await cloudinaryClient.uploader.upload(uploadPayload, {
+        folder: "kachamba_receipts",
+        public_id: `receipt_${receiptNo}`,
+        resource_type: "raw"
+      });
+      pdfUrl = uploadResult.secure_url;
+      console.log(`[Receipt Cloudinary] Successfully uploaded receipt ${receiptNo} to Cloudinary: ${pdfUrl}`);
+    } else {
+      console.warn("[Receipt Cloudinary] No Cloudinary configuration detected, falling back to local files.");
+      // Fallback: save locally in uploads folder
+      const fileId = `receipt-${receiptNo}`;
+      const filepath = path.join(process.cwd(), "uploads", `${fileId}.pdf`);
+      const base64Data = pdfBase64.replace(/^data:application\/pdf;base64,/, "");
+      fs.writeFileSync(filepath, Buffer.from(base64Data, "base64"));
+      pdfUrl = `/uploads/${fileId}.pdf`;
+    }
+
+    // Now save to Database & Firestore using existing insertItem abstraction
+    const receiptRecord = {
+      id: receiptNo,
+      receiptNo,
+      amount: Number(amount) || 0,
+      phone: phone || "N/A",
+      date: date || new Date().toISOString(),
+      pdfUrl,
+      contributorName: contributorName || "Anonymous Contributor",
+      createdAt: new Date().toISOString()
+    };
+
+    // Use insertItem which handles both local db.json and Firestore!
+    await insertItem("mpesa_receipts", receiptNo, receiptRecord);
+
+    return res.json({
+      success: true,
+      message: "Receipt successfully processed and saved to Cloudinary and Database.",
+      receiptNo,
+      pdfUrl
+    });
+
+  } catch (err: any) {
+    console.error("[Receipt Saving Error]:", err);
+    return res.status(500).json({ error: "Failed to save receipt: " + err.message });
+  }
+});
+
+// GET Endpoint to fetch all saved transaction receipts
+app.get("/api/mpesa/receipts", async (req, res) => {
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+  res.set("Expires", "-1");
+  res.set("Pragma", "no-cache");
+
+  try {
+    const localData = await getLocalDb();
+    const list = localData.mpesa_receipts || [];
+    // Sort descending by date or id
+    list.sort((a: any, b: any) => (b.createdAt || b.date || "").localeCompare(a.createdAt || a.date || ""));
+
+    return res.json({
+      success: true,
+      receipts: list
+    });
+  } catch (err: any) {
+    console.error("[Receipt List Error]:", err);
+    return res.status(500).json({ error: "Failed to retrieve receipts list: " + err.message });
   }
 });
 

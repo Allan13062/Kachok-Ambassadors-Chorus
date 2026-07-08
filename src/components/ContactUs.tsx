@@ -121,8 +121,20 @@ export default function ContactUs({ bookingSubject, onClearBookingSubject, onInq
                   </div>
                   <div>
                     <h4 className="font-bold text-sm text-slate-300 uppercase font-mono tracking-wider">Vocal Team Inbox</h4>
-                    <p className="text-slate-400 text-sm mt-1">kachambachorus@gmail.com</p>
+                    <a 
+                      href="mailto:kachambachorus@gmail.com?subject=Inquiry%20for%20Kachamba%20Chorus"
+                      className="text-amber-400 hover:text-amber-300 text-sm mt-1 block font-medium transition-colors hover:underline"
+                      title="Email Kachamba Chorus directly"
+                    >
+                      kachambachorus@gmail.com
+                    </a>
                     <p className="text-xs text-slate-500">Subject response rate: Under 24 Hours</p>
+                    <a 
+                      href="mailto:kachambachorus@gmail.com?subject=Inquiry%20for%20Kachamba%20Chorus"
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-500 hover:text-amber-400 mt-2 transition-colors hover:underline group"
+                    >
+                      <span>✉ Send Quick Email Link</span> <span className="group-hover:translate-x-0.5 transition-transform inline-block">&rarr;</span>
+                    </a>
                   </div>
                 </div>
               </div>

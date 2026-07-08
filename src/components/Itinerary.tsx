@@ -1203,22 +1203,6 @@ export default function Itinerary({
       <div className="absolute top-10 left-10 w-[500px] h-[500px] bg-amber-500/[0.02] rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-10 right-10 w-[500px] h-[500px] bg-rose-600/[0.02] rounded-full blur-[120px] pointer-events-none" />
 
-      {/* Live Dispatches Scrolling Ticker - News Inspired */}
-      <div className="max-w-6xl mx-auto mb-10 bg-slate-900/40 border border-slate-900 rounded-xl overflow-hidden py-3 px-4 flex items-center gap-4 print:hidden">
-        <span className="shrink-0 bg-rose-800 text-white text-[9px] font-sans font-bold uppercase tracking-widest px-2.5 py-1 rounded flex items-center gap-1.5 animate-pulse shadow-md shadow-rose-950/40">
-          <Newspaper className="w-3.5 h-3.5" />
-          <span>LATEST MINISTRY DISPATCHES</span>
-        </span>
-        <div className="flex-1 overflow-hidden relative h-5">
-          <div className="absolute animate-marquee whitespace-nowrap text-xs font-sans text-slate-350 hover:[animation-play-state:paused] cursor-pointer flex gap-12">
-            <span>🎤 Adventist Church worship events series announced for July and August 2026.</span>
-            <span className="text-amber-300 font-semibold">📍 Blot Brightons Bullets Charity Initiative is active in July 19, 2026 @ SDA Kachok Church. Let us join hands for Brighton!</span>
-            <span>💿 Recording sessions of Album 6 completed! "Sounds of Togetherness" coming soon near you.</span>
-            <span>🌿 Reserve schedules space by filing a host request using the registration links below.</span>
-          </div>
-        </div>
-      </div>
-
       <div className="max-w-6xl mx-auto relative z-10">
         
         {/* Printable Header - Repeating on every page via print css position: fixed */}
@@ -1266,34 +1250,7 @@ export default function Itinerary({
               title="Download print-friendly official bulletin schedule PDF formatted for local church distribution"
             >
                <FileText className="w-3.5 h-3.5 shrink-0 stroke-[2.5]" />
-               <span>Download Itinerary</span>
-            </button>
-            <button
-              onClick={() => downloadItineraryPDF(false)}
-              className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 hover:bg-slate-850 text-slate-300 font-sans font-extrabold text-[11px] uppercase tracking-wider px-4 py-3.5 rounded-xl transition-all cursor-pointer shadow-lg active:scale-95 duration-100"
-              title="Download only the currently selected tab's itinerary"
-            >
-               <Download className="w-3.5 h-3.5 shrink-0 stroke-[2.5]" />
-               <span>Download Tab PDF</span>
-            </button>
-            <button
-              onClick={() => downloadItineraryPDF(true)}
-              className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 hover:bg-slate-800 text-slate-100 font-sans font-extrabold text-[11px] uppercase tracking-wider px-4 py-3.5 rounded-xl transition-all cursor-pointer shadow-lg active:scale-95 duration-100"
-              title="Download the complete itinerary"
-            >
-               <Download className="w-3.5 h-3.5 shrink-0 stroke-[2.5]" />
-               <span>Download Complete PDF</span>
-            </button>
-            <button
-              onClick={() => {
-                document.body.classList.add('print-mode-itinerary');
-                window.print();
-                setTimeout(() => { document.body.classList.remove('print-mode-itinerary'); }, 500);
-              }}
-              className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 hover:bg-slate-800 text-slate-300 font-sans font-bold text-[11px] uppercase tracking-wider px-4 py-3.5 rounded-xl transition-all cursor-pointer"
-            >
-               <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-               <span>Print View</span>
+               <span>Download PDF</span>
             </button>
             {isAdmin && (
               <button

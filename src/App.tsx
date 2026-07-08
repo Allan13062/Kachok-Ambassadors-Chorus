@@ -14,7 +14,7 @@ import Itinerary from "./components/Itinerary";
 import Activities from "./components/Activities";
 import MusicStreaming from "./components/MusicStreaming";
 import Gallery from "./components/Gallery";
-import JoinUs from "./components/JoinUs";
+import SupportOurMission from "./components/SupportOurMission";
 import ContactUs from "./components/ContactUs";
 import ChatBot from "./components/ChatBot";
 import AdminPanel from "./components/AdminPanel";
@@ -226,7 +226,7 @@ export default function App() {
   // Scrollspy helper tracking navbar highlighting
   useEffect(() => {
     const handleScroll = () => {
-      const sections = ["home", "itinerary", "activities", "leadership", "music", "gallery", "join", "contact"];
+      const sections = ["home", "itinerary", "activities", "leadership", "music", "gallery", "support", "contact"];
       const currentScroll = window.scrollY + 200; // Offset checking
 
       for (const section of sections) {
@@ -694,9 +694,9 @@ export default function App() {
           <Gallery />
         </FadeInSection>
 
-        {/* Join Us Recruitment Section */}
+        {/* Support Our Mission Section */}
         <FadeInSection>
-          <JoinUs />
+          <SupportOurMission theme={theme} webLogo={webLogo} />
         </FadeInSection>
 
         {/* Real Contact/Booking Form */}
@@ -930,7 +930,24 @@ export default function App() {
             </p>
             <div className="text-slate-500 mt-2.5 text-[11px] font-sans">
               <p>SDA Kachok Church, Kisumu</p>
-              <p className="mt-0.5">Phone: +254797450206 | Email: kachambachorus@gmail.com</p>
+              <p className="mt-0.5">
+                Phone: +254797450206 | Email:{" "}
+                <a 
+                  href="mailto:kachambachorus@gmail.com?subject=Inquiry%20for%20Kachamba%20Chorus"
+                  className="text-amber-500 hover:text-amber-400 font-semibold transition-colors hover:underline"
+                  title="Direct mail inquiry"
+                >
+                  kachambachorus@gmail.com
+                </a>
+              </p>
+              <p className="mt-1">
+                <a 
+                  href="mailto:kachambachorus@gmail.com?subject=Inquiry%20for%20Kachamba%20Chorus"
+                  className="inline-flex items-center gap-1 text-[10px] text-amber-500 hover:text-amber-400 hover:underline transition-colors"
+                >
+                  ✉ Direct Email Inquiry
+                </a>
+              </p>
             </div>
           </div>
 
@@ -940,7 +957,7 @@ export default function App() {
               <a href="#activities" className="hover:text-amber-400 font-sans transition-colors">Ministries</a>
               <a href="#music" className="hover:text-amber-400 font-sans transition-colors">Music</a>
               <a href="#gallery" className="hover:text-amber-400 font-sans transition-colors">Gallery</a>
-              <a href="#join" className="hover:text-amber-400 font-sans transition-colors">Join Us</a>
+              <a href="#support" className="hover:text-amber-400 font-sans transition-colors">Support Us</a>
             </div>
             
             {/* Social Media Presence icons */}
