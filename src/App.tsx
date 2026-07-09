@@ -573,14 +573,26 @@ export default function App() {
   };
 
   return (
-    <div className={`min-h-screen overflow-x-hidden flex flex-col font-sans antialiased selection:bg-amber-500/20 selection:text-amber-300 transition-colors duration-300 ${
+    <div className={`min-h-screen overflow-x-hidden flex flex-col font-sans antialiased selection:bg-amber-500/20 selection:text-amber-300 transition-colors duration-300 relative ${
       theme === "dark" 
         ? "bg-slate-950 text-white" 
         : "bg-slate-50 text-slate-900"
     }`}>
       
+      {/* High-contrast ambient background orbs & grid system for ultimate glass depth */}
+      <div className="fixed inset-0 pointer-events-none select-none z-0 overflow-hidden opacity-100 transition-opacity duration-300">
+        <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-amber-500/5 blur-[120px] dark:bg-amber-500/3" />
+        <div className="absolute top-[30%] right-[-10%] w-[60vw] h-[60vw] rounded-full bg-blue-500/5 blur-[135px] dark:bg-blue-600/3" />
+        <div className="absolute bottom-[-10%] left-[20%] w-[50vw] h-[50vw] rounded-full bg-rose-500/5 blur-[120px] dark:bg-rose-500/3" />
+        
+        {/* Fine, high-precision technical layout grid */}
+        <div className="absolute inset-0 opacity-[0.4] dark:opacity-[0.15] bg-[linear-gradient(to_right,rgba(148,163,184,0.1)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.1)_1px,transparent_1px)] bg-[size:4rem_4rem]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-slate-950/20 to-transparent pointer-events-none" />
+      </div>
+
       {/* Decorative Header Frame line */}
       <div className="h-1 w-full bg-gradient-to-r from-amber-500 via-amber-300 to-amber-600 sticky top-0 z-50 pointer-events-none" />
+
 
       {/* Navigation Header */}
       <Header 
@@ -606,7 +618,7 @@ export default function App() {
         />
       </FadeInSection>
 
-      <main className="flex-1">
+      <main className="flex-1 relative z-10">
         
         {/* Dynamic Member Spotlight Section */}
         <FadeInSection>

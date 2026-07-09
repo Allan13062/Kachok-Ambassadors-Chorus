@@ -190,12 +190,12 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
           <motion.div 
             variants={statsCardVariants}
             whileHover={{ y: -4, scale: 1.02 }}
-            className="relative group overflow-hidden bg-gradient-to-b from-slate-900/40 to-slate-950/60 backdrop-blur-md border border-slate-900 p-5 sm:p-6 rounded-2xl shadow-lg transition-all duration-300 hover:border-amber-500/30 hover:shadow-amber-500/5 flex flex-col items-center justify-center text-center min-h-[145px] sm:min-h-[160px] h-full"
+            className="relative group overflow-hidden glass-card p-5 sm:p-6 rounded-2xl shadow-lg transition-all duration-300 hover:border-amber-500/30 hover:shadow-amber-500/5 flex flex-col items-center justify-center text-center min-h-[145px] sm:min-h-[160px] h-full"
           >
             <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-amber-500/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
             <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full bg-amber-500/5 blur-xl group-hover:bg-amber-500/10 transition-colors duration-500" />
             
-            <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800/80 group-hover:border-amber-500/20 group-hover:bg-amber-500/5 transition-all duration-300 text-amber-450 mb-3">
+            <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 group-hover:border-amber-500/20 group-hover:bg-amber-500/5 transition-all duration-300 text-amber-450 mb-3">
               <Users className="w-5 h-5" />
             </div>
             <div className="text-2xl sm:text-3xl font-extrabold font-sans text-transparent bg-clip-text bg-gradient-to-r from-amber-250 to-amber-450 leading-none">
@@ -210,12 +210,12 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
           <motion.div 
             variants={statsCardVariants}
             whileHover={{ y: -4, scale: 1.02 }}
-            className="relative group overflow-hidden bg-gradient-to-b from-slate-900/40 to-slate-950/60 backdrop-blur-md border border-slate-900 p-5 sm:p-6 rounded-2xl shadow-lg transition-all duration-300 hover:border-amber-500/30 hover:shadow-amber-500/5 flex flex-col items-center justify-center text-center min-h-[145px] sm:min-h-[160px] h-full"
+            className="relative group overflow-hidden glass-card p-5 sm:p-6 rounded-2xl shadow-lg transition-all duration-300 hover:border-amber-500/30 hover:shadow-amber-500/5 flex flex-col items-center justify-center text-center min-h-[145px] sm:min-h-[160px] h-full"
           >
             <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-amber-500/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
             <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full bg-amber-500/5 blur-xl group-hover:bg-amber-500/10 transition-colors duration-500" />
             
-            <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800/80 group-hover:border-amber-500/20 group-hover:bg-amber-500/5 transition-all duration-300 text-amber-450 mb-3">
+            <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 group-hover:border-amber-500/20 group-hover:bg-amber-500/5 transition-all duration-300 text-amber-450 mb-3">
               <Music className="w-5 h-5" />
             </div>
             <div className="text-2xl sm:text-3xl font-extrabold font-sans text-transparent bg-clip-text bg-gradient-to-r from-amber-250 to-amber-450 leading-none">
@@ -230,12 +230,12 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
           <motion.div 
             variants={statsCardVariants}
             whileHover={{ y: -4, scale: 1.02 }}
-            className="relative group overflow-hidden bg-gradient-to-b from-slate-900/40 to-slate-950/60 backdrop-blur-md border border-slate-900 p-5 sm:p-6 rounded-2xl shadow-lg transition-all duration-300 hover:border-amber-500/30 hover:shadow-amber-500/5 flex flex-col items-center justify-center text-center min-h-[145px] sm:min-h-[160px] h-full"
+            className="relative group overflow-hidden glass-card p-5 sm:p-6 rounded-2xl shadow-lg transition-all duration-300 hover:border-amber-500/30 hover:shadow-amber-500/5 flex flex-col items-center justify-center text-center min-h-[145px] sm:min-h-[160px] h-full"
           >
             <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-amber-500/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
             <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full bg-amber-500/5 blur-xl group-hover:bg-amber-500/10 transition-colors duration-500" />
             
-            <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800/80 group-hover:border-amber-500/20 group-hover:bg-amber-500/5 transition-all duration-300 text-amber-450 mb-3">
+            <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 group-hover:border-amber-500/20 group-hover:bg-amber-500/5 transition-all duration-300 text-amber-450 mb-3">
               <Calendar className="w-5 h-5" />
             </div>
             <div className="text-2xl sm:text-3xl font-extrabold font-sans text-transparent bg-clip-text bg-gradient-to-r from-amber-250 to-amber-450 leading-none">
@@ -250,12 +250,12 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
           <motion.div 
             variants={statsCardVariants}
             whileHover={{ y: -4, scale: 1.02 }}
-            className="relative group overflow-hidden bg-gradient-to-b from-slate-900/40 to-slate-950/60 backdrop-blur-md border border-slate-900 p-5 sm:p-6 rounded-2xl shadow-lg transition-all duration-300 hover:border-amber-500/30 hover:shadow-amber-500/5 flex flex-col items-center justify-center text-center min-h-[145px] sm:min-h-[160px] h-full"
+            className="relative group overflow-hidden glass-card p-5 sm:p-6 rounded-2xl shadow-lg transition-all duration-300 hover:border-amber-500/30 hover:shadow-amber-500/5 flex flex-col items-center justify-center text-center min-h-[145px] sm:min-h-[160px] h-full"
           >
             <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-amber-500/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
             <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full bg-amber-500/5 blur-xl group-hover:bg-amber-500/10 transition-colors duration-500" />
             
-            <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800/80 group-hover:border-amber-500/20 group-hover:bg-amber-500/5 transition-all duration-300 text-amber-450 mb-3">
+            <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 group-hover:border-amber-500/20 group-hover:bg-amber-500/5 transition-all duration-300 text-amber-450 mb-3">
               <Volume2 className="w-5 h-5" />
             </div>
             <div className="text-2xl sm:text-3xl font-extrabold font-sans text-transparent bg-clip-text bg-gradient-to-r from-amber-250 to-amber-450 leading-none">

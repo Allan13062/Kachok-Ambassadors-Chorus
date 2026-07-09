@@ -1197,7 +1197,7 @@ export default function Itinerary({
   return (
     <section 
       id="itinerary" 
-      className="py-24 px-4 sm:px-6 md:px-12 bg-slate-950 text-white relative border-t border-b border-slate-900 overflow-hidden"
+      className="py-24 px-4 sm:px-6 md:px-12 bg-transparent text-white relative border-t border-b border-white/5 overflow-hidden"
     >
       {/* Background Soft Accents to soften dark mode */}
       <div className="absolute top-10 left-10 w-[500px] h-[500px] bg-amber-500/[0.02] rounded-full blur-[120px] pointer-events-none" />
@@ -1634,7 +1634,7 @@ export default function Itinerary({
 
         {/* Dynamic List Block */}
         {filteredItems.length === 0 ? (
-          <div className="text-center py-24 border border-dashed border-slate-900 rounded-3xl bg-slate-950/60 p-10 animate-in fade-in duration-300">
+          <div className="text-center py-24 border border-dashed border-slate-800/60 rounded-3xl glass-card p-10 animate-in fade-in duration-300">
             <Newspaper className="w-12 h-12 text-slate-650 mx-auto mb-4 stroke-[1.5]" />
             <h4 className="font-sans font-bold text-lg text-slate-200">
               {itinerarySearch ? "No Search Matches" : "No Publications Filed"}
@@ -1806,7 +1806,7 @@ export default function Itinerary({
                 <div 
                   key={item.id}
                   id={`itinerary-dispatch-${item.id}`}
-                  className="group relative bg-slate-950 border border-slate-900 hover:border-slate-800 rounded-3xl overflow-hidden transition-all duration-300 shadow-xl flex flex-col lg:flex-row items-stretch scroll-mt-24"
+                  className="group relative glass-card hover:border-amber-400/40 rounded-3xl overflow-hidden transition-all duration-300 shadow-xl flex flex-col lg:flex-row items-stretch scroll-mt-24"
                 >
                   
                   {/* Column 1: Feature Photo/Video Panel (Editorial News Style) */}

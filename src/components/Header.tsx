@@ -112,10 +112,10 @@ export default function Header({ isAdmin, onOpenAdmin, onLogout, activeSection, 
   ];
 
   return (
-    <header className={`sticky top-0 z-40 w-full backdrop-blur-md border-b transition-all ${
+    <header className={`sticky top-0 z-40 w-full backdrop-blur-xl border-b transition-all ${
       theme === "dark" 
-        ? "bg-slate-900/90 border-slate-800/80 text-white" 
-        : "bg-white/90 border-slate-200 text-slate-900"
+        ? "bg-slate-950/45 border-white/5 text-white" 
+        : "bg-white/45 border-slate-200/50 text-slate-900"
     }`}>
       <div 
         className="absolute bottom-0 left-0 h-[2px] bg-gradient-to-r from-amber-400 to-amber-600 origin-left transition-all duration-150 ease-out z-50"

@@ -37,7 +37,7 @@ export default function Activities({ items, isAdmin, onAdd, onEdit, onDelete }: 
   return (
     <section 
       id="activities" 
-      className="py-20 px-6 md:px-12 bg-slate-950 text-white relative"
+      className="py-20 px-6 md:px-12 bg-transparent text-white relative"
     >
       <div className="max-w-6xl mx-auto">
 
