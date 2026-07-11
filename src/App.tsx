@@ -24,6 +24,7 @@ import { Activity, ItineraryItem, Inquiry, MusicData, Leader, Subscriber, Broadc
 import MemberSpotlight from "./components/MemberSpotlight";
 import { Music, Heart, Calendar, Compass, Star, Facebook, Youtube } from "lucide-react";
 import { uploadMedia } from "./lib/mediaUpload";
+import { Analytics } from "@vercel/analytics/react";
 
 function FadeInSection({ children }: { children: React.ReactNode }) {
   return (
@@ -1010,6 +1011,9 @@ export default function App() {
           />
         )}
       </AnimatePresence>
+
+      {/* Vercel Web Analytics */}
+      <Analytics />
 
     </div>
   );
