@@ -71,3 +71,26 @@ export const adminConfig = pgTable("admin_config", {
   value: text("value").notNull(),
   updatedAt: timestamp("updated_at").defaultNow()
 });
+
+// Uploaded files table for persistent binary/base64 storage (Neon Postgres)
+export const uploads = pgTable("uploads", {
+  id: text("id").primaryKey(),
+  filename: text("filename").notNull(),
+  mimeType: text("mime_type").notNull(),
+  base64: text("base64").notNull(),
+  createdAt: timestamp("created_at").defaultNow()
+});
+
+// Users table to store login credentials, roles, and profiles in Neon Postgres
+export const users = pgTable("users", {
+  uid: text("uid").primaryKey(),
+  email: text("email").notNull(),
+  displayName: text("display_name"),
+  photoURL: text("photo_url"),
+  voicePart: text("voice_part"),
+  providerId: text("provider_id"),
+  password: text("password"),
+  role: text("role"),
+  isLeader: text("is_leader"),
+  createdAt: text("created_at")
+});

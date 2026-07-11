@@ -1,10 +1,10 @@
 {
-  "projectId": "secret-interface-t6tp2",
-  "appId": "1:569135619114:web:20b76f0814841dec447753",
-  "apiKey": "AIzaSyBlwOMOT8t3vGKABmLNgE3hKwtXP_Iz5Hs",
-  "authDomain": "secret-interface-t6tp2.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-d6769c20-d7dc-491b-a78e-e3f365d3d667",
-  "storageBucket": "secret-interface-t6tp2.firebasestorage.app",
-  "messagingSenderId": "569135619114",
-  "measurementId": ""
+  "projectId": "kachamba-chorus",
+  "appId": "1:580701086694:web:6e21a96cc0c14aab79ec27",
+  "apiKey": "AIzaSyCF9fVpu2IpylJhNlbsgRFeBADsOLzuF_w",
+  "authDomain": "kachamba-chorus.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "kachamba-chorus.firebasestorage.app",
+  "messagingSenderId": "580701086694",
+  "measurementId": "G-VR865RS96R"
 }

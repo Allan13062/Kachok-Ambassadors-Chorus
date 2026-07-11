@@ -85,9 +85,92 @@
         "passcode": { "type": "string" }
       },
       "required": ["passcode"]
+    },
+    "User": {
+      "title": "User",
+      "description": "A portal or app user login profile",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "voicePart": { "type": "string" },
+        "providerId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "password": { "type": "string" },
+        "role": { "type": "string" }
+      },
+      "required": ["uid", "email", "password"]
+    },
+    "UserSession": {
+      "title": "UserSession",
+      "description": "A temporary secure server-side session for admins and leaders",
+      "type": "object",
+      "properties": {
+        "token": { "type": "string" },
+        "userId": { "type": "string" },
+        "role": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "expiresAt": { "type": "number" }
+      },
+      "required": ["token", "expiresAt"]
+    },
+    "Subscriber": {
+      "title": "Subscriber",
+      "description": "A newsletter alert subscriber",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "email"]
+    },
+    "Broadcast": {
+      "title": "Broadcast",
+      "description": "A sent or dispatched newsletter message",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "subject": { "type": "string" },
+        "body": { "type": "string" },
+        "category": { "type": "string" },
+        "sentAt": { "type": "string" }
+      },
+      "required": ["id", "subject", "body"]
+    },
+    "MemberSpotlight": {
+      "title": "MemberSpotlight",
+      "description": "Featured member of the choir spotlight profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "bio": { "type": "string" },
+        "image": { "type": "string" },
+        "voicePart": { "type": "string" },
+        "joinedYear": { "type": "string" }
+      },
+      "required": ["id", "name", "role", "bio"]
+    },
+    "AdminWhitelist": {
+      "title": "AdminWhitelist",
+      "description": "Whitelist of approved administrator emails. Document ID is the email address.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["email"]
     }
   },
   "firestore": {
+    "/admins/{emailId}": {
+      "schema": "AdminWhitelist",
+      "description": "Administrator whitelist keyed by email"
+    },
     "/activities/{activityId}": {
       "schema": "Activity",
       "description": "Outreach and events calendar items"
@@ -111,6 +194,26 @@
     "/configs/music": {
       "schema": "MusicData",
       "description": "Music streaming and audio meta details"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Portal user registration sessions"
+    },
+    "/subscribers/{subscriberId}": {
+      "schema": "Subscriber",
+      "description": "Newsletter subscribers database"
+    },
+    "/broadcasts/{broadcastId}": {
+      "schema": "Broadcast",
+      "description": "Newsletter broadcast history log"
+    },
+    "/memberSpotlights/{spotlightId}": {
+      "schema": "MemberSpotlight",
+      "description": "Choir member spotlight listings"
+    },
+    "/sessions/{sessionId}": {
+      "schema": "UserSession",
+      "description": "Admin and leadership secure sessions"
     }
   }
 }

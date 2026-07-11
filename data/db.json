@@ -2,31 +2,14 @@
   "passcode": "SDA2026",
   "activities": [
     {
-      "id": "act-1",
-      "title": "Sabbath Afternoon Choral Vesper",
-      "date": "Every Sabbath (Saturday) at 2:30 PM",
-      "location": "Kachok Seventh-day Adventist Church",
-      "description": "Our weekly main rehearsal and praise session. We sing hymns, study the Sabbath School lesson together, and rehearse new acappella selections to prepare for our upcoming evangelistic missions.",
+      "id": "act-1783158774741",
+      "title": "Afbb",
+      "date": "Saturday ",
+      "location": "KACHOK BOX 9379",
+      "description": "Shnkkd",
       "category": "Worship & Practice",
-      "image": "https://images.unsplash.com/photo-1515162305285-0293e4767cc2?auto=format&fit=crop&q=80&w=600"
-    },
-    {
-      "id": "act-2",
-      "title": "Vibrant Youth Campout & Music Seminar",
-      "date": "August 12 - 19, 2026",
-      "location": "Mt. Elgon Forest Reserve Campgrounds",
-      "description": "An enriching 7-day youth encampment combining nature exploration, spiritual revivals, and vocal/conducting masterclasses. Guided by elder vocal trainers and SDA music ministers.",
-      "category": "Youth Camp & Training",
-      "image": "https://images.unsplash.com/photo-1478147427282-58a87a120781?auto=format&fit=crop&q=80&w=600"
-    },
-    {
-      "id": "act-3",
-      "title": "SDA Community Health & Hymn Mission",
-      "date": "July 05, 2026",
-      "location": "Kachok Community Health Center & Slums",
-      "description": "Sharing the gospel through medical missionary work and soothing vocal melodies. We conduct free blood pressure screenings, hold a sanitation drive, and perform bedside comfort songs.",
-      "category": "Community Outreach",
-      "image": "https://images.unsplash.com/photo-1469571486040-0b3b27573b77?auto=format&fit=crop&q=80&w=600"
+      "image": "https://res.cloudinary.com/epd4yag0/image/upload/v1783158774/kachamba_sync/oxuamsqhjiwhk3yabwmp.jpg",
+      "mediaType": "image"
     }
   ],
   "itinerary": [
@@ -128,6 +111,70 @@
       "image": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400",
       "bio": "Spiritual advisor delegated by the Local Church Board, overseeing our outreach logistics and uniform supplies.",
       "phone": "+254 734 567 890"
+    }
+  ],
+  "users": [
+    {
+      "id": "BavO6GQsvgfVkYeORWWS9T4J5ft2",
+      "uid": "BavO6GQsvgfVkYeORWWS9T4J5ft2",
+      "email": "oldtimereligionministry2024@gmail.com",
+      "name": "OLDTIME RELIGION MINISTRY",
+      "voicePart": "Listener",
+      "createdAt": "2026-06-22T06:50:51.110Z"
+    },
+    {
+      "id": "Dr30sX5XsRabpv73jFnmGBSggca2",
+      "uid": "Dr30sX5XsRabpv73jFnmGBSggca2",
+      "email": "allangeorge566@gmail.com",
+      "name": "Allan George",
+      "voicePart": "Listener",
+      "createdAt": "2026-06-24T12:22:55.966Z",
+      "favorites": [
+        "iti-4"
+      ]
+    },
+    {
+      "id": "ESvsTWBHK3gkrNTSBSfO31cZbEB3",
+      "uid": "ESvsTWBHK3gkrNTSBSfO31cZbEB3",
+      "email": "sdakachokambassadors@gmail.com",
+      "name": "Kachok Ambassadors",
+      "voicePart": "Listener",
+      "createdAt": "2026-06-23T11:40:49.748Z"
+    },
+    {
+      "id": "OwxSZ90wwRhlCYH2ojAGMyYlxuf2",
+      "uid": "OwxSZ90wwRhlCYH2ojAGMyYlxuf2",
+      "email": "esthershaban085@gmail.com",
+      "name": "Esther Shaban",
+      "voicePart": "Listener",
+      "createdAt": "2026-06-28T08:47:35.363Z"
+    },
+    {
+      "id": "usr_sh8a5vbjq",
+      "uid": "usr_sh8a5vbjq",
+      "email": "dukeofsagam@gmail.com",
+      "displayName": "Allande George",
+      "photoURL": "https://api.dicebear.com/7.x/adventurer/svg?seed=Allande%20George",
+      "voicePart": "Listener",
+      "providerId": "email",
+      "createdAt": "2026-06-22T06:47:47.109Z",
+      "password": "SDA2026"
+    }
+  ],
+  "sessions": [
+    {
+      "id": "adm_sess_flwcye8iirg8s0w47h",
+      "token": "adm_sess_flwcye8iirg8s0w47h",
+      "expiresAt": 1782118352104,
+      "role": "admin",
+      "createdAt": "2026-06-22T06:52:32.104Z"
+    },
+    {
+      "id": "adm_sess_xxa6pi252nc0kzr3qe",
+      "token": "adm_sess_xxa6pi252nc0kzr3qe",
+      "expiresAt": 1782118947137,
+      "role": "admin",
+      "createdAt": "2026-06-22T07:02:27.137Z"
     }
   ]
 }

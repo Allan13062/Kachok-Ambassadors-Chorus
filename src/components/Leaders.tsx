@@ -100,7 +100,7 @@ export default function Leaders({ items, isAdmin, onAdd, onEdit, onDelete }: Lea
         <div className="text-center max-w-2xl mx-auto mb-12 md:mb-16">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full text-amber-400 font-mono text-[10px] sm:text-xs tracking-wider uppercase mb-3">
             <Users className="w-3.5 h-3.5" />
-            <span>Kachamba Choral Executive</span>
+            <span>Kachamba Chorus Executive</span>
           </div>
           <h2 className="font-sans font-extrabold text-3xl sm:text-4xl md:text-5xl tracking-tight text-white uppercase">
             Our <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-rose-500 to-amber-300">Leadership</span>
@@ -115,7 +115,7 @@ export default function Leaders({ items, isAdmin, onAdd, onEdit, onDelete }: Lea
           {items.map((leader) => (
             <div 
               key={leader.id}
-              className="group relative bg-slate-900/40 backdrop-blur-md border border-slate-850 hover:border-amber-400/30 rounded-2xl overflow-hidden shadow-xl hover:shadow-2xl hover:shadow-amber-500/5 transition-all duration-300 flex flex-col justify-between"
+              className="group relative bg-slate-900/40 backdrop-blur-md border border-slate-850 hover:border-amber-400/30 rounded-2xl overflow-hidden shadow-xl hover:shadow-2xl hover:shadow-amber-500/5 hover:-translate-y-1 hover:scale-[1.03] transition-all duration-300 flex flex-col justify-between"
             >
               <div>
                 {/* Leader Picture Box - 16:10 or square responsive frame */}

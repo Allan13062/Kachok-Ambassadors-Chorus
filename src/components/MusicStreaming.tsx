@@ -31,8 +31,8 @@ export default function MusicStreaming({ music }: { music: MusicData }) {
     return `/api/proxy-audio?url=${encodeURIComponent(urlStr)}`;
   };
 
-  // Fallback default track (Peer Gynt Suite No. 1 - extremely stable, HTTPS and CORS-friendly Wikimedia CDN)
-  const demoAudioTrack = "https://audio.jukehost.co.uk/019ecf7c-ba88-72d0-ac02-28fbf0aaf1ce";
+  // Fallback default track (Hallelujah Chorus - extremely stable, HTTPS and CORS-friendly Wikimedia CDN)
+  const demoAudioTrack = "https://upload.wikimedia.org/wikipedia/commons/4/4c/Halleluja_%28H%C3%A4ndel%29.mp3";
   const activeAudioUrl = getPlayableAudioUrl(music?.audioUrl || demoAudioTrack);
 
   // Track logo fallback
@@ -263,9 +263,11 @@ export default function MusicStreaming({ music }: { music: MusicData }) {
                     <p className="font-sans font-extrabold text-xs leading-snug text-white uppercase tracking-wider drop-shadow-md line-clamp-2">
                       {music?.albumName || "SOUNDS OF TOGETHERNESS"}
                     </p>
-                    <p className="font-mono text-[9px] text-amber-400/80 tracking-wide mt-1 uppercase drop-shadow-md">
-                      {music?.label || "Coming Soon"}
-                    </p>
+                    {music?.label && (
+                      <p className="font-mono text-[9px] text-amber-400/80 tracking-wide mt-1 uppercase drop-shadow-md">
+                        {music.label}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -283,7 +285,7 @@ export default function MusicStreaming({ music }: { music: MusicData }) {
                     type="range"
                     min="0"
                     max={trackDuration || 45}
-                    value={currentTime}
+                    value={currentTime || 0}
                     onChange={(e) => {
                       const seekTo = parseFloat(e.target.value);
                       if (audioRef.current) {
@@ -299,7 +301,6 @@ export default function MusicStreaming({ music }: { music: MusicData }) {
                 </div>
                 <div className="flex justify-between items-center text-[10px] font-mono text-slate-500 mt-2">
                   <span>{formatTime(currentTime)}</span>
-                  <span className="text-[9px] text-amber-500/60 font-sans uppercase font-bold tracking-wider">45s Preview Snippet</span>
                   <span>{formatTime(trackDuration)}</span>
                 </div>
               </div>
@@ -328,21 +329,6 @@ export default function MusicStreaming({ music }: { music: MusicData }) {
                 >
                   +10s
                 </button>
-              </div>
-
-              {/* Simulated Audio Spectrum Waveform */}
-              <div className="flex items-end justify-center gap-0.5 h-10 mt-6 w-full px-4 overflow-hidden">
-                {audioBars.map((barHeight, idx) => (
-                  <motion.div 
-                    key={idx}
-                    className="w-1.5 rounded-t"
-                    animate={{ height: `${barHeight}%` }}
-                    transition={{ type: "spring", stiffness: 200, damping: 25 }}
-                    style={{ 
-                      backgroundColor: idx % 2 === 0 ? "rgba(245, 158, 11, 0.5)" : "rgba(217, 119, 6, 0.3)" 
-                    }}
-                  />
-                ))}
               </div>
 
               {/* Description & lyrics preview snippet */}

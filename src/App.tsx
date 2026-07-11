@@ -7,13 +7,14 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { onAuthStateChanged, User as FirebaseUser, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
 import { auth, db } from "./lib/firebase";
+import { useAdminAuth } from "./hooks/useAdminAuth";
 import Header from "./components/Header";
 import Hero from "./components/Hero";
 import Itinerary from "./components/Itinerary";
 import Activities from "./components/Activities";
 import MusicStreaming from "./components/MusicStreaming";
 import Gallery from "./components/Gallery";
-import JoinUs from "./components/JoinUs";
+import SupportOurMission from "./components/SupportOurMission";
 import ContactUs from "./components/ContactUs";
 import ChatBot from "./components/ChatBot";
 import AdminPanel from "./components/AdminPanel";
@@ -22,6 +23,7 @@ import AuthModal from "./components/AuthModal";
 import { Activity, ItineraryItem, Inquiry, MusicData, Leader, Subscriber, Broadcast, MemberSpotlight as MemberSpotlightType } from "./types";
 import MemberSpotlight from "./components/MemberSpotlight";
 import { Music, Heart, Calendar, Compass, Star, Facebook, Youtube } from "lucide-react";
+import { uploadMedia } from "./lib/mediaUpload";
 import { Analytics } from "@vercel/analytics/react";
 
 function FadeInSection({ children }: { children: React.ReactNode }) {
@@ -125,11 +127,15 @@ export default function App() {
   // UI state managers
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const [adminPasscode, setAdminPasscode] = useState<string | null>(() => {
-    return localStorage.getItem("kachamba_admin_passcode");
-  });
+  const [adminScrollTarget, setAdminScrollTarget] = useState<string | null>(null);
+
+  // Custom secure React hook managing centralized admin sessions
+  const { isAdmin, adminToken, authLoading, adminError, login: loginAdmin, loginWithGoogle: loginAdminGoogle, logout: logoutAdmin, resetPassword: resetAdminPassword } = useAdminAuth();
+  const adminPasscode = adminToken;
+
   const [activeSection, setActiveSection] = useState("home");
   const [bookingPrefill, setBookingPrefill] = useState("");
+  const [webLogo, setWebLogo] = useState("https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png");
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     const saved = localStorage.getItem("kachamba_theme");
     return (saved === "light" || saved === "dark") ? saved : "dark";
@@ -145,6 +151,7 @@ export default function App() {
     localStorage.setItem("kachamba_theme", theme);
   }, [theme]);
 
+  // App state markers
   // Editing state markers
   const [actToEdit, setActToEdit] = useState<Activity | null>(null);
   const [itiToEdit, setItiToEdit] = useState<ItineraryItem | null>(null);
@@ -171,6 +178,10 @@ export default function App() {
       const headers: Record<string, string> = {};
       if (adminPasscode) {
         headers["x-admin-passcode"] = adminPasscode;
+        headers["x-admin-token"] = adminPasscode;
+      }
+      if (user?.uid) {
+        headers["x-user-id"] = user.uid;
       }
 
       const response = await fetch("/api/db", {
@@ -192,6 +203,19 @@ export default function App() {
           setMusic(data.music);
         }
       }
+
+      // Securely fetch M-Pesa config to derive the dynamic website logo
+      try {
+        const mpesaRes = await fetch("/api/mpesa/config");
+        if (mpesaRes.ok) {
+          const mpesaData = await mpesaRes.json();
+          if (mpesaData.receiptLogo) {
+            setWebLogo(mpesaData.receiptLogo);
+          }
+        }
+      } catch (err) {
+        console.warn("Could not retrieve M-Pesa dynamic configurations on boot:", err);
+      }
     } catch (error) {
       console.error("Failed to sync choral records from Express:", error);
     }
@@ -204,7 +228,7 @@ export default function App() {
   // Scrollspy helper tracking navbar highlighting
   useEffect(() => {
     const handleScroll = () => {
-      const sections = ["home", "itinerary", "activities", "leadership", "music", "gallery", "join", "contact"];
+      const sections = ["home", "itinerary", "activities", "leadership", "music", "gallery", "support", "contact"];
       const currentScroll = window.scrollY + 200; // Offset checking
 
       for (const section of sections) {
@@ -225,29 +249,20 @@ export default function App() {
   }, []);
 
   // Leaders portal auth pipeline
-  const handleAdminAuth = async (passcode: string): Promise<boolean> => {
-    try {
-      const res = await fetch("/api/auth", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ passcode })
-      });
-      if (res.ok) {
-        setAdminPasscode(passcode);
-        localStorage.setItem("kachamba_admin_passcode", passcode);
-        return true;
-      }
-    } catch (error) {
-      console.error("Auth server failure:", error);
-    }
-    return false;
+  const handleAdminAuth = async (email: string, password?: string): Promise<boolean> => {
+    return await loginAdmin(email, password);
+  };
+
+  const handleAdminGoogleAuth = async (): Promise<boolean> => {
+    return await loginAdminGoogle();
+  };
+
+  const handleAdminResetPassword = async (email: string): Promise<boolean> => {
+    return await resetAdminPassword(email);
   };
 
   const handleAdminLogout = () => {
-    setAdminPasscode(null);
-    localStorage.removeItem("kachamba_admin_passcode");
+    logoutAdmin();
     setIsAdminOpen(false);
     clearOperationalStates();
   };
@@ -256,6 +271,7 @@ export default function App() {
     setActToEdit(null);
     setItiToEdit(null);
     setLdrToEdit(null);
+    setAdminScrollTarget(null);
   };
 
   // Inquiry actions (Admin panel)
@@ -295,34 +311,47 @@ export default function App() {
     }
   };
 
-  // Central base64 file upload interceptor helper
+  const compressImage = (base64Str: string, maxWidth = 800): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.src = base64Str;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const ratio = Math.min(maxWidth / img.width, 1);
+        canvas.width = img.width * ratio;
+        canvas.height = img.height * ratio;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL("image/jpeg", 0.7)); // compress heavily
+        } else {
+          resolve(base64Str);
+        }
+      };
+      img.onerror = () => resolve(base64Str); // Fallback
+    });
+  };
+
   const uploadBase64IfNeeded = async (base64Str: string | undefined | null, defaultFilename = "upload.jpg"): Promise<string | undefined | null> => {
     if (!base64Str || !base64Str.startsWith("data:")) {
       return base64Str;
     }
+    
+    // Admin uploads only
     if (!adminPasscode) return base64Str;
-    try {
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-passcode": adminPasscode
-        },
-        body: JSON.stringify({
-          filename: defaultFilename,
-          base64: base64Str
-        })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        return data.url;
-      } else {
-        console.error("Base64 upload failed on server, using fallback inline data.");
-      }
-    } catch (err) {
-      console.error("Network error during base64 upload:", err);
+    
+    let processedBase64 = base64Str;
+    if (base64Str.startsWith("data:image/")) {
+        processedBase64 = await compressImage(base64Str);
     }
-    return base64Str;
+
+    try {
+      const url = await uploadMedia(processedBase64, adminPasscode, defaultFilename);
+      return url || processedBase64;
+    } catch (err) {
+      console.error("Error during base64 upload:", err);
+    }
+    return processedBase64;
   };
 
   // Activity actions (Admin CRUD)
@@ -531,14 +560,26 @@ export default function App() {
   };
 
   return (
-    <div className={`min-h-screen overflow-x-hidden flex flex-col font-sans antialiased selection:bg-amber-500/20 selection:text-amber-300 transition-colors duration-300 ${
+    <div className={`min-h-screen overflow-x-hidden flex flex-col font-sans antialiased selection:bg-amber-500/20 selection:text-amber-300 transition-colors duration-300 relative ${
       theme === "dark" 
         ? "bg-slate-950 text-white" 
         : "bg-slate-50 text-slate-900"
     }`}>
       
+      {/* High-contrast ambient background orbs & grid system for ultimate glass depth */}
+      <div className="fixed inset-0 pointer-events-none select-none z-0 overflow-hidden opacity-100 transition-opacity duration-300">
+        <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-amber-500/5 blur-[120px] dark:bg-amber-500/3" />
+        <div className="absolute top-[30%] right-[-10%] w-[60vw] h-[60vw] rounded-full bg-blue-500/5 blur-[135px] dark:bg-blue-600/3" />
+        <div className="absolute bottom-[-10%] left-[20%] w-[50vw] h-[50vw] rounded-full bg-rose-500/5 blur-[120px] dark:bg-rose-500/3" />
+        
+        {/* Fine, high-precision technical layout grid */}
+        <div className="absolute inset-0 opacity-[0.4] dark:opacity-[0.15] bg-[linear-gradient(to_right,rgba(148,163,184,0.1)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.1)_1px,transparent_1px)] bg-[size:4rem_4rem]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-slate-950/20 to-transparent pointer-events-none" />
+      </div>
+
       {/* Decorative Header Frame line */}
       <div className="h-1 w-full bg-gradient-to-r from-amber-500 via-amber-300 to-amber-600 sticky top-0 z-50 pointer-events-none" />
+
 
       {/* Navigation Header */}
       <Header 
@@ -551,6 +592,7 @@ export default function App() {
         user={user}
         onGoogleLogin={handleGoogleLogin}
         onGoogleLogout={handleGoogleLogout}
+        webLogo={webLogo}
       />
 
       {/* Hero Welcome Unit */}
@@ -559,10 +601,11 @@ export default function App() {
           onAskAI={() => {
             setIsChatOpen(true);
           }}
+          webLogo={webLogo}
         />
       </FadeInSection>
 
-      <main className="flex-1">
+      <main className="flex-1 relative z-10">
         
         {/* Dynamic Member Spotlight Section */}
         <FadeInSection>
@@ -570,7 +613,7 @@ export default function App() {
             spotlights={dbData.memberSpotlights}
             isAdmin={!!adminPasscode}
             onLaunchAdmin={() => {
-              // Open admin panel direct to Spotlight section if desired
+              setAdminScrollTarget("spotlight");
               setIsAdminOpen(true);
             }}
           />
@@ -585,10 +628,12 @@ export default function App() {
             onRefresh={fetchData}
             onAdd={() => {
               setItiToEdit(null);
+              setAdminScrollTarget("itinerary");
               setIsAdminOpen(true);
             }}
             onEdit={(item) => {
               setItiToEdit(item);
+              setAdminScrollTarget("itinerary");
               setIsAdminOpen(true);
             }}
             onDelete={handleDeleteItinerary}
@@ -607,10 +652,12 @@ export default function App() {
             isAdmin={!!adminPasscode}
             onAdd={() => {
               setActToEdit(null);
+              setAdminScrollTarget("activities");
               setIsAdminOpen(true);
             }}
             onEdit={(activity) => {
               setActToEdit(activity);
+              setAdminScrollTarget("activities");
               setIsAdminOpen(true);
             }}
             onDelete={handleDeleteActivity}
@@ -624,10 +671,12 @@ export default function App() {
             isAdmin={!!adminPasscode}
             onAdd={() => {
               setLdrToEdit(null);
+              setAdminScrollTarget("leaders");
               setIsAdminOpen(true);
             }}
             onEdit={(leader) => {
               setLdrToEdit(leader);
+              setAdminScrollTarget("leaders");
               setIsAdminOpen(true);
             }}
             onDelete={handleDeleteLeader}
@@ -644,9 +693,9 @@ export default function App() {
           <Gallery />
         </FadeInSection>
 
-        {/* Join Us Recruitment Section */}
+        {/* Support Our Mission Section */}
         <FadeInSection>
-          <JoinUs />
+          <SupportOurMission theme={theme} webLogo={webLogo} />
         </FadeInSection>
 
         {/* Real Contact/Booking Form */}
@@ -672,10 +721,18 @@ export default function App() {
         {isAdminOpen && (
           <AdminPanel 
             isOpen={isAdminOpen}
-            onClose={() => setIsAdminOpen(false)}
+            onClose={() => {
+              setIsAdminOpen(false);
+              setAdminScrollTarget(null);
+            }}
             onLogin={handleAdminAuth}
+            onGoogleLoginAdmin={handleAdminGoogleAuth}
+            onResetPassword={handleAdminResetPassword}
             onLogout={handleAdminLogout}
             isAuthenticated={!!adminPasscode}
+            adminError={adminError}
+            adminToken={adminToken}
+            authLoading={authLoading}
             googleAccessToken={googleAccessToken}
             onGoogleLogin={handleGoogleLogin}
             inquiries={dbData.inquiries}
@@ -697,6 +754,7 @@ export default function App() {
             broadcasts={dbData.broadcasts}
             memberSpotlights={dbData.memberSpotlights}
             onRefresh={fetchData}
+            scrollToSection={adminScrollTarget}
           />
         )}
       </AnimatePresence>
@@ -871,7 +929,24 @@ export default function App() {
             </p>
             <div className="text-slate-500 mt-2.5 text-[11px] font-sans">
               <p>SDA Kachok Church, Kisumu</p>
-              <p className="mt-0.5">Phone: +254797450206 | Email: kachambachorus@gmail.com</p>
+              <p className="mt-0.5">
+                Phone: +254797450206 | Email:{" "}
+                <a 
+                  href="mailto:kachambachorus@gmail.com?subject=Inquiry%20for%20Kachamba%20Chorus"
+                  className="text-amber-500 hover:text-amber-400 font-semibold transition-colors hover:underline"
+                  title="Direct mail inquiry"
+                >
+                  kachambachorus@gmail.com
+                </a>
+              </p>
+              <p className="mt-1">
+                <a 
+                  href="mailto:kachambachorus@gmail.com?subject=Inquiry%20for%20Kachamba%20Chorus"
+                  className="inline-flex items-center gap-1 text-[10px] text-amber-500 hover:text-amber-400 hover:underline transition-colors"
+                >
+                  ✉ Direct Email Inquiry
+                </a>
+              </p>
             </div>
           </div>
 
@@ -881,7 +956,7 @@ export default function App() {
               <a href="#activities" className="hover:text-amber-400 font-sans transition-colors">Ministries</a>
               <a href="#music" className="hover:text-amber-400 font-sans transition-colors">Music</a>
               <a href="#gallery" className="hover:text-amber-400 font-sans transition-colors">Gallery</a>
-              <a href="#join" className="hover:text-amber-400 font-sans transition-colors">Join Us</a>
+              <a href="#support" className="hover:text-amber-400 font-sans transition-colors">Support Us</a>
             </div>
             
             {/* Social Media Presence icons */}

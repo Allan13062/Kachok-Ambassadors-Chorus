@@ -5,14 +5,15 @@ import {
   CalendarDays, MapPin, ShieldCheck, Clock, Plus, Trash2, Edit, Play, 
   Minimize2, ZoomIn, Eye, ChevronRight, Upload, X, Check, Filter, 
   Newspaper, Camera, Film, AlertCircle, RefreshCw, Send, HelpCircle, Heart, Share2,
-  Bell, BellRing, CalendarPlus, Download
+  Bell, BellRing, CalendarPlus, Download, FileText
 } from "lucide-react";
 
 import { User as FirebaseUser } from "firebase/auth";
 import { doc, getDoc, setDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { jsPDF } from "jspdf";
-import sdaLogo from "../assets/sda-logo.png";
+import { uploadMedia } from "../lib/mediaUpload";
+const sdaLogo = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Seventh-day_Adventist_Church_logo_svg.svg/320px-Seventh-day_Adventist_Church_logo_svg.svg.png";
 
 interface ItineraryProps {
   items: ItineraryItem[];
@@ -685,6 +686,272 @@ export default function Itinerary({
     }
   };
 
+  // Generate and download a professional, print-friendly liturgical bulletin schedule PDF for local church distribution
+  const downloadProfessionalSchedulePDF = async () => {
+    try {
+      const doc = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4"
+      });
+
+      const pageWidth = 210;
+      const pageHeight = 297;
+      const margin = 12;
+      const contentWidth = pageWidth - (margin * 2);
+
+      const drawLiturgicalFrame = () => {
+        // Deep primary outline frame
+        doc.setDrawColor(15, 23, 42);
+        doc.setLineWidth(0.45);
+        doc.rect(margin, margin, contentWidth, pageHeight - (margin * 2), "S");
+        
+        // Delicate secondary inner frame
+        doc.setLineWidth(0.15);
+        doc.rect(margin + 1.2, margin + 1.2, contentWidth - 2.4, pageHeight - (margin * 2) - 2.4, "S");
+
+        // Elegant corner intersecting crossbars (traditional liturgical corner markings)
+        const offset = 1.2;
+        const lineLen = 4.5;
+        doc.setLineWidth(0.22);
+        
+        // Top-Left corner intersecting accents
+        doc.line(margin + offset, margin + offset + lineLen, margin + offset + lineLen, margin + offset + lineLen);
+        doc.line(margin + offset + lineLen, margin + offset, margin + offset + lineLen, margin + offset + lineLen);
+
+        // Top-Right corner intersecting accents
+        doc.line(pageWidth - margin - offset - lineLen, margin + offset + lineLen, pageWidth - margin - offset, margin + offset + lineLen);
+        doc.line(pageWidth - margin - offset - lineLen, margin + offset, pageWidth - margin - offset - lineLen, margin + offset + lineLen);
+
+        // Bottom-Left corner intersecting accents
+        doc.line(margin + offset, pageHeight - margin - offset - lineLen, margin + offset + lineLen, pageHeight - margin - offset - lineLen);
+        doc.line(margin + offset + lineLen, pageHeight - margin - offset - lineLen, margin + offset + lineLen, pageHeight - margin - offset);
+
+        // Bottom-Right corner intersecting accents
+        doc.line(pageWidth - margin - offset - lineLen, pageHeight - margin - offset - lineLen, pageWidth - margin - offset, pageHeight - margin - offset - lineLen);
+        doc.line(pageWidth - margin - offset - lineLen, pageHeight - margin - offset - lineLen, pageWidth - margin - offset - lineLen, pageHeight - margin - offset);
+      };
+
+      const renderDocumentHeader = (pageNum: number) => {
+        drawLiturgicalFrame();
+        
+        // DRAW OFFICIAL PASTORAL MINISTRY SEAL
+        const sealX = pageWidth - margin - 15;
+        const sealY = margin + 13.5;
+        
+        // Royal Outer Ring
+        doc.setDrawColor(180, 83, 9); // Golden amber
+        doc.setLineWidth(0.4);
+        doc.circle(sealX, sealY, 8.5, "S");
+        
+        // Delicate Inner Ring
+        doc.setLineWidth(0.12);
+        doc.circle(sealX, sealY, 6.8, "S");
+
+        // Sacred Central Latin Cross
+        doc.setLineWidth(0.55);
+        doc.line(sealX, sealY - 4.2, sealX, sealY + 3.8); // Vertical bar
+        doc.line(sealX - 2.5, sealY - 1.4, sealX + 2.5, sealY - 1.4); // Horizontal bar
+
+        // Circular Text Tagging
+        doc.setFont("times", "bolditalic");
+        doc.setFontSize(4);
+        doc.setTextColor(180, 83, 9);
+        doc.text("KACHAMBA", sealX, sealY - 4.8, { align: "center" });
+        doc.text("MINISTRY", sealX, sealY + 5.2, { align: "center" });
+
+        // Build Title Elements
+        let currentY = margin + 6;
+        doc.setFont("times", "bold");
+        doc.setFontSize(14.5);
+        doc.setTextColor(15, 23, 42);
+        doc.text("KACHAMBA CHORUS ADVENTIST MINISTRY", pageWidth / 2, currentY, { align: "center" });
+        currentY += 5.5;
+
+        doc.setFont("times", "normal");
+        doc.setFontSize(8.5);
+        doc.setTextColor(71, 85, 105);
+        doc.text("Proclaiming the Three Angels' Messages in Sacred Song and Acapella Harmony", pageWidth / 2, currentY, { align: "center" });
+        currentY += 4.5;
+
+        doc.setFont("times", "bolditalic");
+        doc.setFontSize(11);
+        doc.setTextColor(180, 83, 9);
+        doc.text("OFFICIAL WORSHIP SERVICES & CONCERT SCHEDULE", pageWidth / 2, currentY, { align: "center" });
+        currentY += 5;
+
+        doc.setDrawColor(148, 163, 184);
+        doc.setLineWidth(0.35);
+        doc.line(margin + 15, currentY, pageWidth - margin - 25, currentY); // Spaced slightly to merge elegantly with seal
+        currentY += 4.5;
+
+        doc.setFont("courier", "normal");
+        doc.setFontSize(7.5);
+        doc.setTextColor(100, 116, 139);
+        const dateStr = new Date().toLocaleDateString("en-US", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        doc.text(`Gazette Serial: KC-2026/BULLETIN-EDITION  •  Exported: ${dateStr}  •  Page ${pageNum}`, pageWidth / 2, currentY, { align: "center" });
+        return currentY + 6;
+      };
+
+      const sortedItems = [...items].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      let y = renderDocumentHeader(1);
+
+      if (sortedItems.length === 0) {
+        doc.setFont("times", "italic");
+        doc.setFontSize(11);
+        doc.setTextColor(100, 116, 139);
+        doc.text("No active schedule events recorded. Please contact the Secretariat.", pageWidth / 2, y + 20, { align: "center" });
+      } else {
+        const renderTableHeader = (headerY: number) => {
+          doc.setFillColor(248, 250, 252);
+          doc.rect(margin + 3, headerY, contentWidth - 6, 8, "F");
+          doc.setDrawColor(15, 23, 42);
+          doc.setLineWidth(0.35);
+          doc.rect(margin + 3, headerY, contentWidth - 6, 8, "S");
+          doc.setFont("times", "bold");
+          doc.setFontSize(8.5);
+          doc.setTextColor(15, 23, 42);
+          doc.text("DATE & HARVEST HOUR", margin + 6, headerY + 5.5);
+          doc.text("EVENT TITLE / SERVICE TYPE", margin + 50, headerY + 5.5);
+          doc.text("SPONSOR HOST & PHYSICAL LOCATION", margin + 108, headerY + 5.5);
+          doc.text("CHURCH MEMO & ANNOUNCEMENT", margin + 152, headerY + 5.5);
+        };
+
+        renderTableHeader(y);
+        y += 8;
+
+        for (let idx = 0; idx < sortedItems.length; idx++) {
+          const item = sortedItems[idx];
+          const eventDate = new Date(item.date).toLocaleDateString("en-US", { month: 'short', day: 'numeric', year: 'numeric' });
+          const eventTime = item.time || "Sabbath Hours";
+          const eventDateStr = `${eventDate}\n(${eventTime})`;
+
+          const title = item.event.toUpperCase();
+          const classification = getCategoryTag(item).label;
+          const eventTitleText = `${title}\n[${classification}]`;
+
+          const host = item.host || "SDA Sanctuary Host";
+          const location = item.location;
+          const sponsorHostText = `${host}\n${location}`;
+          const notes = item.notes || "Join the Ambassadors in celestial praise. All visitors are welcomed.";
+
+          const dateLines = doc.splitTextToSize(eventDateStr, 40);
+          const titleLines = doc.splitTextToSize(eventTitleText, 54);
+          const hostLines = doc.splitTextToSize(sponsorHostText, 42);
+          const notesLines = doc.splitTextToSize(notes, 31);
+
+          const maxLines = Math.max(dateLines.length, titleLines.length, hostLines.length, notesLines.length);
+          const lineHeight = 4.2;
+          const rowPadding = 6;
+          const rowHeight = (maxLines * lineHeight) + rowPadding;
+
+          if (y + rowHeight > pageHeight - margin - 15) {
+            doc.setFont("times", "italic");
+            doc.setFontSize(7.5);
+            doc.setTextColor(100, 116, 139);
+            doc.text("* This pastoral itinerary is arranged for prayer requests, visitation, and mission alignments.", margin + 5, pageHeight - margin - 5);
+            doc.text("Official Church Circulation *", pageWidth - margin - 5, pageHeight - margin - 5, { align: "right" });
+
+            doc.addPage();
+            y = renderDocumentHeader(doc.getNumberOfPages());
+            renderTableHeader(y);
+            y += 8;
+          }
+
+          if (idx % 2 === 1) {
+            doc.setFillColor(252, 252, 252);
+            doc.rect(margin + 3, y, contentWidth - 6, rowHeight, "F");
+          }
+
+          doc.setDrawColor(226, 232, 240);
+          doc.setLineWidth(0.15);
+          doc.line(margin + 3, y + rowHeight, pageWidth - margin - 3, y + rowHeight);
+
+          doc.setFontSize(8);
+          doc.setTextColor(40, 40, 40);
+
+          doc.setFont("times", "bold");
+          dateLines.forEach((line, lIdx) => {
+            doc.text(line, margin + 6, y + 4.5 + (lIdx * lineHeight));
+          });
+
+          titleLines.forEach((line, lIdx) => {
+            if (line.trim().startsWith('[')) {
+              doc.setFont("times", "italic");
+              doc.setTextColor(180, 83, 9);
+            } else {
+              doc.setFont("times", "bold");
+              doc.setTextColor(15, 23, 42);
+            }
+            doc.text(line, margin + 50, y + 4.5 + (lIdx * lineHeight));
+          });
+          doc.setTextColor(40, 40, 40);
+
+          hostLines.forEach((line, lIdx) => {
+            if (lIdx === 0) {
+              doc.setFont("times", "bold");
+            } else {
+              doc.setFont("times", "normal");
+            }
+            doc.text(line, margin + 108, y + 4.5 + (lIdx * lineHeight));
+          });
+
+          doc.setFont("times", "italic");
+          doc.setFontSize(7.5);
+          doc.setTextColor(71, 85, 105);
+          notesLines.forEach((line, lIdx) => {
+            doc.text(line, margin + 152, y + 4.5 + (lIdx * lineHeight));
+          });
+
+          y += rowHeight;
+        }
+
+        doc.setDrawColor(15, 23, 42);
+        doc.setLineWidth(0.3);
+        doc.line(margin + 3, y, pageWidth - margin - 3, y);
+      }
+
+      if (y + 30 > pageHeight - margin - 15) {
+        doc.addPage();
+        y = renderDocumentHeader(doc.getNumberOfPages());
+      }
+
+      y += 10;
+      doc.setFont("times", "bold");
+      doc.setFontSize(8.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text("Official Endorsement Authorities:", margin + 6, y);
+      y += 6;
+
+      doc.setDrawColor(148, 163, 184);
+      doc.setLineWidth(0.2);
+      doc.line(margin + 6, y, margin + 65, y);
+      doc.line(pageWidth - margin - 65, y, pageWidth - margin - 6, y);
+
+      doc.setFont("times", "italic");
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.text("Ambassador Chorus Secretary-General", margin + 6, y + 4);
+      doc.text("Patron & District Chaplain", pageWidth - margin - 6, y + 4, { align: "right" });
+
+      y += 12;
+      doc.setFont("times", "bold");
+      doc.setFontSize(8.5);
+      doc.setTextColor(180, 83, 9);
+      doc.text("FOR LOCAL CHURCH DISTRIBUTION, PARISH BULLETIN INSERTION, & BOARD POSTINGS.", pageWidth / 2, y, { align: "center" });
+
+      doc.setFont("times", "italic");
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text("* The Ambassador Ministry is an auxiliary body of the Seventh-day Adventist Church. All music is performed on a purely philanthropic basis.", margin + 5, pageHeight - margin - 5);
+      doc.text("Official Church Circulation *", pageWidth - margin - 5, pageHeight - margin - 5, { align: "right" });
+
+      doc.save("Kachamba_Chorus_Church_Bulletin_Schedule.pdf");
+    } catch (err) {
+      console.error("Failed to compile church bulletin schedule:", err);
+    }
+  };
+
   // Setup inline quick editing
   const startInlineEdit = (item: ItineraryItem) => {
     setEditingItemId(item.id);
@@ -867,29 +1134,11 @@ export default function Itinerary({
     if (localFileBase64) {
       setFileError(null);
       try {
-        // Upload base64 encoded data to server's filesystem upload endpoint first
-        const uploadRes = await fetch("/api/upload", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-admin-passcode": adminPasscode
-          },
-          body: JSON.stringify({
-            filename: localFileType === "video" ? "uploaded_video.mp4" : "uploaded_photo.jpg",
-            base64: localFileBase64
-          })
-        });
-
-        if (!uploadRes.ok) {
-          const errData = await uploadRes.json().catch(() => ({}));
-          throw new Error(errData.error || "Server upload failed.");
-        }
-
-        const uploadData = await uploadRes.json();
-        finalMediaUrl = uploadData.url;
+        const defaultFilename = localFileType === "video" ? "uploaded_video.mp4" : "uploaded_photo.jpg";
+        finalMediaUrl = await uploadMedia(localFileBase64, adminPasscode, defaultFilename);
         finalMediaType = localFileType || "image";
       } catch (err: any) {
-        setFileError(err.message || "Failed to upload file to the server.");
+        setFileError(err.message || "Failed to upload file.");
         setSavingId(null);
         return;
       }
@@ -931,27 +1180,11 @@ export default function Itinerary({
   return (
     <section 
       id="itinerary" 
-      className="py-24 px-4 sm:px-6 md:px-12 bg-slate-950 text-white relative border-t border-b border-slate-900 overflow-hidden"
+      className="py-24 px-4 sm:px-6 md:px-12 bg-transparent text-white relative border-t border-b border-white/5 overflow-hidden"
     >
       {/* Background Soft Accents to soften dark mode */}
       <div className="absolute top-10 left-10 w-[500px] h-[500px] bg-amber-500/[0.02] rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-10 right-10 w-[500px] h-[500px] bg-rose-600/[0.02] rounded-full blur-[120px] pointer-events-none" />
-
-      {/* Live Dispatches Scrolling Ticker - News Inspired */}
-      <div className="max-w-6xl mx-auto mb-10 bg-slate-900/40 border border-slate-900 rounded-xl overflow-hidden py-3 px-4 flex items-center gap-4 print:hidden">
-        <span className="shrink-0 bg-rose-800 text-white text-[9px] font-sans font-bold uppercase tracking-widest px-2.5 py-1 rounded flex items-center gap-1.5 animate-pulse shadow-md shadow-rose-950/40">
-          <Newspaper className="w-3.5 h-3.5" />
-          <span>LATEST MINISTRY DISPATCHES</span>
-        </span>
-        <div className="flex-1 overflow-hidden relative h-5">
-          <div className="absolute animate-marquee whitespace-nowrap text-xs font-sans text-slate-350 hover:[animation-play-state:paused] cursor-pointer flex gap-12">
-            <span>🎤 Adventist Church worship events series announced for July and August 2026.</span>
-            <span className="text-amber-300 font-semibold">📍 Blot Brightons Bullets Charity Initiative is active in July 19, 2026 @ SDA Kachok Church. Let us join hands for Brighton!</span>
-            <span>💿 Recording sessions of Album 6 completed! "Sounds of Togetherness" coming soon near you.</span>
-            <span>🌿 Reserve schedules space by filing a host request using the registration links below.</span>
-          </div>
-        </div>
-      </div>
 
       <div className="max-w-6xl mx-auto relative z-10">
         
@@ -994,31 +1227,13 @@ export default function Itinerary({
 
           <div className="flex flex-wrap items-center gap-3 print:hidden">
             <button
-              onClick={() => downloadItineraryPDF(false)}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-450 hover:to-amber-550 text-slate-950 font-sans font-extrabold text-[11px] uppercase tracking-wider px-4 py-3.5 rounded-xl transition-all cursor-pointer shadow-lg shadow-amber-500/10 active:scale-95 duration-100"
-              title="Download only the currently selected tab's itinerary"
+              onClick={downloadProfessionalSchedulePDF}
+              className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 via-rose-500 to-amber-600 hover:opacity-95 text-slate-950 font-sans font-extrabold text-[11px] uppercase tracking-wider px-5 py-3.5 rounded-xl transition-all cursor-pointer shadow-lg shadow-amber-500/10 active:scale-95 duration-100 font-bold"
+              style={{ color: '#090d16' }}
+              title="Download print-friendly official bulletin schedule PDF formatted for local church distribution"
             >
-               <Download className="w-3.5 h-3.5 shrink-0 stroke-[2.5]" />
-               <span>Download Tab PDF</span>
-            </button>
-            <button
-              onClick={() => downloadItineraryPDF(true)}
-              className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 hover:bg-slate-800 text-slate-100 font-sans font-extrabold text-[11px] uppercase tracking-wider px-4 py-3.5 rounded-xl transition-all cursor-pointer shadow-lg active:scale-95 duration-100"
-              title="Download the complete itinerary"
-            >
-               <Download className="w-3.5 h-3.5 shrink-0 stroke-[2.5]" />
-               <span>Download Complete PDF</span>
-            </button>
-            <button
-              onClick={() => {
-                document.body.classList.add('print-mode-itinerary');
-                window.print();
-                setTimeout(() => { document.body.classList.remove('print-mode-itinerary'); }, 500);
-              }}
-              className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 hover:bg-slate-800 text-slate-300 font-sans font-bold text-[11px] uppercase tracking-wider px-4 py-3.5 rounded-xl transition-all cursor-pointer"
-            >
-               <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-               <span>Print View</span>
+               <FileText className="w-3.5 h-3.5 shrink-0 stroke-[2.5]" />
+               <span>Download PDF</span>
             </button>
             {isAdmin && (
               <button
@@ -1064,7 +1279,7 @@ export default function Itinerary({
                       <input 
                         type="text" 
                         required
-                        value={editForm.event}
+                        value={editForm.event || ""}
                         onChange={(e) => setEditForm({ ...editForm, event: e.target.value })}
                         className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-amber-400 text-xs font-sans"
                         placeholder="e.g. Sabbath Revival & Mission Concert"
@@ -1076,7 +1291,7 @@ export default function Itinerary({
                       <input 
                         type="text" 
                         required
-                        value={editForm.location}
+                        value={editForm.location || ""}
                         onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
                         className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-amber-400 text-xs font-sans"
                         placeholder="e.g. Kisumu Central SDA Church"
@@ -1088,7 +1303,7 @@ export default function Itinerary({
                       <input 
                         type="date" 
                         required
-                        value={editForm.date}
+                        value={editForm.date || ""}
                         onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
                         className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-amber-300 outline-none focus:border-amber-400 text-xs font-sans font-mono"
                       />
@@ -1120,7 +1335,7 @@ export default function Itinerary({
                     <div>
                       <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-2 font-bold">Mission Status</label>
                       <select 
-                        value={editForm.status}
+                        value={editForm.status || "Confirmed"}
                         onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
                         className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-amber-300 outline-none focus:border-amber-400 text-xs font-sans font-semibold"
                       >
@@ -1283,7 +1498,7 @@ export default function Itinerary({
             <input
               type="text"
               placeholder="Search itinerary events, venues, keywords..."
-              value={itinerarySearch}
+              value={itinerarySearch || ""}
               onChange={(e) => setItinerarySearch(e.target.value)}
               className="w-full bg-slate-900 border border-slate-800 focus:border-amber-500 rounded-xl py-3.5 pl-11 pr-10 text-xs text-white placeholder-slate-500 focus:outline-none transition-all shadow-inner"
             />
@@ -1402,7 +1617,7 @@ export default function Itinerary({
 
         {/* Dynamic List Block */}
         {filteredItems.length === 0 ? (
-          <div className="text-center py-24 border border-dashed border-slate-900 rounded-3xl bg-slate-950/60 p-10 animate-in fade-in duration-300">
+          <div className="text-center py-24 border border-dashed border-slate-800/60 rounded-3xl glass-card p-10 animate-in fade-in duration-300">
             <Newspaper className="w-12 h-12 text-slate-650 mx-auto mb-4 stroke-[1.5]" />
             <h4 className="font-sans font-bold text-lg text-slate-200">
               {itinerarySearch ? "No Search Matches" : "No Publications Filed"}
@@ -1461,7 +1676,7 @@ export default function Itinerary({
                         <input 
                           type="text" 
                           required
-                          value={editForm.event}
+                          value={editForm.event || ""}
                           onChange={(e) => setEditForm({ ...editForm, event: e.target.value })}
                           className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-amber-400 text-xs font-sans"
                           placeholder="e.g. Youth Camp Meeting Live"
@@ -1473,7 +1688,7 @@ export default function Itinerary({
                         <input 
                           type="text" 
                           required
-                          value={editForm.host}
+                          value={editForm.host || ""}
                           onChange={(e) => setEditForm({ ...editForm, host: e.target.value })}
                           className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-amber-400 text-xs font-sans"
                           placeholder="e.g. Kachok SDA Church Choir"
@@ -1485,7 +1700,7 @@ export default function Itinerary({
                         <input 
                           type="date" 
                           required
-                          value={editForm.date}
+                          value={editForm.date || ""}
                           onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
                           className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-amber-400 text-xs font-sans font-mono"
                         />
@@ -1495,7 +1710,7 @@ export default function Itinerary({
                         <label className="block text-[10px] font-mono text-slate-450 uppercase tracking-wider mb-1.5 font-bold">Service Time hours</label>
                         <input 
                           type="text" 
-                          value={editForm.time}
+                          value={editForm.time || ""}
                           onChange={(e) => setEditForm({ ...editForm, time: e.target.value })}
                           className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-amber-400 text-xs font-sans"
                           placeholder="e.g. 2:00 PM EST or Morning Services"
@@ -1507,7 +1722,7 @@ export default function Itinerary({
                         <input 
                           type="text" 
                           required
-                          value={editForm.location}
+                          value={editForm.location || ""}
                           onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
                           className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-amber-400 text-xs font-sans"
                           placeholder="e.g. SDAC Kachok Church, Kisumu"
@@ -1517,7 +1732,7 @@ export default function Itinerary({
                       <div>
                         <label className="block text-[10px] font-mono text-slate-450 uppercase tracking-wider mb-1.5 font-bold">Mission Status</label>
                         <select 
-                          value={editForm.status}
+                          value={editForm.status || "Confirmed"}
                           onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
                           className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-amber-300 outline-none focus:border-amber-400 text-xs font-sans font-semibold"
                         >
@@ -1574,7 +1789,7 @@ export default function Itinerary({
                 <div 
                   key={item.id}
                   id={`itinerary-dispatch-${item.id}`}
-                  className="group relative bg-slate-950 border border-slate-900 hover:border-slate-800 rounded-3xl overflow-hidden transition-all duration-300 shadow-xl flex flex-col lg:flex-row items-stretch scroll-mt-24"
+                  className="group relative glass-card hover:border-amber-400/40 rounded-3xl overflow-hidden transition-all duration-300 shadow-xl flex flex-col lg:flex-row items-stretch scroll-mt-24"
                 >
                   
                   {/* Column 1: Feature Photo/Video Panel (Editorial News Style) */}
@@ -2016,7 +2231,7 @@ export default function Itinerary({
                               <label className="block text-[9px] font-mono text-slate-400 uppercase font-bold tracking-wider mb-1">Or Paste Cloud Media Url</label>
                               <input 
                                 type="text"
-                                value={mediaUrlInput}
+                                value={mediaUrlInput || ""}
                                 onChange={(e) => {
                                   setMediaUrlInput(e.target.value);
                                   setLocalFileBase64(null);

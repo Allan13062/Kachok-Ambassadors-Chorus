@@ -121,8 +121,20 @@ export default function ContactUs({ bookingSubject, onClearBookingSubject, onInq
                   </div>
                   <div>
                     <h4 className="font-bold text-sm text-slate-300 uppercase font-mono tracking-wider">Vocal Team Inbox</h4>
-                    <p className="text-slate-400 text-sm mt-1">kachambachorus@gmail.com</p>
+                    <a 
+                      href="mailto:kachambachorus@gmail.com?subject=Inquiry%20for%20Kachamba%20Chorus"
+                      className="text-amber-400 hover:text-amber-300 text-sm mt-1 block font-medium transition-colors hover:underline"
+                      title="Email Kachamba Chorus directly"
+                    >
+                      kachambachorus@gmail.com
+                    </a>
                     <p className="text-xs text-slate-500">Subject response rate: Under 24 Hours</p>
+                    <a 
+                      href="mailto:kachambachorus@gmail.com?subject=Inquiry%20for%20Kachamba%20Chorus"
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-500 hover:text-amber-400 mt-2 transition-colors hover:underline group"
+                    >
+                      <span>✉ Send Quick Email Link</span> <span className="group-hover:translate-x-0.5 transition-transform inline-block">&rarr;</span>
+                    </a>
                   </div>
                 </div>
               </div>
@@ -172,7 +184,7 @@ export default function ContactUs({ bookingSubject, onClearBookingSubject, onInq
                     <input 
                       type="text"
                       required
-                      value={formData.name}
+                      value={formData.name || ""}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       className="w-full bg-slate-900 border border-slate-800 focus:border-amber-500 rounded-lg p-2.5 outline-none focus:ring-1 focus:ring-amber-500/10 text-white transition-all"
                       placeholder="e.g. Pastor John"
@@ -184,7 +196,7 @@ export default function ContactUs({ bookingSubject, onClearBookingSubject, onInq
                     <input 
                       type="email"
                       required
-                      value={formData.email}
+                      value={formData.email || ""}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       className="w-full bg-slate-900 border border-slate-800 focus:border-amber-500 rounded-lg p-2.5 outline-none focus:ring-1 focus:ring-amber-500/10 text-white transition-all"
                       placeholder="e.g. john@church.org"
@@ -196,7 +208,7 @@ export default function ContactUs({ bookingSubject, onClearBookingSubject, onInq
                   <label className="block text-xs font-mono text-slate-400 mb-1 uppercase tracking-wider">Subject</label>
                   <input 
                     type="text"
-                    value={formData.subject}
+                    value={formData.subject || ""}
                     onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
                     className="w-full bg-slate-900 border border-slate-800 focus:border-amber-500 rounded-lg p-2.5 outline-none focus:ring-1 focus:ring-amber-500/10 text-white transition-all"
                     placeholder="e.g. Booking for Youth Campout"
@@ -207,7 +219,7 @@ export default function ContactUs({ bookingSubject, onClearBookingSubject, onInq
                   <label className="block text-xs font-mono text-slate-400 mb-1 uppercase tracking-wider">Detailed Message</label>
                   <textarea 
                     required
-                    value={formData.message}
+                    value={formData.message || ""}
                     onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                     rows={6}
                     className="w-full bg-slate-900 border border-slate-800 focus:border-amber-500 rounded-lg p-2.5 outline-none focus:ring-1 focus:ring-amber-500/10 text-white transition-all resize-none"

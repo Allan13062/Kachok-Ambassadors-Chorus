@@ -1,140 +1,16 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 1. Global Safety Net (Default Deny All)
+    match /admins/{adminId} {
+      allow read: if true;
+      allow write: if request.auth != null && (
+        request.auth.token.email == "allangeorge566@gmail.com" ||
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == "super_admin"
+      );
+    }
     match /{document=**} {
-      allow read, write: if false;
-    }
-
-    // Global helper definitions
-    function incoming() {
-      return request.resource.data;
-    }
-    
-    function existing() {
-      return resource.data;
-    }
-
-    function isValidId(id) {
-       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
-    }
-
-    // Helper: Validate Activity Schema
-    function isValidActivity(data) {
-      return data.keys().hasAll(['id', 'title', 'date', 'location', 'description', 'category', 'image'])
-        && data.keys().size() == 7
-        && data.id is string && data.id.size() <= 128
-        && data.title is string && data.title.size() <= 200
-        && data.date is string && data.date.size() <= 50
-        && data.location is string && data.location.size() <= 200
-        && data.description is string && data.description.size() <= 15000
-        && data.category is string && data.category.size() <= 100
-        && data.image is string && data.image.size() <= 1000000;
-    }
-
-    // Helper: Validate ItineraryItem Schema
-    function isValidItineraryItem(data) {
-      return data.keys().hasAll(['id', 'event', 'date', 'time', 'location', 'host', 'status', 'notes', 'mediaUrl', 'mediaType'])
-        && data.keys().size() == 10
-        && data.id is string && data.id.size() <= 128
-        && data.event is string && data.event.size() <= 200
-        && data.date is string && data.date.size() <= 50
-        && data.time is string && data.time.size() <= 50
-        && data.location is string && data.location.size() <= 200
-        && data.host is string && data.host.size() <= 200
-        && data.status is string && data.status.size() <= 50
-        && data.notes is string && data.notes.size() <= 2000
-        && data.mediaUrl is string && data.mediaUrl.size() <= 1000000
-        && data.mediaType is string && data.mediaType.size() <= 50;
-    }
-
-    // Helper: Validate Leader Schema
-    function isValidLeader(data) {
-      return data.keys().hasAll(['id', 'name', 'role', 'image', 'bio', 'phone'])
-        && data.keys().size() == 6
-        && data.id is string && data.id.size() <= 128
-        && data.name is string && data.name.size() <= 200
-        && data.role is string && data.role.size() <= 200
-        && data.image is string && data.image.size() <= 1000000
-        && data.bio is string && data.bio.size() <= 2000
-        && data.phone is string && data.phone.size() <= 50;
-    }
-
-    // Helper: Validate Inquiry Schema
-    function isValidInquiry(data) {
-      return data.keys().hasAll(['id', 'name', 'email', 'subject', 'message', 'date', 'status'])
-        && data.keys().size() == 7
-        && data.id is string && data.id.size() <= 128
-        && data.name is string && data.name.size() <= 200
-        && data.email is string && data.email.size() <= 200
-        && data.subject is string && data.subject.size() <= 300
-        && data.message is string && data.message.size() <= 5000
-        && data.date is string && data.date.size() <= 50
-        && data.status is string && data.status.size() <= 50;
-    }
-
-    // Helper: Validate MusicData Schema
-    function isValidMusicData(data) {
-      return data.keys().hasAll(['songTitle', 'artistName', 'albumName', 'audioUrl', 'coverUrl', 'quoteText', 'label'])
-        && data.keys().size() == 7
-        && data.songTitle is string && data.songTitle.size() <= 200
-        && data.artistName is string && data.artistName.size() <= 200
-        && data.albumName is string && data.albumName.size() <= 200
-        && data.audioUrl is string && data.audioUrl.size() <= 1000000
-        && data.coverUrl is string && data.coverUrl.size() <= 1000000
-        && data.quoteText is string && data.quoteText.size() <= 1000
-        && data.label is string && data.label.size() <= 200;
-    }
-
-    // Helper: Validate AdminConfig Schema
-    function isValidAdminConfig(data) {
-      return data.keys().hasAll(['passcode'])
-        && data.keys().size() == 1
-        && data.passcode is string && data.passcode.size() <= 100;
-    }
-
-    // Collection: Activities
-    match /activities/{activityId} {
-      allow read: if true;
-      allow create, update: if isValidId(activityId) && isValidActivity(incoming());
-      allow delete: if isValidId(activityId);
-    }
-
-    // Collection: Itinerary
-    match /itinerary/{itineraryId} {
-      allow read: if true;
-      allow create, update: if isValidId(itineraryId) && isValidItineraryItem(incoming());
-      allow delete: if isValidId(itineraryId);
-    }
-
-    // Collection: Leaders
-    match /leaders/{leaderId} {
-      allow read: if true;
-      allow create, update: if isValidId(leaderId) && isValidLeader(incoming());
-      allow delete: if isValidId(leaderId);
-    }
-
-    // Collection: Inquiries
-    match /inquiries/{inquiryId} {
-      allow read: if true;
-      allow create, update: if isValidId(inquiryId) && isValidInquiry(incoming());
-      allow delete: if isValidId(inquiryId);
-    }
-
-    // Configuration Documents
-    match /configs/admin {
-      allow read: if true;
-      allow write: if isValidAdminConfig(incoming());
-    }
-
-    match /configs/music {
-      allow read: if true;
-      allow write: if isValidMusicData(incoming());
-    }
-
-    // Collection: Users
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if true;
     }
   }
 }
+

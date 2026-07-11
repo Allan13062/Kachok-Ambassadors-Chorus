@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Clock, Quote, X, ChevronLeft, ChevronRight, User, Sparkles } from "lucide-react";
+import { Clock, Quote, X, ChevronLeft, ChevronRight, User, Bell } from "lucide-react";
 import { MemberSpotlight as MemberSpotlightType } from "../types";
 
 interface MemberSpotlightProps {
@@ -8,6 +8,31 @@ interface MemberSpotlightProps {
   isAdmin: boolean;
   onLaunchAdmin: () => void;
 }
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.08,
+      delayChildren: 0.1,
+    }
+  }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 15, scale: 0.95 },
+  show: { 
+    opacity: 1, 
+    y: 0, 
+    scale: 1,
+    transition: {
+      type: "spring",
+      stiffness: 80,
+      damping: 15
+    }
+  }
+};
 
 export default function MemberSpotlight({ spotlights, isAdmin, onLaunchAdmin }: MemberSpotlightProps) {
   const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
@@ -92,10 +117,6 @@ export default function MemberSpotlight({ spotlights, isAdmin, onLaunchAdmin }: 
       <div className="max-w-6xl mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <div>
-            <div className="flex items-center gap-1.5 text-amber-500 font-mono text-[10px] tracking-widest uppercase font-bold">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Personal Testimony Alerts</span>
-            </div>
             <h3 className="font-sans font-extrabold text-lg sm:text-xl text-white tracking-tight uppercase">
               Member <span className="text-amber-400">Spotlight Statuses</span>
             </h3>
@@ -115,9 +136,15 @@ export default function MemberSpotlight({ spotlights, isAdmin, onLaunchAdmin }: 
         </div>
 
         {/* Circular Stories Scroll Strip */}
-        <div className="flex items-center gap-5 overflow-x-auto pb-2 scrollbar-none">
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, margin: "-50px" }}
+          className="flex items-center gap-5 overflow-x-auto pb-2 scrollbar-none"
+        >
           {/* Default Chorus Community Bubble is always active to avoid empty lists */}
-          <div className="flex flex-col items-center gap-1.5 text-center shrink-0">
+          <motion.div variants={itemVariants} className="flex flex-col items-center gap-1.5 text-center shrink-0">
             <div className="relative group cursor-pointer" onClick={() => {
               if (activeSpotlights.length > 0) {
                 setActiveStoryIndex(0);
@@ -140,12 +167,13 @@ export default function MemberSpotlight({ spotlights, isAdmin, onLaunchAdmin }: 
             <span className="font-mono text-[9px] uppercase tracking-wider text-slate-400 font-bold max-w-[70px] truncate leading-tight mt-1">
               Active Updates
             </span>
-          </div>
+          </motion.div>
 
           {/* Active Status Circular list container */}
           {activeSpotlights.map((spot, idx) => (
-            <div
+            <motion.div
               key={spot.id}
+              variants={itemVariants}
               onClick={() => setActiveStoryIndex(idx)}
               className="flex flex-col items-center gap-1.5 text-center shrink-0 cursor-pointer group"
             >
@@ -178,17 +206,17 @@ export default function MemberSpotlight({ spotlights, isAdmin, onLaunchAdmin }: 
                   {spot.roleOrVoicePart}
                 </p>
               </div>
-            </div>
+            </motion.div>
           ))}
 
           {activeSpotlights.length === 0 && (
-            <div className="flex items-center text-left py-2 px-3 border border-dashed border-slate-800 rounded-xl max-w-sm shrink-0 bg-slate-950/20">
+            <motion.div variants={itemVariants} className="flex items-center text-left py-2 px-3 border border-dashed border-slate-800 rounded-xl max-w-sm shrink-0 bg-slate-950/20">
               <p className="font-sans text-[10px] text-slate-450 leading-normal">
                 No testimonies shared in the last 48 hours. {isAdmin ? "Hey admin, click the button on the right to post a new testimony highlight!" : "Check back later for active testimonies."}
               </p>
-            </div>
+            </motion.div>
           )}
-        </div>
+        </motion.div>
       </div>
 
       {/* STORY EXPAND OVERLAY / MODAL VIEWER */}

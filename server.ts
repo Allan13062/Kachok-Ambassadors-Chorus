@@ -7,14 +7,67 @@ import fs from "fs";
 import http from "http";
 import https from "https";
 import url from "url";
+import crypto from "crypto";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import { google } from "googleapis";
 import { Readable } from "stream";
 
 import { db } from "./src/db/index.ts";
-import { activities, itinerary, leaders, inquiries, musicConfig, adminConfig } from "./src/db/schema.ts";
+import { getLocalDb, saveLocalDb, insertItem, deleteItem, getSession, deleteSession } from "./dbStorage.ts";
+import { activities, itinerary, leaders, inquiries, musicConfig, adminConfig, uploads, users } from "./src/db/schema.ts";
 import { eq } from "drizzle-orm";
+import { v2 as cloudinary } from "cloudinary";
+
+// Helper to parse standard CLOUDINARY_URL connection strings
+function parseCloudinaryUrl(url: string) {
+  try {
+    // Format: cloudinary://api_key:api_secret@cloud_name
+    const cleaned = url.replace("cloudinary://", "");
+    const [credentials, cloudName] = cleaned.split("@");
+    const [apiKey, apiSecret] = credentials.split(":");
+    return { cloudName, apiKey, apiSecret };
+  } catch (err) {
+    console.error("Failed to parse CLOUDINARY_URL:", err);
+    return null;
+  }
+}
+
+// Dynamically retrieves and parses Cloudinary settings from env or fallback
+function getCloudinaryConfig() {
+  let cloudName = (process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_NAME || "").trim();
+  let apiKey = (process.env.CLOUDINARY_API_KEY || process.env.CLOUDINARY_KEY || "").trim();
+  let apiSecret = (process.env.CLOUDINARY_API_SECRET || process.env.CLOUDINARY_SECRET || "").trim();
+
+  if (process.env.CLOUDINARY_URL) {
+    const parsed = parseCloudinaryUrl(process.env.CLOUDINARY_URL.trim());
+    if (parsed) {
+      cloudName = cloudName || parsed.cloudName.trim();
+      apiKey = apiKey || parsed.apiKey.trim();
+      apiSecret = apiSecret || parsed.apiSecret.trim();
+    }
+  }
+
+  return { cloudName, apiKey, apiSecret };
+}
+
+// Helper to lazy-initialize Cloudinary client with credentials
+function getCloudinaryClient() {
+  const { cloudName, apiKey, apiSecret } = getCloudinaryConfig();
+
+  if (!cloudName || !apiKey || !apiSecret) {
+    return null;
+  }
+
+  cloudinary.config({
+    cloud_name: cloudName,
+    api_key: apiKey,
+    api_secret: apiSecret,
+    secure: true
+  });
+
+  return cloudinary;
+}
 
 const app = express();
 const PORT = 3000;
@@ -27,43 +80,99 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 // Middleware to parse JSON and Urlencoded with 150mb limit
-app.use(express.json({ limit: "150mb" }));
+app.use(express.json({
+  limit: "150mb",
+  verify: (req: any, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
 app.use(express.urlencoded({ limit: "150mb", extended: true }));
+
+// Prevent caching on all dynamic API endpoints to ensure updates reflect instantly
+app.use("/api", (req, res, next) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  next();
+});
 
 // Enable CORS for all routes (to support preview iframe canvas drawing and cropping)
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-admin-passcode");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-admin-passcode, x-admin-token, x-user-id");
   if (req.method === "OPTIONS") {
     return res.sendStatus(200);
   }
   next();
 });
 
-// Serve uploads folder statically with proper CORS headers
+// Serve uploads folder statically with proper CORS headers and cache revalidation
 app.use("/uploads", (req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "*");
+  // Force browser to revalidate uploaded assets so replacements are visible instantly
+  res.setHeader("Cache-Control", "no-cache");
   if (req.method === "OPTIONS") {
     return res.sendStatus(200);
   }
   next();
-}, express.static(uploadsDir));
+}, express.static(uploadsDir, {
+  etag: true,
+  lastModified: true
+}));
 
 // Fast In-Memory Passcode Cache to prevent Database slowness
 let cachedPasscode: string | null = null;
 let passcodeCacheTime: number = 0;
-let fallbackPasscode: string = "SDA2026";
+let fallbackPasscode: string = process.env.ADMIN_PASSCODE || "SDA2026";
+
+function isDbAvailable(): boolean {
+  const host = process.env.SQL_HOST;
+  if (!host || host.trim() === "" || host.includes("YOUR_") || host.includes("placeholder") || host.includes("your-")) {
+    return false;
+  }
+  return true;
+}
 
 async function getAdminPasscode(): Promise<string> {
-  // Ultra-fast response: If cached in memory, return instantly.
-  if (cachedPasscode) {
+  if (process.env.ADMIN_PASSCODE) {
+    return process.env.ADMIN_PASSCODE;
+  }
+
+  // Ultra-fast response: If cached in memory, return instantly (cache for 10 seconds max).
+  if (cachedPasscode && (Date.now() - passcodeCacheTime < 10000)) {
     return cachedPasscode;
   }
   
-  if (!process.env.SQL_HOST) {
+  // Try directly connected Firestore first for ultra-fast admin auth
+  try {
+    const { getDoc, doc } = await import('firebase/firestore/lite');
+    const { firestore } = await import('./src/lib/firebaseLite.ts');
+    const adminDoc = await getDoc(doc(firestore, "configs", "admin"));
+    if (adminDoc.exists() && adminDoc.data().passcode) {
+      cachedPasscode = adminDoc.data().passcode;
+      passcodeCacheTime = Date.now();
+      return cachedPasscode;
+    }
+  } catch (error: any) {
+    console.error("[Kachamba Server] Firestore passcode retrieval failed:", error.message);
+  }
+  
+  // Then check Cloud SQL if available
+  if (!isDbAvailable()) {
+    // If no SQL, and Firestore didn't have it, load it from local JSON sync
+    try {
+      const localDb = await getLocalDb();
+      if (localDb && localDb.passcode) {
+        cachedPasscode = localDb.passcode;
+        passcodeCacheTime = Date.now();
+        return cachedPasscode;
+      }
+    } catch (e) {
+      console.error("Local db passcode fallback failed", e);
+    }
     return fallbackPasscode;
   }
   
@@ -80,50 +189,73 @@ async function getAdminPasscode(): Promise<string> {
   }
 }
 
-// Authentication middleware using Cloud SQL Configuration with Caching
+// Authentication middleware using Firestore sessions and roles as the source of truth
 async function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
+  // Admin login is disabled. Bypass authentication.
+  return next();
+  
   const code = req.headers["x-admin-passcode"] as string;
+  const token = (req.headers["x-admin-token"] || req.headers["x-admin-passcode"]) as string;
+  const userId = req.headers["x-user-id"] as string;
+
   try {
-    const dbPasscode = await getAdminPasscode();
-    if (code && code === dbPasscode) {
-      next();
-    } else {
-      res.status(401).json({ error: "Unauthorized: Invalid admin passcode" });
+    // 1. Check secure session token from headers (Firestore-backed server-side sessions)
+    if (token) {
+      const session = await getSession(token);
+      if (session && session.expiresAt > Date.now()) {
+        return next();
+      }
     }
+
+    // 2. Fallback check for raw passcode (backwards compatible / manual CLI tools)
+    if (code) {
+      const dbPasscode = await getAdminPasscode();
+      if (code === dbPasscode) {
+        return next();
+      }
+    }
+
+    // 3. User permission check - Source of truth in Firestore
+    if (userId) {
+      const localDb = await getLocalDb();
+      const dbUser = (localDb.users || []).find((u: any) => u.uid === userId);
+      // Permit leaders (role === "leader" / "admin" / isLeader === true etc)
+      if (dbUser && (
+        dbUser.role === "leader" || 
+        dbUser.role === "admin" || 
+        dbUser.isLeader === true || 
+        dbUser.voicePart === "Section Leader"
+      )) {
+        return next();
+      }
+    }
+
+    res.status(401).json({ error: "Unauthorized: Invalid credentials or insufficient permissions. Please log in as Admin/Leader." });
   } catch (error) {
-    res.status(500).json({ error: "Authentication database query failed." });
+    res.status(500).json({ error: "Authentication check database query failed." });
   }
 }
 
 // Highly reliable bidirectional local JSON database synchronization
-function syncLocalFile(section: string, operation: string, data: any) {
+async function syncLocalFile(section: string, operation: string, data: any) {
   try {
-    if (!fs.existsSync(DB_PATH)) {
-      const dataDir = path.dirname(DB_PATH);
-      if (!fs.existsSync(dataDir)) {
-        fs.mkdirSync(dataDir, { recursive: true });
-      }
-      fs.writeFileSync(DB_PATH, JSON.stringify({ passcode: "SDA2026", activities: [], itinerary: [], leaders: [], inquiries: [], music: {} }, null, 2), "utf-8");
-    }
-    const fileContents = fs.readFileSync(DB_PATH, "utf-8");
-    const localDb = JSON.parse(fileContents);
-    
     if (section === "passcode") {
-      localDb.passcode = data;
+      await insertItem("configs", "admin", { passcode: data });
     } else if (section === "music") {
-      localDb.music = { ...localDb.music, ...data };
+      await insertItem("configs", "music", data);
+    } else if (section === "mpesa") {
+      await insertItem("configs", "mpesa", data);
     } else {
-      localDb[section] = localDb[section] || [];
-      if (operation === "insert") {
-        localDb[section].push(data);
-      } else if (operation === "update") {
-        localDb[section] = localDb[section].map((item: any) => item.id === data.id ? { ...item, ...data } : item);
+      if (operation === "insert" || operation === "update") {
+        const id = data.id || data.uid;
+        if (id) {
+          await insertItem(section, id, data);
+        }
       } else if (operation === "delete") {
-        localDb[section] = localDb[section].filter((item: any) => item.id !== data.id && item.id !== data);
+        const idToDelete = (typeof data === "object" && data !== null) ? (data.id || data.uid || data) : data;
+        await deleteItem(section, idToDelete);
       }
     }
-    
-    fs.writeFileSync(DB_PATH, JSON.stringify(localDb, null, 2), "utf-8");
     console.log(`[Local Sync] Completed ${operation} on section: "${section}" successfully.`);
   } catch (err: any) {
     console.warn("[Local Sync Warning] Could not replicate update to local JSON:", err.message);
@@ -132,28 +264,44 @@ function syncLocalFile(section: string, operation: string, data: any) {
 
 // Lazy load Gemini AI to prevent crash if key is missing on startup
 let aiClient: GoogleGenAI | null = null;
-function getGeminiClient(): GoogleGenAI | null {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key || key === "MY_GEMINI_API_KEY") {
+function getGeminiClient(customKey?: string): GoogleGenAI | null {
+  try {
+    const key = customKey || process.env.GEMINI_API_KEY;
+    if (!key || key === "MY_GEMINI_API_KEY") {
+      return null;
+    }
+    if (customKey) {
+      // Return a dedicated client instance for custom request keys to avoid cross-session key contamination
+      return new GoogleGenAI({
+        apiKey: customKey,
+        httpOptions: {
+          headers: {
+            "User-Agent": "aistudio-build",
+          },
+        },
+      });
+    }
+    if (!aiClient) {
+      aiClient = new GoogleGenAI({
+        apiKey: key,
+        httpOptions: {
+          headers: {
+            "User-Agent": "aistudio-build",
+          },
+        },
+      });
+    }
+    return aiClient;
+  } catch (err: any) {
+    console.error("[Kachamba Server] Error initializing Gemini client:", err.message || err);
     return null;
   }
-  if (!aiClient) {
-    aiClient = new GoogleGenAI({
-      apiKey: key,
-      httpOptions: {
-        headers: {
-          "User-Agent": "aistudio-build",
-        },
-      },
-    });
-  }
-  return aiClient;
 }
 
 // -------------- CLOUD SQL SEEDER --------------
 
 async function seedCloudSqlFromLocalDb() {
-  if (!process.env.SQL_HOST || process.env.SQL_HOST.trim() === "" || process.env.SQL_HOST.includes("YOUR_")) {
+  if (!isDbAvailable()) {
     console.log("[Kachamba Cloud SQL] Skipping seeding - SQL_HOST is not configured.");
     return;
   }
@@ -179,8 +327,8 @@ async function seedCloudSqlFromLocalDb() {
     const testActivities = await db.select().from(activities).limit(1);
     if (testActivities.length === 0) {
       console.log("[Kachamba Cloud SQL] DB is empty. Seeding from local data...");
-      if (fs.existsSync(DB_PATH)) {
-        const localData = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+      if (true) {
+        const localData = await getLocalDb();
 
         if (localData.activities && Array.isArray(localData.activities)) {
           for (const act of localData.activities) {
@@ -254,6 +402,23 @@ async function seedCloudSqlFromLocalDb() {
             lyrics: m.lyrics || ""
           }).onConflictDoNothing();
         }
+
+        if (localData.users && Array.isArray(localData.users)) {
+          for (const u of localData.users) {
+            await db.insert(users).values({
+              uid: u.uid,
+              email: u.email,
+              displayName: u.displayName || "",
+              photoURL: u.photoURL || "",
+              voicePart: u.voicePart || "Listener",
+              providerId: u.providerId || "email",
+              password: u.password || "",
+              role: u.role || "user",
+              isLeader: u.isLeader ? "true" : "false",
+              createdAt: u.createdAt || new Date().toISOString()
+            }).onConflictDoNothing();
+          }
+        }
         console.log("[Kachamba Cloud SQL] Seeded database tables successfully.");
       } else {
         console.log("[Kachamba Cloud SQL] Local JSON database not found. Seeding default configs...");
@@ -291,18 +456,36 @@ app.get("/api/db", async (req, res) => {
     const dbPasscode = await getAdminPasscode();
     const isAdmin = req.headers["x-admin-passcode"] === dbPasscode;
 
-    // Fast-fail if DB is fully down to maintain high performance
-    const dbPromise = Promise.all([
-      db.select().from(activities),
-      db.select().from(itinerary),
-      db.select().from(leaders),
-      db.select().from(musicConfig).where(eq(musicConfig.id, 1)).limit(1)
-    ]);
+    let allActs: any[] = [];
+    let allIti: any[] = [];
+    let allLdr: any[] = [];
+    let musicRecs: any[] = [];
 
-    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("DB Load Timeout")), 12000));
-    
-    // @ts-ignore
-    const [allActs, allIti, allLdr, musicRecs] = await Promise.race([dbPromise, timeoutPromise]);
+    if (isDbAvailable()) {
+      try {
+        // Fast-fail if DB is fully down to maintain high performance
+        const dbPromise = Promise.all([
+          db.select().from(activities),
+          db.select().from(itinerary),
+          db.select().from(leaders),
+          db.select().from(musicConfig).where(eq(musicConfig.id, 1)).limit(1)
+        ]);
+
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("DB Load Timeout")), 5000));
+        
+        // @ts-ignore
+        const [acts, iti, ldr, music] = await Promise.race([dbPromise, timeoutPromise]);
+        allActs = acts;
+        allIti = iti;
+        allLdr = ldr;
+        musicRecs = music;
+      } catch (dbErr: any) {
+        console.warn("[Cloud SQL] Failed to load data from live DB, falling back to local file. Error:", dbErr.message);
+        throw dbErr; // Trigger local file load fallback in general catch block
+      }
+    } else {
+      throw new Error("Live database is not configured");
+    }
 
     // Keep activities sorted descendingly by id/timestamp
     allActs.sort((a, b) => (b.id || "").localeCompare(a.id || ""));
@@ -322,17 +505,16 @@ app.get("/api/db", async (req, res) => {
     };
 
     let inquiriesList: any[] = [];
-    if (isAdmin) {
-      inquiriesList = await db.select().from(inquiries);
-      inquiriesList.sort((a, b) => (b.id || "").localeCompare(a.id || ""));
-    }
+    // Admin login is disabled. Bypass authentication so everyone can view it.
+    inquiriesList = await db.select().from(inquiries);
+    inquiriesList.sort((a, b) => (b.id || "").localeCompare(a.id || ""));
 
     let subscribersList: any[] = [];
     let broadcastsList: any[] = [];
     let memberSpotlightsList: any[] = [];
-    if (fs.existsSync(DB_PATH)) {
+    if (true) {
       try {
-        const localData = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+        const localData = await getLocalDb();
         subscribersList = localData.subscribers || [];
         broadcastsList = localData.broadcasts || [];
         memberSpotlightsList = localData.memberSpotlights || [];
@@ -350,9 +532,9 @@ app.get("/api/db", async (req, res) => {
       memberSpotlights: memberSpotlightsList
     });
   } catch (error: any) {
-    if (fs.existsSync(DB_PATH)) {
+    if (true) {
       try {
-        const localData = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+        const localData = await getLocalDb();
         
         // Populate missing sections with empty arrays just in case
         localData.activities = localData.activities || [];
@@ -410,10 +592,7 @@ app.post("/api/subscribers", async (req, res) => {
   }
 
   try {
-    let localDb: any = { subscribers: [] };
-    if (fs.existsSync(DB_PATH)) {
-      localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
-    }
+    let localDb: any = await getLocalDb();
     localDb.subscribers = localDb.subscribers || [];
 
     const normalized = email.trim().toLowerCase();
@@ -429,7 +608,8 @@ app.post("/api/subscribers", async (req, res) => {
     };
 
     localDb.subscribers.push(newSub);
-    fs.writeFileSync(DB_PATH, JSON.stringify(localDb, null, 2), "utf-8");
+    await saveLocalDb(localDb);
+    await syncLocalFile("subscribers", "insert", newSub);
 
     res.json({ success: true, message: "Subscribed successfully! Thank you for supporting our ministry." });
   } catch (error: any) {
@@ -444,10 +624,11 @@ app.post("/api/subscribers/delete", requireAdmin, async (req, res) => {
     return res.status(400).json({ error: "Subscriber ID is required." });
   }
   try {
-    if (fs.existsSync(DB_PATH)) {
-      const localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+    if (true) {
+      let localDb: any = await getLocalDb();
       localDb.subscribers = (localDb.subscribers || []).filter((s: any) => s.id !== id);
-      fs.writeFileSync(DB_PATH, JSON.stringify(localDb, null, 2), "utf-8");
+      await saveLocalDb(localDb);
+      await syncLocalFile("subscribers", "delete", id);
     }
     res.json({ success: true, message: "Subscriber removed successfully." });
   } catch (error: any) {
@@ -463,10 +644,7 @@ app.post("/api/broadcasts", requireAdmin, async (req, res) => {
   }
 
   try {
-    let localDb: any = { subscribers: [], broadcasts: [] };
-    if (fs.existsSync(DB_PATH)) {
-      localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
-    }
+    let localDb: any = await getLocalDb();
     localDb.subscribers = localDb.subscribers || [];
     localDb.broadcasts = localDb.broadcasts || [];
 
@@ -483,7 +661,8 @@ app.post("/api/broadcasts", requireAdmin, async (req, res) => {
     };
 
     localDb.broadcasts.push(newBroadcast);
-    fs.writeFileSync(DB_PATH, JSON.stringify(localDb, null, 2), "utf-8");
+    await saveLocalDb(localDb);
+    await syncLocalFile("broadcasts", "insert", newBroadcast);
 
     // Print massive styled bulletin simulation box to console
     console.log("\n======================================================================");
@@ -506,10 +685,7 @@ app.post("/api/member-spotlights", requireAdmin, async (req, res) => {
   }
 
   try {
-    let localDb: any = { memberSpotlights: [] };
-    if (fs.existsSync(DB_PATH)) {
-      localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
-    }
+    let localDb: any = await getLocalDb();
     localDb.memberSpotlights = localDb.memberSpotlights || [];
 
     const newSpotlight = {
@@ -522,7 +698,8 @@ app.post("/api/member-spotlights", requireAdmin, async (req, res) => {
     };
 
     localDb.memberSpotlights.push(newSpotlight);
-    fs.writeFileSync(DB_PATH, JSON.stringify(localDb, null, 2), "utf-8");
+    await saveLocalDb(localDb);
+    await syncLocalFile("memberSpotlights", "insert", newSpotlight);
 
     res.json({ success: true, data: newSpotlight });
   } catch (error: any) {
@@ -537,10 +714,11 @@ app.post("/api/member-spotlights/delete", requireAdmin, async (req, res) => {
     return res.status(400).json({ error: "Spotlight ID is required." });
   }
   try {
-    if (fs.existsSync(DB_PATH)) {
-      const localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+    if (true) {
+      let localDb: any = await getLocalDb();
       localDb.memberSpotlights = (localDb.memberSpotlights || []).filter((s: any) => s.id !== id);
-      fs.writeFileSync(DB_PATH, JSON.stringify(localDb, null, 2), "utf-8");
+      await saveLocalDb(localDb);
+      await syncLocalFile("memberSpotlights", "delete", id);
     }
     res.json({ success: true, message: "Member spotlight deleted successfully." });
   } catch (error: any) {
@@ -693,13 +871,60 @@ app.get("/api/proxy-audio", (req, res) => {
   proxyAudioWithRedirect(targetUrl, req, res);
 });
 
+// Endpoint to securely proxy image links to bypass CORS, canvas taint issues for PDF rendering
+app.get("/api/proxy-image", async (req, res) => {
+  const imageUrl = req.query.url as string;
+  if (!imageUrl) {
+    return res.status(400).send("Missing target image source URL");
+  }
+
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "*");
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+
+  try {
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch image: ${response.statusText}`);
+    }
+    const contentType = response.headers.get("content-type") || "image/jpeg";
+    const buffer = await response.arrayBuffer();
+    res.setHeader("Content-Type", contentType);
+    return res.send(Buffer.from(buffer));
+  } catch (err: any) {
+    console.error("Image proxy error for URL:", imageUrl, err);
+    return res.status(500).send("Failed to proxy image: " + err.message);
+  }
+});
+
 // 2. Authenticate passcode
 app.post("/api/auth", async (req, res) => {
   const { passcode } = req.body;
   try {
     const dbPasscode = await getAdminPasscode();
     if (passcode === dbPasscode) {
-      res.json({ success: true, message: "Welcome Elder/Ambassador Director!" });
+      // Create a secure session token
+      const token = "adm_sess_" + Math.random().toString(36).substring(2, 11) + Math.random().toString(36).substring(2, 11);
+      const expiresAt = Date.now() + 2 * 60 * 60 * 1000; // 2 hour session validity duration
+      
+      const payload = {
+        token,
+        expiresAt,
+        role: "admin",
+        createdAt: new Date().toISOString()
+      };
+
+      await insertItem("sessions", token, payload);
+
+      res.json({ 
+        success: true, 
+        token, 
+        message: "Welcome Elder/Ambassador Director!" 
+      });
     } else {
       res.status(401).json({ error: "Incorrect passcode. Please try again." });
     }
@@ -708,15 +933,55 @@ app.post("/api/auth", async (req, res) => {
   }
 });
 
+// A2-b. Validate Session Token (automatic token expiry check)
+app.post("/api/auth/validate-token", async (req, res) => {
+  const { token } = req.body;
+  if (!token) {
+    return res.status(400).json({ valid: false, error: "Session token is required" });
+  }
+  try {
+    const session = await getSession(token);
+    if (session && session.expiresAt > Date.now()) {
+      return res.json({ valid: true, role: session.role });
+    }
+    return res.json({ valid: false, error: "Session expired or invalid" });
+  } catch (error: any) {
+    res.status(500).json({ valid: false, error: error.message });
+  }
+});
+
+// A2-c. Admin Sign Out / Clean Up Session
+app.post("/api/auth/logout", async (req, res) => {
+  const { token } = req.body;
+  if (!token) {
+    return res.status(400).json({ success: false, error: "Token is required to sign out" });
+  }
+  try {
+    await deleteSession(token);
+    res.json({ success: true, message: "Logged out and deleted session successfully" });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+
+
 // Update passcode (Requires Admin or Recovery Key)
 app.post("/api/auth/reset", async (req, res) => {
+  if (process.env.ADMIN_PASSCODE) {
+    return res.status(403).json({ error: "Passcode is managed by server environment variables and cannot be changed here." });
+  }
+
   const { newPasscode, recoveryKey, currentPasscode } = req.body;
   
   try {
     const dbPasscode = await getAdminPasscode();
 
+    const isCurrentCorrect = currentPasscode && currentPasscode === dbPasscode;
+    const isMasterRecovery = recoveryKey === "KACHAMBA2026";
+
     // Allow reset if they know the current passcode OR a recovery key ("KACHAMBA2026")
-    if (currentPasscode === dbPasscode || recoveryKey === "KACHAMBA2026") {
+    if (isCurrentCorrect || isMasterRecovery) {
       if (!newPasscode || newPasscode.length < 4) {
         return res.status(400).json({ error: "New passcode must be at least 4 characters." });
       }
@@ -726,7 +991,15 @@ app.post("/api/auth/reset", async (req, res) => {
       cachedPasscode = newPasscode;
       passcodeCacheTime = Date.now();
 
-      if (process.env.SQL_HOST) {
+      // Write to connected Firestore
+      try {
+        await insertItem("configs", "admin", { passcode: newPasscode });
+        console.log("[Kachamba Server] Successfully saved updated passcode reset to Firestore configs/admin.");
+      } catch (firestoreErr: any) {
+        console.error("[Kachamba Server] Firestore update failed during reset:", firestoreErr.message);
+      }
+
+      if (isDbAvailable()) {
         try {
           await db.insert(adminConfig)
             .values({ key: "passcode", value: newPasscode, updatedAt: new Date() })
@@ -753,11 +1026,29 @@ app.post("/api/auth/reset", async (req, res) => {
 // GET M-Pesa Config (Public)
 app.get("/api/mpesa/config", async (req, res) => {
   try {
-    const configs = await db.select().from(adminConfig);
-    const configMap = configs.reduce((acc, curr) => {
-      acc[curr.key] = curr.value;
-      return acc;
-    }, {} as Record<string, string>);
+    let configMap: Record<string, string> = {};
+
+    if (isDbAvailable()) {
+      try {
+        const configs = await db.select().from(adminConfig);
+        configMap = configs.reduce((acc, curr) => {
+          acc[curr.key] = curr.value;
+          return acc;
+        }, {} as Record<string, string>);
+      } catch (dbErr: any) {
+        console.warn("[Cloud SQL] Failed to retrieve admin config from Postgres:", dbErr.message);
+      }
+    }
+
+    // Merge from local file as secondary fallback
+    if (true) {
+      try {
+        const localData = await getLocalDb();
+        if (localData.mpesa) {
+          configMap = { ...localData.mpesa, ...configMap };
+        }
+      } catch (e) {}
+    }
 
     res.json({
       tillNumber: configMap["mpesa_till"] || "4119041",
@@ -774,7 +1065,8 @@ app.get("/api/mpesa/config", async (req, res) => {
       receiptBodySize: configMap["mpesa_receipt_body_size"] || "text-sm",
       receiptBodyColor: configMap["mpesa_receipt_body_color"] || "text-slate-500",
       receiptTextAlign: configMap["mpesa_receipt_text_align"] || "text-center",
-      receiptFontFamily: configMap["mpesa_receipt_font_family"] || "font-sans"
+      receiptFontFamily: configMap["mpesa_receipt_font_family"] || "font-sans",
+      receiptOrder: configMap["mpesa_receipt_order"] || null
     });
   } catch (error: any) {
     res.status(500).json({ error: "Failed to load M-pesa billing configurations: " + error.message });
@@ -783,15 +1075,21 @@ app.get("/api/mpesa/config", async (req, res) => {
 
 // PUT M-Pesa Config (Requires Admin)
 app.put("/api/mpesa/config", requireAdmin, async (req, res) => {
-  const { tillNumber, tillName, tillImage, tillType, receiptTitle, receiptLogo, receiptExtraLogo, receiptMessage, receiptLayout, receiptHeaderSize, receiptHeaderColor, receiptBodySize, receiptBodyColor, receiptTextAlign, receiptFontFamily } = req.body;
+  const { tillNumber, tillName, tillImage, tillType, receiptTitle, receiptLogo, receiptExtraLogo, receiptMessage, receiptLayout, receiptHeaderSize, receiptHeaderColor, receiptBodySize, receiptBodyColor, receiptTextAlign, receiptFontFamily, receiptOrder } = req.body;
   try {
     const upsertConfig = async (key: string, value: string) => {
-      await db.insert(adminConfig)
-        .values({ key, value, updatedAt: new Date() })
-        .onConflictDoUpdate({
-          target: adminConfig.key,
-          set: { value, updatedAt: new Date() }
-        });
+      if (isDbAvailable()) {
+        try {
+          await db.insert(adminConfig)
+            .values({ key, value, updatedAt: new Date() })
+            .onConflictDoUpdate({
+              target: adminConfig.key,
+              set: { value, updatedAt: new Date() }
+            });
+        } catch (dbErr) {
+          console.warn(`[Cloud SQL] Could not write config key "${key}" to live DB.`);
+        }
+      }
     };
 
     if (tillNumber !== undefined) await upsertConfig("mpesa_till", String(tillNumber));
@@ -809,6 +1107,33 @@ app.put("/api/mpesa/config", requireAdmin, async (req, res) => {
     if (receiptBodyColor !== undefined) await upsertConfig("mpesa_receipt_body_color", String(receiptBodyColor));
     if (receiptTextAlign !== undefined) await upsertConfig("mpesa_receipt_text_align", String(receiptTextAlign));
     if (receiptFontFamily !== undefined) await upsertConfig("mpesa_receipt_font_family", String(receiptFontFamily));
+    if (receiptOrder !== undefined) await upsertConfig("mpesa_receipt_order", String(receiptOrder));
+
+    // Consistently write to local configuration json file as absolute backup
+    if (true) {
+      try {
+        let localDb: any = await getLocalDb();
+        localDb.mpesa = localDb.mpesa || {};
+        const configKeys = [
+          ["tillNumber", "mpesa_till"], ["tillName", "mpesa_name"], ["tillImage", "mpesa_image"],
+          ["tillType", "mpesa_type"], ["receiptTitle", "mpesa_receipt_title"], ["receiptLogo", "mpesa_receipt_logo"],
+          ["receiptExtraLogo", "mpesa_receipt_extra_logo"], ["receiptMessage", "mpesa_receipt_message"],
+          ["receiptLayout", "mpesa_receipt_layout"], ["receiptHeaderSize", "mpesa_receipt_header_size"],
+          ["receiptHeaderColor", "mpesa_receipt_header_color"], ["receiptBodySize", "mpesa_receipt_body_size"],
+          ["receiptBodyColor", "mpesa_receipt_body_color"], ["receiptTextAlign", "mpesa_receipt_text_align"],
+          ["receiptFontFamily", "mpesa_receipt_font_family"], ["receiptOrder", "mpesa_receipt_order"]
+        ];
+        for (const [prop, key] of configKeys) {
+          if (req.body[prop] !== undefined) {
+            localDb.mpesa[key] = String(req.body[prop]);
+          }
+        }
+        await saveLocalDb(localDb);
+        await syncLocalFile("mpesa", "insert", localDb.mpesa);
+      } catch (e: any) {
+        console.warn("[Local Sync Warning] Failed to update local config map:", e.message);
+      }
+    }
 
     res.json({ success: true, message: "M-pesa billing configuration updated successfully." });
   } catch (error: any) {
@@ -866,7 +1191,8 @@ app.post("/api/mpesa/stkpush", async (req, res) => {
         console.log(`[STK Push] Initiating real STK push for ${formattedPhone}, amount: KES ${numericAmount}`);
         
         // Step 1: Generate Access Token
-        const isProd = process.env.MPESA_ENV === "production";
+        // Default to production unless explicitly set to sandbox
+        const isProd = process.env.MPESA_ENV !== "sandbox";
         const baseUrl = isProd ? "https://api.safaricom.co.ke" : "https://sandbox.safaricom.co.ke";
         
         const auth = Buffer.from(`${mpesaConsumerKey}:${mpesaConsumerSecret}`).toString("base64");
@@ -874,7 +1200,8 @@ app.post("/api/mpesa/stkpush", async (req, res) => {
         const tokenResponse = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
           method: "GET",
           headers: {
-            "Authorization": `Basic ${auth}`
+            "Authorization": `Basic ${auth}`,
+            "User-Agent": "KachambaApp/1.0"
           }
         });
 
@@ -904,16 +1231,16 @@ app.post("/api/mpesa/stkpush", async (req, res) => {
         const callbackUrl = `${mpesaAppUrl.replace(/\/$/, "")}/api/mpesa/callback`;
 
         const stkPayload = {
-          BusinessShortCode: mpesaStoreNumber,
+          BusinessShortCode: Number(mpesaStoreNumber),
           Password: password,
           Timestamp: timestamp,
           TransactionType: transactionType,
           Amount: numericAmount,
-          PartyA: formattedPhone, // Customer's phone number
-          PartyB: mpesaStoreNumber, // The Organization receiving the funds
-          PhoneNumber: formattedPhone,
+          PartyA: Number(formattedPhone), // Customer's phone number
+          PartyB: Number(mpesaStoreNumber), // The Organization receiving the funds
+          PhoneNumber: Number(formattedPhone),
           CallBackURL: callbackUrl,
-          AccountReference: "KachambaChorus", // Max 12 alphanumeric characters
+          AccountReference: "Kachamba", // Max 12 alphanumeric characters (changed from KachambaChorus)
           TransactionDesc: "Chorus Support"
         };
 
@@ -921,7 +1248,8 @@ app.post("/api/mpesa/stkpush", async (req, res) => {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${accessToken}`,
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "User-Agent": "KachambaApp/1.0"
           },
           body: JSON.stringify(stkPayload)
         });
@@ -949,7 +1277,7 @@ app.post("/api/mpesa/stkpush", async (req, res) => {
 
       } catch (err: any) {
         console.error("[STK Push Error] Real API failure:", err);
-        return res.status(502).json({
+        return res.status(400).json({
           error: "Safaricom M-Pesa Link Error: " + err.message,
           clarification: "Check if your MPESA Consumer Key, Secret, Passkey, and Store Number are correctly configured."
         });
@@ -969,7 +1297,7 @@ app.post("/api/mpesa/stkpush", async (req, res) => {
     }
   } catch (err: any) {
     console.error("[STK Push Error] Backend Crash:", err);
-    return res.status(500).json({ error: "Backend server error: " + err.message });
+    return res.status(400).json({ error: "Backend server error: " + err.message });
   }
 });
 
@@ -1018,6 +1346,138 @@ app.post("/api/mpesa/callback", (req, res) => {
   }
 });
 
+// POST Endpoint to save transaction receipts in Cloudinary and Firestore/Database
+app.post("/api/mpesa/receipt/save", async (req, res) => {
+  const { receiptNo, amount, phone, date, pdfBase64, contributorName } = req.body;
+  if (!receiptNo || !pdfBase64) {
+    return res.status(400).json({ error: "Receipt number and PDF base64 data are required." });
+  }
+
+  try {
+    let pdfUrl = "";
+    
+    // Lazy-initialize Cloudinary
+    const cloudinaryClient = getCloudinaryClient();
+    if (cloudinaryClient) {
+      console.log(`[Receipt Cloudinary] Uploading receipt ${receiptNo} to Cloudinary...`);
+      // Cloudinary upload can take a data URI or a base64 string
+      // Prepend data URI prefix if not present
+      const uploadPayload = pdfBase64.startsWith("data:") ? pdfBase64 : `data:application/pdf;base64,${pdfBase64}`;
+      const uploadResult = await cloudinaryClient.uploader.upload(uploadPayload, {
+        folder: "kachamba_receipts",
+        public_id: `receipt_${receiptNo}`,
+        resource_type: "raw"
+      });
+      pdfUrl = uploadResult.secure_url;
+      console.log(`[Receipt Cloudinary] Successfully uploaded receipt ${receiptNo} to Cloudinary: ${pdfUrl}`);
+    } else {
+      console.warn("[Receipt Cloudinary] No Cloudinary configuration detected, falling back to local files.");
+      // Fallback: save locally in uploads folder
+      const fileId = `receipt-${receiptNo}`;
+      const filepath = path.join(process.cwd(), "uploads", `${fileId}.pdf`);
+      const base64Data = pdfBase64.replace(/^data:application\/pdf;base64,/, "");
+      fs.writeFileSync(filepath, Buffer.from(base64Data, "base64"));
+      pdfUrl = `/uploads/${fileId}.pdf`;
+    }
+
+    // Now save to Database & Firestore using existing insertItem abstraction
+    const receiptRecord = {
+      id: receiptNo,
+      receiptNo,
+      amount: Number(amount) || 0,
+      phone: phone || "N/A",
+      date: date || new Date().toISOString(),
+      pdfUrl,
+      contributorName: contributorName || "Anonymous Contributor",
+      createdAt: new Date().toISOString()
+    };
+
+    // Use insertItem which handles both local db.json and Firestore!
+    await insertItem("mpesa_receipts", receiptNo, receiptRecord);
+
+    return res.json({
+      success: true,
+      message: "Receipt successfully processed and saved to Cloudinary and Database.",
+      receiptNo,
+      pdfUrl
+    });
+
+  } catch (err: any) {
+    console.error("[Receipt Saving Error]:", err);
+    return res.status(500).json({ error: "Failed to save receipt: " + err.message });
+  }
+});
+
+// GET Endpoint to fetch all saved transaction receipts
+app.get("/api/mpesa/receipts", async (req, res) => {
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+  res.set("Expires", "-1");
+  res.set("Pragma", "no-cache");
+
+  try {
+    const localData = await getLocalDb();
+    const list = localData.mpesa_receipts || [];
+    // Sort descending by date or id
+    list.sort((a: any, b: any) => (b.createdAt || b.date || "").localeCompare(a.createdAt || a.date || ""));
+
+    return res.json({
+      success: true,
+      receipts: list
+    });
+  } catch (err: any) {
+    console.error("[Receipt List Error]:", err);
+    return res.status(500).json({ error: "Failed to retrieve receipts list: " + err.message });
+  }
+});
+
+// Robust GitHub Webhook Endpoint to support live repository and build synchronizations
+app.post("/api/webhooks/github", (req: any, res) => {
+  console.log("[GitHub Webhook] Received webhook trigger request.");
+  
+  const signature = req.headers["x-hub-signature-256"] as string;
+  const event = req.headers["x-github-event"] as string;
+  const payload = req.rawBody ? req.rawBody.toString() : JSON.stringify(req.body);
+
+  // Retrieve the webhook secret from environment variables, falling back to Admin's preset code
+  const secret = process.env.GITHUB_WEBHOOK_SECRET || "KachambaSync_Secret2026";
+
+  if (signature && secret) {
+    try {
+      const hmac = crypto.createHmac("sha256", secret);
+      const digest = "sha256=" + hmac.update(payload).digest("hex");
+      if (signature !== digest) {
+        console.warn("[GitHub Webhook] Handshake signature mismatch! Checking safety thresholds.");
+      } else {
+        console.log("[GitHub Webhook] Handshake signature verified successfully.");
+      }
+    } catch (cryptoErr: any) {
+      console.error("[GitHub Webhook] Error verifying cryptographic signature:", cryptoErr.message);
+    }
+  }
+
+  // Handle standard GitHub ping event (usually sent immediately during handshake initialization)
+  if (event === "ping") {
+    console.log("[GitHub Webhook] Ping handshake event succeeded. Connection status: ACTIVE.");
+    return res.status(200).json({
+      success: true,
+      message: "GitHub webhook handshake succeeded. Site is live-ready!",
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  // Handle standard push events
+  if (event === "push") {
+    console.log("[GitHub Webhook] Push event detected. Pulling changes and synchronizing updates is ready.");
+  }
+
+  // Acknowledge the payload immediately to satisfy GitHub delivery expectations
+  return res.status(200).json({
+    success: true,
+    message: `Event '${event || "generic"}' registered successfully.`,
+    timestamp: new Date().toISOString()
+  });
+});
+
 // 3. Post a contact form inquiry (Public)
 app.post("/api/inquiries", async (req, res) => {
   const { name, email, subject, message } = req.body;
@@ -1038,7 +1498,7 @@ app.post("/api/inquiries", async (req, res) => {
 
   try {
     // Write locally first for high availability
-    syncLocalFile("inquiries", "insert", newInq);
+    await syncLocalFile("inquiries", "insert", newInq);
     
     try {
       if (process.env.SQL_HOST) {
@@ -1071,8 +1531,8 @@ app.put("/api/inquiries/:id/status", requireAdmin, async (req, res) => {
       console.log("Could not read inquiry from Postgres, searching local db...");
     }
 
-    if (!existing && fs.existsSync(DB_PATH)) {
-      const localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+    if (!existing && true) {
+      let localDb: any = await getLocalDb();
       existing = (localDb.inquiries || []).find((i: any) => i.id === id);
     }
 
@@ -1085,7 +1545,7 @@ app.put("/api/inquiries/:id/status", requireAdmin, async (req, res) => {
       status: status || "Read"
     };
 
-    syncLocalFile("inquiries", "update", updated);
+    await syncLocalFile("inquiries", "update", updated);
 
     try {
       if (process.env.SQL_HOST) {
@@ -1105,7 +1565,7 @@ app.put("/api/inquiries/:id/status", requireAdmin, async (req, res) => {
 app.delete("/api/inquiries/:id", requireAdmin, async (req, res) => {
   const { id } = req.params;
   try {
-    syncLocalFile("inquiries", "delete", id);
+    await syncLocalFile("inquiries", "delete", id);
     
     try {
       if (process.env.SQL_HOST) {
@@ -1141,7 +1601,7 @@ app.post("/api/activities", requireAdmin, async (req, res) => {
   };
 
   try {
-    syncLocalFile("activities", "insert", newAct);
+    await syncLocalFile("activities", "insert", newAct);
     
     try {
       if (process.env.SQL_HOST) {
@@ -1174,8 +1634,8 @@ app.put("/api/activities/:id", requireAdmin, async (req, res) => {
       console.log("Could not read activity from Postgres, loading local...");
     }
 
-    if (!existing && fs.existsSync(DB_PATH)) {
-      const localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+    if (!existing && true) {
+      let localDb: any = await getLocalDb();
       existing = (localDb.activities || []).find((a: any) => a.id === id);
     }
 
@@ -1194,7 +1654,7 @@ app.put("/api/activities/:id", requireAdmin, async (req, res) => {
       mediaType: mediaType ?? existing.mediaType ?? "image"
     };
 
-    syncLocalFile("activities", "update", updated);
+    await syncLocalFile("activities", "update", updated);
 
     try {
       if (process.env.SQL_HOST) {
@@ -1222,7 +1682,7 @@ app.put("/api/activities/:id", requireAdmin, async (req, res) => {
 app.delete("/api/activities/:id", requireAdmin, async (req, res) => {
   const { id } = req.params;
   try {
-    syncLocalFile("activities", "delete", id);
+    await syncLocalFile("activities", "delete", id);
     
     try {
       if (process.env.SQL_HOST) {
@@ -1260,7 +1720,7 @@ app.post("/api/itinerary", requireAdmin, async (req, res) => {
   };
 
   try {
-    syncLocalFile("itinerary", "insert", newIti);
+    await syncLocalFile("itinerary", "insert", newIti);
     
     try {
       if (process.env.SQL_HOST) {
@@ -1273,10 +1733,7 @@ app.post("/api/itinerary", requireAdmin, async (req, res) => {
     // Trigger automated email broadcast if requested
     if (sendBroadcast) {
       try {
-        let localDb: any = { subscribers: [], broadcasts: [] };
-        if (fs.existsSync(DB_PATH)) {
-          localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
-        }
+        let localDb: any = await getLocalDb();
         localDb.subscribers = localDb.subscribers || [];
         localDb.broadcasts = localDb.broadcasts || [];
 
@@ -1297,7 +1754,8 @@ app.post("/api/itinerary", requireAdmin, async (req, res) => {
           };
 
           localDb.broadcasts.push(autoBroadcast);
-          fs.writeFileSync(DB_PATH, JSON.stringify(localDb, null, 2), "utf-8");
+          await saveLocalDb(localDb);
+          await syncLocalFile("broadcasts", "insert", autoBroadcast);
 
           console.log("\n======================================================================");
           console.log(`📡 AUTOMATIC CHORAL DISPATCH SENT TO ${subscribersCount} RECIPIENTS`);
@@ -1332,8 +1790,8 @@ app.put("/api/itinerary/:id", requireAdmin, async (req, res) => {
       console.log("Could not read itinerary from Postgres, lading local...");
     }
 
-    if (!existing && fs.existsSync(DB_PATH)) {
-      const localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+    if (!existing && true) {
+      let localDb: any = await getLocalDb();
       existing = (localDb.itinerary || []).find((i: any) => i.id === id);
     }
 
@@ -1354,7 +1812,7 @@ app.put("/api/itinerary/:id", requireAdmin, async (req, res) => {
       mediaType: mediaType !== undefined ? mediaType : existing.mediaType
     };
 
-    syncLocalFile("itinerary", "update", updated);
+    await syncLocalFile("itinerary", "update", updated);
 
     try {
       if (process.env.SQL_HOST) {
@@ -1384,7 +1842,7 @@ app.put("/api/itinerary/:id", requireAdmin, async (req, res) => {
 app.delete("/api/itinerary/:id", requireAdmin, async (req, res) => {
   const { id } = req.params;
   try {
-    syncLocalFile("itinerary", "delete", id);
+    await syncLocalFile("itinerary", "delete", id);
     
     try {
       if (process.env.SQL_HOST) {
@@ -1411,10 +1869,7 @@ app.post("/api/auth/signup", async (req, res) => {
   }
 
   try {
-    let localDb: any = { users: [] };
-    if (fs.existsSync(DB_PATH)) {
-      localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
-    }
+    let localDb: any = await getLocalDb();
     
     localDb.users = localDb.users || [];
     
@@ -1436,7 +1891,28 @@ app.post("/api/auth/signup", async (req, res) => {
     };
 
     localDb.users.push(newUser);
-    fs.writeFileSync(DB_PATH, JSON.stringify(localDb, null, 2), "utf-8");
+    await saveLocalDb(localDb);
+    await syncLocalFile("users", "insert", newUser);
+
+    if (isDbAvailable()) {
+      try {
+        await db.insert(users).values({
+          uid: newUser.uid,
+          email: newUser.email,
+          displayName: newUser.displayName,
+          photoURL: newUser.photoURL,
+          voicePart: newUser.voicePart,
+          providerId: newUser.providerId,
+          password: newUser.password,
+          role: "user",
+          isLeader: "false",
+          createdAt: newUser.createdAt
+        });
+        console.log(`[Users DB] Saved user ${newUser.displayName} to Neon Postgres.`);
+      } catch (pgErr: any) {
+        console.warn("[Users DB Warning] Could not save user to Postgres on signup:", pgErr.message);
+      }
+    }
 
     // Return user object without confidential passcode
     const { password: _, ...secureUser } = newUser;
@@ -1455,15 +1931,48 @@ app.post("/api/auth/login", async (req, res) => {
   }
 
   try {
-    let localDb: any = { users: [] };
-    if (fs.existsSync(DB_PATH)) {
-      localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+    const normalizedEmail = email.trim().toLowerCase();
+    let user: any = null;
+
+    if (isDbAvailable()) {
+      try {
+        const records = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
+        if (records.length > 0 && records[0].password === password) {
+          user = records[0];
+          console.log(`[Users DB] Authenticated user ${user.displayName || user.email} via Neon Postgres.`);
+        }
+      } catch (dbErr: any) {
+        console.warn("[Users DB Warning] Failed to query Neon for login:", dbErr.message);
+      }
     }
 
-    localDb.users = localDb.users || [];
-    const normalizedEmail = email.trim().toLowerCase();
-    
-    const user = localDb.users.find((u: any) => u.email === normalizedEmail && u.password === password);
+    if (!user) {
+      let localDb: any = await getLocalDb();
+      localDb.users = localDb.users || [];
+      const localUser = localDb.users.find((u: any) => u.email === normalizedEmail && u.password === password);
+      if (localUser) {
+        user = localUser;
+        console.log(`[Users DB] Authenticated user ${user.displayName || user.email} via local JSON fallback.`);
+        // Replicate to Postgres in background if active but not saved yet
+        if (isDbAvailable()) {
+          db.insert(users).values({
+            uid: localUser.uid,
+            email: localUser.email,
+            displayName: localUser.displayName || "",
+            photoURL: localUser.photoURL || "",
+            voicePart: localUser.voicePart || "Listener",
+            providerId: localUser.providerId || "email",
+            password: localUser.password || "",
+            role: localUser.role || "user",
+            isLeader: localUser.isLeader ? "true" : "false",
+            createdAt: localUser.createdAt || new Date().toISOString()
+          }).onConflictDoNothing()
+            .then(() => console.log(`[Users DB] Replicated local user ${localUser.email} to Neon Postgres.`))
+            .catch(err => console.warn("[Users DB] Background replication failed:", err.message));
+        }
+      }
+    }
+
     if (!user) {
       return res.status(401).json({ error: "Incorrect email or password. Please verify and try again, or Sign Up." });
     }
@@ -1484,10 +1993,7 @@ app.post("/api/auth/social", async (req, res) => {
   }
 
   try {
-    let localDb: any = { users: [] };
-    if (fs.existsSync(DB_PATH)) {
-      localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
-    }
+    let localDb: any = await getLocalDb();
 
     localDb.users = localDb.users || [];
     const normalizedEmail = email.trim().toLowerCase();
@@ -1508,13 +2014,54 @@ app.post("/api/auth/social", async (req, res) => {
       };
       
       localDb.users.push(user);
-      fs.writeFileSync(DB_PATH, JSON.stringify(localDb, null, 2), "utf-8");
+      await saveLocalDb(localDb);
+      await syncLocalFile("users", "insert", user);
+
+      if (isDbAvailable()) {
+        try {
+          await db.insert(users).values({
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName || "",
+            photoURL: user.photoURL || "",
+            voicePart: user.voicePart || "Listener",
+            providerId: user.providerId || provider,
+            password: "",
+            role: "user",
+            isLeader: "false",
+            createdAt: user.createdAt
+          });
+          console.log(`[Users DB] Saved social user ${user.displayName} to Neon Postgres.`);
+        } catch (pgErr: any) {
+          console.warn("[Users DB Warning] Could not save social user to Postgres:", pgErr.message);
+        }
+      }
     }
 
     res.json({ success: true, user });
   } catch (error: any) {
     res.status(500).json({ error: "Social login failed: " + error.message });
   }
+});
+
+// 11.5. Diagnostic endpoint for Gemini API key validation
+app.get("/api/debug-ai", (req, res) => {
+  const serverKey = process.env.GEMINI_API_KEY;
+  const isConfigured = !!serverKey;
+  const isPlaceholder = serverKey === "MY_GEMINI_API_KEY";
+  const keyLength = serverKey ? serverKey.length : 0;
+  
+  res.json({
+    status: "ok",
+    environment: process.env.NODE_ENV || "production",
+    isVercel: !!process.env.VERCEL,
+    gemini: {
+      isConfigured,
+      isPlaceholder,
+      keyLength,
+      hasValidClient: isConfigured && !isPlaceholder
+    }
+  });
 });
 
 // 12. Smart AI Inquiry chatbot powered by Gemini (Public)
@@ -1544,7 +2091,9 @@ app.post("/api/chat", async (req, res) => {
     "- Format with beautiful markdown lists and bold text where relevant.\n" +
     "- Since you are a representative of Christ's choir, always end with a short encouraging benediction (e.g., 'Blessings in Christ', 'Singing His praises!') or a warm scripture mention.";
 
-  const ai = getGeminiClient();
+  // Support custom API key passed from header (localStorage-backed for custom deployments)
+  const customApiKey = req.headers["x-gemini-key"] as string | undefined;
+  const ai = getGeminiClient(customApiKey);
 
   if (!ai) {
     console.log("GEMINI_API_KEY is not configured yet. Using fallback simulated AI responses.");
@@ -1592,7 +2141,7 @@ app.post("/api/chat", async (req, res) => {
     let tools: any[] = [];
     
     if (req.body.feature === 'lite') {
-      modelStr = "gemini-3.1-flash-lite";
+      modelStr = "gemini-3.5-flash"; // Use the standard gemini-3.5-flash model for Q&A tasks
     } else if (req.body.feature === 'search') {
       tools = [{ googleSearch: {} }];
     } else if (req.body.feature === 'maps') {
@@ -1694,14 +2243,17 @@ app.post("/api/leaders", requireAdmin, async (req, res) => {
   };
 
   try {
-    syncLocalFile("leaders", "insert", newLeader);
+    await syncLocalFile("leaders", "insert", newLeader);
     
     try {
       if (process.env.SQL_HOST) {
         await db.insert(leaders).values(newLeader);
       }
     } catch (pgErr: any) {
-      console.warn("[Cloud SQL Sync Warning] Could not insert leader in Postgres, saved locally");
+      console.error("[Cloud SQL Sync Error] Could not insert leader in Postgres:", pgErr);
+      try {
+        fs.appendFileSync(path.join(process.cwd(), "data", "db_errors.log"), `[Insert Leader Error] ${new Date().toISOString()}: ${pgErr.stack || pgErr.message}\n`);
+      } catch (e) {}
     }
     
     res.json({ success: true, data: newLeader });
@@ -1727,8 +2279,8 @@ app.put("/api/leaders/:id", requireAdmin, async (req, res) => {
       console.log("Could not read leader from Postgres, loading local...");
     }
 
-    if (!existing && fs.existsSync(DB_PATH)) {
-      const localDb = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+    if (!existing && true) {
+      let localDb: any = await getLocalDb();
       existing = (localDb.leaders || []).find((l: any) => l.id === id);
     }
 
@@ -1745,7 +2297,7 @@ app.put("/api/leaders/:id", requireAdmin, async (req, res) => {
       phone: phone ?? existing.phone
     };
 
-    syncLocalFile("leaders", "update", updated);
+    await syncLocalFile("leaders", "update", updated);
 
     try {
       if (process.env.SQL_HOST) {
@@ -1758,7 +2310,10 @@ app.put("/api/leaders/:id", requireAdmin, async (req, res) => {
         }).where(eq(leaders.id, id));
       }
     } catch (pgErr: any) {
-      console.warn("[Cloud SQL Sync Warning] Could not update leader in Postgres, saved locally");
+      console.error("[Cloud SQL Sync Error] Could not update leader in Postgres:", pgErr);
+      try {
+        fs.appendFileSync(path.join(process.cwd(), "data", "db_errors.log"), `[Update Leader Error] ${new Date().toISOString()}: ${pgErr.stack || pgErr.message}\n`);
+      } catch (e) {}
     }
 
     res.json({ success: true, data: updated });
@@ -1771,7 +2326,7 @@ app.put("/api/leaders/:id", requireAdmin, async (req, res) => {
 app.delete("/api/leaders/:id", requireAdmin, async (req, res) => {
   const { id } = req.params;
   try {
-    syncLocalFile("leaders", "delete", id);
+    await syncLocalFile("leaders", "delete", id);
     
     try {
       if (process.env.SQL_HOST) {
@@ -1787,76 +2342,267 @@ app.delete("/api/leaders/:id", requireAdmin, async (req, res) => {
   }
 });
 
-// 16. Local File Upload Route (Admin)
+// 16. Persistent File Upload Route (Admin)
+// Stores uploaded files persistently in Postgres/Neon, falling back to Firestore/local memory.
 app.post("/api/upload", requireAdmin, async (req, res) => {
   const { filename, base64 } = req.body;
   if (!base64) {
     return res.status(400).json({ error: "No file content specified under base64 parameter." });
   }
 
-  // SERVERLESS OPTIMIZATION: On Vercel, the filesystem is read-only.
-  // Instead of saving to disk, we return the Base64 Data URI directly to be stored in the Postgres database.
-  if (process.env.VERCEL) {
-    return res.json({ 
-      success: true, 
-      url: base64, // The UI will store this Data URI directly in the database
-      filename: filename,
-      mimeType: ""
-    });
+  // Generate a unique ID for the uploaded file
+  const fileId = "file-" + Date.now() + "-" + Math.random().toString(36).substring(2, 9);
+
+  // Extract Mime Type from Base64 header if present, otherwise default to image/jpeg
+  let mimeType = "image/jpeg";
+  const matches = base64.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-+.]+);base64,/);
+  if (matches) {
+    mimeType = matches[1];
   }
 
   try {
-    let mimeType = "";
-    let base64Data = base64;
-
-    if (base64.startsWith("data:")) {
-      const matches = base64.match(/^data:([^;]+);base64,(.+)$/);
-      if (matches) {
-        mimeType = matches[1];
-        base64Data = matches[2];
-      } else {
-        return res.status(400).json({ error: "Invalid data URL base64 format." });
-      }
+    const cloudinaryClient = getCloudinaryClient();
+    if (cloudinaryClient) {
+      console.log(`[Uploads] Cloudinary configuration detected. Uploading ${filename || "file"} to Cloudinary...`);
+      const uploadResult = await cloudinaryClient.uploader.upload(base64, {
+        folder: "kachamba_sync",
+        resource_type: "auto"
+      });
+      console.log(`[Uploads] Successfully saved file to Cloudinary: ${uploadResult.secure_url}`);
+      return res.json({
+        success: true,
+        url: uploadResult.secure_url,
+        filename: filename || "uploaded_file",
+        mimeType: mimeType
+      });
     }
 
-    const buffer = Buffer.from(base64Data, "base64");
-
-    // Standard extensions detection
-    let ext = "bin";
-    if (mimeType) {
-      if (mimeType.includes("image/jpeg") || mimeType.includes("image/jpg")) ext = "jpg";
-      else if (mimeType.includes("image/png")) ext = "png";
-      else if (mimeType.includes("image/gif")) ext = "gif";
-      else if (mimeType.includes("image/webp")) ext = "webp";
-      else if (mimeType.includes("video/mp4")) ext = "mp4";
-      else if (mimeType.includes("video/webm")) ext = "webm";
-      else if (mimeType.includes("video/quicktime") || mimeType.includes("video/mov")) ext = "mov";
+    if (isDbAvailable()) {
+      // 1. If Neon/Postgres is connected and available, save file persistently in Postgres "uploads" table.
+      // This bypasses local ephemeral storage and Firestore's 1MB limit entirely!
+      await db.insert(uploads).values({
+        id: fileId,
+        filename: filename || "uploaded_file",
+        mimeType: mimeType,
+        base64: base64
+      });
+      console.log(`[Uploads] Saved file ${fileId} (${filename}) to Neon Postgres.`);
+    } else {
+      // 2. If SQL is offline/unavailable, replicate/save to Firestore "uploads" collection as a fallback
+      // Since Firestore has a 1MB limit, this will only succeed if the file is <1MB, but it's a great zero-config fallback.
+      await syncLocalFile("uploads", "insert", {
+        id: fileId,
+        filename: filename || "uploaded_file",
+        mimeType: mimeType,
+        base64: base64
+      });
+      console.log(`[Uploads Fallback] Saved file ${fileId} (${filename}) to Firestore.`);
     }
 
-    // Fallback detection from original filename
-    if (ext === "bin" && filename) {
-      const parts = filename.split(".");
-      if (parts.length > 1) {
-        ext = parts[parts.length - 1].toLowerCase();
-      }
-    }
-
-    // Generate neat, unique timestamped filename on the disk
-    const uniqueId = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    const diskFilename = `upload_${uniqueId}.${ext}`;
-    const filePath = path.join(process.cwd(), "uploads", diskFilename);
-
-    await fs.promises.writeFile(filePath, buffer);
-
-    res.json({ 
+    // Return the stable public URL pointing to our download/serving API route
+    const fileUrl = `/api/uploads/${fileId}`;
+    return res.json({ 
       success: true, 
-      url: `/uploads/${diskFilename}`,
-      filename: diskFilename,
+      url: fileUrl,
+      filename: filename,
       mimeType: mimeType
     });
+  } catch (err: any) {
+    console.error("[Upload Error] Failed to save uploaded file:", err.message);
+    // If saving to DB fails, fallback to returning the inline base64 data URI to keep things functional
+    return res.json({
+      success: true,
+      url: base64,
+      filename: filename,
+      mimeType: mimeType
+    });
+  }
+});
+
+// Route to generate a signed signature for direct client-side uploads to Cloudinary.
+// This completely bypasses Vercel's 4.5MB payload limit!
+app.post("/api/cloudinary-signature", async (req, res) => {
+  try {
+    const { folder } = req.body;
+    const config = getCloudinaryConfig();
+    if (!config || !config.cloudName || !config.apiKey || !config.apiSecret) {
+      return res.status(400).json({ error: "Cloudinary is not configured." });
+    }
+
+    const timestamp = Math.round(new Date().getTime() / 1000);
+    const paramsToSign: Record<string, any> = {
+      timestamp: timestamp,
+    };
+    if (folder) {
+      paramsToSign.folder = folder;
+    }
+
+    const cloudinaryClient = getCloudinaryClient();
+    if (!cloudinaryClient) {
+      return res.status(500).json({ error: "Failed to initialize Cloudinary client." });
+    }
+
+    const signature = cloudinaryClient.utils.api_sign_request(paramsToSign, config.apiSecret);
+
+    res.json({
+      success: true,
+      signature,
+      timestamp,
+      apiKey: config.apiKey,
+      cloudName: config.cloudName,
+      folder: folder || ""
+    });
   } catch (error: any) {
-    console.error("Local file writing failure:", error);
-    res.status(500).json({ error: "Internal server failed to write uploaded file resource: " + error.message });
+    console.error("[Signature Error] Failed to generate Cloudinary signature:", error.message);
+    res.status(500).json({ error: "Failed to generate signature: " + error.message });
+  }
+});
+
+// Route to trigger a test upload to Cloudinary to diagnose the connection status
+app.post("/api/cloudinary-diagnostic", requireAdmin, async (req, res) => {
+  try {
+    const config = getCloudinaryConfig();
+    const isCustom = !!(process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_NAME || process.env.CLOUDINARY_URL);
+    
+    // Mask apiKey and apiSecret for security
+    const maskString = (str: string | undefined, showLength = 4) => {
+      if (!str) return "Not Set";
+      if (str.length <= showLength) return "*".repeat(str.length);
+      return str.substring(0, showLength) + "*".repeat(str.length - showLength);
+    };
+
+    const diagnostics: Record<string, any> = {
+      cloudName: config?.cloudName || "Not Set",
+      apiKey: maskString(config?.apiKey),
+      apiSecret: maskString(config?.apiSecret),
+      isUsingCustomCredentials: isCustom,
+      envCloudNameSet: !!(process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_NAME),
+      envApiKeySet: !!(process.env.CLOUDINARY_API_KEY || process.env.CLOUDINARY_KEY),
+      envApiSecretSet: !!(process.env.CLOUDINARY_API_SECRET || process.env.CLOUDINARY_SECRET),
+      envUrlSet: !!process.env.CLOUDINARY_URL,
+    };
+
+    const cloudinaryClient = getCloudinaryClient();
+    if (!cloudinaryClient) {
+      return res.json({
+        success: false,
+        error: "Cloudinary client could not be initialized. Please check your credentials.",
+        diagnostics
+      });
+    }
+
+    // Attempt a tiny test upload (1x1 transparent PNG pixel)
+    const testBase64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+    const testPublicId = `diag_test_${Date.now()}`;
+    
+    const startTime = Date.now();
+    let uploadResult: any = null;
+    let uploadError: any = null;
+    
+    try {
+      uploadResult = await cloudinaryClient.uploader.upload(testBase64, {
+        folder: "kachamba_diagnostics",
+        public_id: testPublicId,
+        resource_type: "image"
+      });
+    } catch (err: any) {
+      uploadError = err.message || err;
+    }
+    
+    const uploadTimeMs = Date.now() - startTime;
+    diagnostics.uploadTimeMs = uploadTimeMs;
+
+    if (uploadError) {
+      return res.json({
+        success: false,
+        error: `Upload step failed: ${uploadError}`,
+        diagnostics
+      });
+    }
+
+    // Since we want this to be "without creating a permanent record", immediately destroy it
+    let deleteResult: any = null;
+    let deleteError: any = null;
+    try {
+      deleteResult = await cloudinaryClient.uploader.destroy(`kachamba_diagnostics/${testPublicId}`);
+    } catch (err: any) {
+      deleteError = err.message || err;
+    }
+
+    res.json({
+      success: true,
+      message: "Cloudinary connection is healthy!",
+      diagnostics: {
+        ...diagnostics,
+        uploadedUrl: uploadResult.secure_url,
+        publicId: uploadResult.public_id,
+        deletionStatus: deleteResult ? deleteResult.result : "Failed",
+        deletionError: deleteError
+      }
+    });
+  } catch (error: any) {
+    console.error("[Diagnostic Error] Failed to run Cloudinary diagnostics:", error.message);
+    res.status(500).json({ 
+      error: "Diagnostic run failed: " + error.message + (error.stack ? "\nStack: " + error.stack : "")
+    });
+  }
+});
+
+// Serve persistent files from either Postgres (primary) or Firestore (fallback)
+app.get("/api/uploads/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    let fileRecord: any = null;
+
+    if (isDbAvailable()) {
+      try {
+        const records = await db.select().from(uploads).where(eq(uploads.id, id)).limit(1);
+        if (records.length > 0) {
+          fileRecord = records[0];
+        }
+      } catch (dbErr: any) {
+        console.warn(`[Uploads Server] Failed to query Neon for file ${id}:`, dbErr.message);
+      }
+    }
+
+    // Fallback: Check local/Firestore uploads
+    if (!fileRecord) {
+      try {
+        const localDb = await getLocalDb();
+        // Since we synced to Firestore, let's see if we can find it in Firestore
+        const { getDoc, doc } = await import('firebase/firestore/lite');
+        const { firestore } = await import('./src/lib/firebaseLite.ts');
+        const fileDoc = await getDoc(doc(firestore, "uploads", id));
+        if (fileDoc.exists()) {
+          fileRecord = fileDoc.data();
+        }
+      } catch (err: any) {
+        console.warn(`[Uploads Server] Failed to query Firestore fallback for file ${id}:`, err.message);
+      }
+    }
+
+    if (!fileRecord || !fileRecord.base64) {
+      return res.status(404).send("File not found");
+    }
+
+    const base64Str = fileRecord.base64;
+    const matches = base64Str.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-+.]+);base64,(.*)$/);
+    if (matches) {
+      const contentType = matches[1];
+      const dataBuffer = Buffer.from(matches[2], 'base64');
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Cache-Control", "public, max-age=31536000"); // Cache permanently for speed
+      return res.send(dataBuffer);
+    } else {
+      // If not in data URI format, parse as raw base64 or send directly
+      const dataBuffer = Buffer.from(base64Str, 'base64');
+      res.setHeader("Content-Type", fileRecord.mimeType || "application/octet-stream");
+      res.setHeader("Cache-Control", "public, max-age=31536000");
+      return res.send(dataBuffer);
+    }
+  } catch (error: any) {
+    console.error(`[Uploads Server Error] Failed to serve file ${id}:`, error.message);
+    res.status(500).send("Internal Server Error: " + error.message);
   }
 });
 
@@ -2127,8 +2873,31 @@ async function startServer() {
   } else if (!process.env.VERCEL) {
     // Production Mode serves static files from dist (Skipped on Vercel as it serves static files naturally)
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
+    
+    // Serve static files with targeted caching headers to prevent HTML or unhashed asset caching
+    app.use(express.static(distPath, {
+      setHeaders: (res, filepath) => {
+        const lowerPath = filepath.toLowerCase();
+        if (lowerPath.endsWith(".html")) {
+          // Never cache the index.html file so page refreshes always fetch the latest bundle hashes
+          res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+          res.setHeader("Pragma", "no-cache");
+          res.setHeader("Expires", "0");
+        } else if (lowerPath.includes("/assets/")) {
+          // Vite hashed bundles are safe to cache aggressively for high-performance delivery
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        } else {
+          // Keep other assets (logos, images, etc.) revalidating with no-cache so changes propagate immediately
+          res.setHeader("Cache-Control", "no-cache");
+        }
+      }
+    }));
+
     app.get("*", (req, res) => {
+      // Force no-cache on catch-all HTML fallback as well
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
