@@ -436,7 +436,14 @@ export default function AdminPanel({
       });
       
       if (!res.ok) {
-        throw new Error(`Server returned status code ${res.status}`);
+        let errMsg = `Server returned status code ${res.status}`;
+        try {
+          const errData = await res.json();
+          if (errData && errData.error) {
+            errMsg = errData.error;
+          }
+        } catch (_) {}
+        throw new Error(errMsg);
       }
       
       const data = await res.json();

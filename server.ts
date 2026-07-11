@@ -35,24 +35,17 @@ function parseCloudinaryUrl(url: string) {
 
 // Dynamically retrieves and parses Cloudinary settings from env or fallback
 function getCloudinaryConfig() {
-  let cloudName = process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_NAME;
-  let apiKey = process.env.CLOUDINARY_API_KEY || process.env.CLOUDINARY_KEY;
-  let apiSecret = process.env.CLOUDINARY_API_SECRET || process.env.CLOUDINARY_SECRET;
+  let cloudName = (process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_NAME || "").trim();
+  let apiKey = (process.env.CLOUDINARY_API_KEY || process.env.CLOUDINARY_KEY || "").trim();
+  let apiSecret = (process.env.CLOUDINARY_API_SECRET || process.env.CLOUDINARY_SECRET || "").trim();
 
   if (process.env.CLOUDINARY_URL) {
-    const parsed = parseCloudinaryUrl(process.env.CLOUDINARY_URL);
+    const parsed = parseCloudinaryUrl(process.env.CLOUDINARY_URL.trim());
     if (parsed) {
-      cloudName = cloudName || parsed.cloudName;
-      apiKey = apiKey || parsed.apiKey;
-      apiSecret = apiSecret || parsed.apiSecret;
+      cloudName = cloudName || parsed.cloudName.trim();
+      apiKey = apiKey || parsed.apiKey.trim();
+      apiSecret = apiSecret || parsed.apiSecret.trim();
     }
-  }
-
-  // Fallback credentials for sandbox/development (or custom user environments if not specified)
-  if (!cloudName || !apiKey || !apiSecret) {
-    cloudName = "epd4yag0";
-    apiKey = "637956393284218";
-    apiSecret = "utaluAXBEK0fP7eEVKEuWhuk-ZY";
   }
 
   return { cloudName, apiKey, apiSecret };
@@ -2549,7 +2542,9 @@ app.post("/api/cloudinary-diagnostic", requireAdmin, async (req, res) => {
     });
   } catch (error: any) {
     console.error("[Diagnostic Error] Failed to run Cloudinary diagnostics:", error.message);
-    res.status(500).json({ error: "Diagnostic run failed: " + error.message });
+    res.status(500).json({ 
+      error: "Diagnostic run failed: " + error.message + (error.stack ? "\nStack: " + error.stack : "")
+    });
   }
 });
 
