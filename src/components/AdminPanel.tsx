@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { auth } from "../lib/firebase";
-import { UserPlus, X, Lock, Eye, Check, ShieldCheck, Mail, Calendar, AlertCircle, Trash2, Plus, EyeOff, Music, Users, CreditCard, Smartphone, CheckCircle, Send, Barcode, Copy, RefreshCw, Key, HelpCircle, Sliders, ChevronUp, ChevronDown, DollarSign, MessageSquare as MessageSquareIcon, Layout, UploadCloud, Film, FileText } from "lucide-react";
+import { UserPlus, X, Lock, Eye, Check, ShieldCheck, Mail, Calendar, AlertCircle, Trash2, Plus, EyeOff, Music, Users, CreditCard, Smartphone, CheckCircle, Send, Barcode, Copy, RefreshCw, Key, HelpCircle, Sliders, ChevronUp, ChevronDown, DollarSign, MessageSquare as MessageSquareIcon, Layout, UploadCloud, Film, FileText, CloudLightning, ShieldAlert } from "lucide-react";
 import { Inquiry, Activity, ItineraryItem, MusicData, Leader, Subscriber, Broadcast, MemberSpotlight as MemberSpotlightType } from "../types";
 import ImageEditor from "./ImageEditor";
 import { motion, AnimatePresence } from "motion/react";
+import { uploadMedia } from "../lib/mediaUpload";
 
 interface AdminPanelProps {
   isOpen: boolean;
@@ -413,6 +414,45 @@ export default function AdminPanel({
   const [gitWebhookSecret, setGitWebhookSecret] = useState("KachambaSync_Secret2026");
   const [isSecretCopied, setIsSecretCopied] = useState(false);
   const [isPayloadCopied, setIsPayloadCopied] = useState(false);
+
+  // Cloudinary Diagnostic states
+  const [isCloudinaryDiagOpen, setIsCloudinaryDiagOpen] = useState(false);
+  const [cloudinaryDiagStatus, setCloudinaryDiagStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
+  const [cloudinaryDiagReport, setCloudinaryDiagReport] = useState<any>(null);
+  const [cloudinaryDiagError, setCloudinaryDiagError] = useState<string | null>(null);
+
+  const handleRunCloudinaryDiagnostics = async () => {
+    setCloudinaryDiagStatus('testing');
+    setCloudinaryDiagError(null);
+    setCloudinaryDiagReport(null);
+    
+    try {
+      const res = await fetch("/api/cloudinary-diagnostic", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-passcode": adminToken || ""
+        }
+      });
+      
+      if (!res.ok) {
+        throw new Error(`Server returned status code ${res.status}`);
+      }
+      
+      const data = await res.json();
+      if (data.success) {
+        setCloudinaryDiagStatus('success');
+        setCloudinaryDiagReport(data.diagnostics);
+      } else {
+        setCloudinaryDiagStatus('failed');
+        setCloudinaryDiagError(data.error || "Unknown diagnostic error");
+        setCloudinaryDiagReport(data.diagnostics || null);
+      }
+    } catch (err: any) {
+      setCloudinaryDiagStatus('failed');
+      setCloudinaryDiagError(err.message || "Network request failed");
+    }
+  };
 
   // Reset UI states
   const [showResetUI, setShowResetUI] = useState(false);
@@ -1013,25 +1053,10 @@ export default function AdminPanel({
       processedBase64 = await compressImage(base64Str);
     }
     try {
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-passcode": adminToken || ""
-        },
-        body: JSON.stringify({
-          filename: defaultFilename,
-          base64: processedBase64
-        })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        return data.url || processedBase64;
-      } else {
-        console.error("Base64 upload failed on server, using fallback inline data.");
-      }
+      const url = await uploadMedia(processedBase64, adminToken || "", defaultFilename);
+      return url || processedBase64;
     } catch (err) {
-      console.error("Network error during base64 upload in AdminPanel:", err);
+      console.error("Error during base64 upload in AdminPanel:", err);
     }
     return processedBase64;
   };
@@ -1425,6 +1450,15 @@ export default function AdminPanel({
               </div>
 
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCloudinaryDiagOpen(true)}
+                  className="bg-slate-900 border border-slate-800 hover:border-slate-700 hover:bg-slate-800 text-slate-300 font-sans font-bold text-xs px-3.5 py-2 rounded-lg cursor-pointer transition-all flex items-center gap-1.5"
+                >
+                  <CloudLightning className="w-3.5 h-3.5 text-amber-550 shrink-0" />
+                  <span>Cloudinary Diagnostics</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => setIsGitWebhookModalOpen(true)}
@@ -3338,6 +3372,179 @@ export default function AdminPanel({
         )}
 
       </motion.div>
+
+      {/* CLOUDINARY CONNECTION DIAGNOSTIC MODAL */}
+      <AnimatePresence>
+        {isCloudinaryDiagOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md"
+          >
+            <motion.div 
+              initial={{ y: 35, scale: 0.95 }}
+              animate={{ y: 0, scale: 1 }}
+              exit={{ y: 35, scale: 0.95 }}
+              transition={{ type: "spring", stiffness: 350, damping: 28 }}
+              className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-xl text-slate-100 shadow-2xl relative flex flex-col overflow-hidden max-h-[90vh]"
+            >
+              {/* Modal Header */}
+              <div className="bg-slate-950 p-6 border-b border-slate-805 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="bg-amber-500/10 text-amber-400 border border-amber-500/20 p-2 rounded-xl">
+                    <CloudLightning className="w-5 h-5 animate-pulse" />
+                  </div>
+                  <div>
+                    <h3 className="font-sans font-bold text-base text-white">Cloudinary Connection Diagnostics</h3>
+                    <p className="text-[11px] text-slate-400 font-mono">Verify Cloud Run/Vercel server credentials & end-to-end handshake</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCloudinaryDiagOpen(false);
+                    setCloudinaryDiagStatus('idle');
+                    setCloudinaryDiagError(null);
+                    setCloudinaryDiagReport(null);
+                  }}
+                  className="bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-white p-2 rounded-xl cursor-pointer transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Modal Content */}
+              <div className="p-6 overflow-y-auto custom-scrollbar space-y-6 text-xs sm:text-sm">
+                
+                {/* Intro / Disclaimer */}
+                <div className="bg-slate-950/40 p-4 rounded-2xl border border-slate-850 space-y-2">
+                  <p className="text-slate-300 leading-relaxed text-xs">
+                    This utility triggers an ephemeral test connection by uploading a 1x1 transparent placeholder image to your configured Cloudinary account. To prevent cluttering, the asset is immediately destroyed as soon as the test completes.
+                  </p>
+                </div>
+
+                {/* Configuration Checklist */}
+                <div className="space-y-2">
+                  <h4 className="text-[10px] font-mono text-slate-400 uppercase tracking-widest font-semibold">Server-Side Credentials Mask</h4>
+                  <div className="grid grid-cols-2 gap-3 font-mono text-xs">
+                    <div className="bg-slate-950 p-3 rounded-xl border border-slate-850 flex flex-col gap-1">
+                      <span className="text-[9px] text-slate-500 uppercase tracking-wider">Cloud Name</span>
+                      <span className="text-amber-500 truncate">{cloudinaryDiagReport?.cloudName || "Checking..."}</span>
+                    </div>
+                    <div className="bg-slate-950 p-3 rounded-xl border border-slate-850 flex flex-col gap-1">
+                      <span className="text-[9px] text-slate-500 uppercase tracking-wider">API Key</span>
+                      <span className="text-slate-300 truncate">{cloudinaryDiagReport?.apiKey || "••••••••••••"}</span>
+                    </div>
+                    <div className="bg-slate-950 p-3 rounded-xl border border-slate-850 flex flex-col gap-1 col-span-2">
+                      <span className="text-[9px] text-slate-500 uppercase tracking-wider">API Secret</span>
+                      <span className="text-slate-400 truncate">{cloudinaryDiagReport?.apiSecret || "••••••••••••••••••••••••••••••••"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Live Diagnostic Status Area */}
+                {cloudinaryDiagStatus !== 'idle' && (
+                  <div className="space-y-3">
+                    <h4 className="text-[10px] font-mono text-slate-400 uppercase tracking-widest font-semibold">Test Progression Logs</h4>
+                    
+                    {cloudinaryDiagStatus === 'testing' && (
+                      <div className="bg-slate-950 p-4 rounded-2xl border border-blue-500/10 flex items-center gap-3 animate-pulse">
+                        <div className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
+                        <span className="text-blue-400 font-medium">Running diagnostic test upload... please wait</span>
+                      </div>
+                    )}
+
+                    {cloudinaryDiagStatus === 'success' && (
+                      <div className="bg-slate-950/80 p-5 rounded-2xl border border-emerald-500/20 space-y-4">
+                        <div className="flex items-center gap-2.5 text-emerald-400 font-bold">
+                          <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />
+                          <span>Handshake Confirmed - Connection Healthy!</span>
+                        </div>
+                        <div className="border-t border-slate-900 pt-3 space-y-2 font-mono text-[11px] text-slate-400">
+                          <div className="flex justify-between">
+                            <span>Diagnostic Status:</span>
+                            <span className="text-emerald-500 font-semibold">SUCCESS</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Latency Time:</span>
+                            <span className="text-slate-200">{cloudinaryDiagReport?.uploadTimeMs}ms</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Secure Asset URL:</span>
+                            <span className="text-slate-400 truncate max-w-[240px] text-right" title={cloudinaryDiagReport?.uploadedUrl}>{cloudinaryDiagReport?.uploadedUrl}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Non-Persistent Cleanup:</span>
+                            <span className="text-sky-400 font-semibold">DELETED ({cloudinaryDiagReport?.deletionStatus})</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Custom env variables:</span>
+                            <span className={cloudinaryDiagReport?.isUsingCustomCredentials ? "text-amber-500" : "text-slate-500"}>
+                              {cloudinaryDiagReport?.isUsingCustomCredentials ? "Yes (Using Custom Env)" : "No (Using Demo Credentials)"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {cloudinaryDiagStatus === 'failed' && (
+                      <div className="bg-slate-950/80 p-5 rounded-2xl border border-rose-500/20 space-y-4">
+                        <div className="flex items-center gap-2.5 text-rose-400 font-bold">
+                          <ShieldAlert className="w-5 h-5 text-rose-500 shrink-0" />
+                          <span>Handshake Failed</span>
+                        </div>
+                        <p className="text-xs text-rose-300 font-mono bg-rose-950/20 p-3 rounded-xl border border-rose-500/10">
+                          {cloudinaryDiagError}
+                        </p>
+                        
+                        <div className="border-t border-slate-900 pt-3 space-y-2">
+                          <h5 className="text-[10px] font-mono text-slate-450 uppercase tracking-wider font-semibold">Recommended Troubleshooting Steps:</h5>
+                          <ul className="list-disc list-inside text-xs text-slate-400 space-y-1 pl-1">
+                            <li>Check if <code className="text-amber-500 bg-slate-900 px-1 py-0.5 rounded">CLOUDINARY_URL</code> or individual credentials are set properly in settings.</li>
+                            <li>Verify your credentials don't contain typos or trailing spaces.</li>
+                            <li>Ensure server has been restarted since credentials were added.</li>
+                          </ul>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+              </div>
+
+              {/* Modal Footer */}
+              <div className="bg-slate-950 p-5 border-t border-slate-805 flex justify-between items-center">
+                <span className="text-[10px] text-slate-550 font-mono">Ambassador Choral Missions</span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCloudinaryDiagOpen(false);
+                      setCloudinaryDiagStatus('idle');
+                      setCloudinaryDiagError(null);
+                      setCloudinaryDiagReport(null);
+                    }}
+                    className="px-4 py-2 bg-slate-900 border border-slate-800 hover:border-slate-700 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="button"
+                    disabled={cloudinaryDiagStatus === 'testing'}
+                    onClick={handleRunCloudinaryDiagnostics}
+                    className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-450 hover:to-amber-550 text-slate-950 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${cloudinaryDiagStatus === 'testing' ? 'animate-spin' : ''}`} />
+                    <span>{cloudinaryDiagStatus === 'testing' ? 'Testing...' : cloudinaryDiagStatus === 'idle' ? 'Run Test Upload' : 'Re-run Diagnostic'}</span>
+                  </button>
+                </div>
+              </div>
+
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* GITHUB WEBHOOKS GUIDING MODAL */}
       <AnimatePresence>

@@ -12,6 +12,7 @@ import { User as FirebaseUser } from "firebase/auth";
 import { doc, getDoc, setDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { jsPDF } from "jspdf";
+import { uploadMedia } from "../lib/mediaUpload";
 const sdaLogo = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Seventh-day_Adventist_Church_logo_svg.svg/320px-Seventh-day_Adventist_Church_logo_svg.svg.png";
 
 interface ItineraryProps {
@@ -1134,28 +1135,10 @@ export default function Itinerary({
       setFileError(null);
       try {
         const defaultFilename = localFileType === "video" ? "uploaded_video.mp4" : "uploaded_photo.jpg";
-        const res = await fetch("/api/upload", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-admin-passcode": adminPasscode
-          },
-          body: JSON.stringify({
-            filename: defaultFilename,
-            base64: localFileBase64
-          })
-        });
-
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || "Server upload failed.");
-        }
-
-        const data = await res.json();
-        finalMediaUrl = data.url;
+        finalMediaUrl = await uploadMedia(localFileBase64, adminPasscode, defaultFilename);
         finalMediaType = localFileType || "image";
       } catch (err: any) {
-        setFileError(err.message || "Failed to upload file to Server.");
+        setFileError(err.message || "Failed to upload file.");
         setSavingId(null);
         return;
       }

@@ -109,10 +109,10 @@ export default function Header({ isAdmin, onOpenAdmin, onLogout, activeSection, 
           />
         </div>
         <div>
-          <h1 className={`font-glatial_indifference font-bold tracking-wider text-xs sm:text-base md:text-lg transition-colors ${
+          <h1 className={`font-display font-glatial_indifference tracking-tight text-sm sm:text-base md:text-sm transition-colors ${
             solid
-              ? theme === "dark" ? "text-amber-400" : "text-amber-600"
-              : "text-amber"
+              ? theme === "dark" ? "text-amber-400" : "text-blue-600"
+              : "text-green"
           }`}>
             KACHAMBA <span className="font-glatial_indifference opacity-100">CHORUS</span>
           </h1>

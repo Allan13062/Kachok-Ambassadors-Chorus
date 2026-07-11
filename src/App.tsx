@@ -23,6 +23,7 @@ import AuthModal from "./components/AuthModal";
 import { Activity, ItineraryItem, Inquiry, MusicData, Leader, Subscriber, Broadcast, MemberSpotlight as MemberSpotlightType } from "./types";
 import MemberSpotlight from "./components/MemberSpotlight";
 import { Music, Heart, Calendar, Compass, Star, Facebook, Youtube } from "lucide-react";
+import { uploadMedia } from "./lib/mediaUpload";
 
 function FadeInSection({ children }: { children: React.ReactNode }) {
   return (
@@ -344,25 +345,10 @@ export default function App() {
     }
 
     try {
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-passcode": adminPasscode
-        },
-        body: JSON.stringify({
-          filename: defaultFilename,
-          base64: processedBase64
-        })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        return data.url || processedBase64;
-      } else {
-        console.error("Base64 upload failed on server, using fallback inline data.");
-      }
+      const url = await uploadMedia(processedBase64, adminPasscode, defaultFilename);
+      return url || processedBase64;
     } catch (err) {
-      console.error("Network error during base64 upload:", err);
+      console.error("Error during base64 upload:", err);
     }
     return processedBase64;
   };

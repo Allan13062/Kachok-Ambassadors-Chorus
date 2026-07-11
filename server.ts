@@ -19,11 +19,48 @@ import { activities, itinerary, leaders, inquiries, musicConfig, adminConfig, up
 import { eq } from "drizzle-orm";
 import { v2 as cloudinary } from "cloudinary";
 
+// Helper to parse standard CLOUDINARY_URL connection strings
+function parseCloudinaryUrl(url: string) {
+  try {
+    // Format: cloudinary://api_key:api_secret@cloud_name
+    const cleaned = url.replace("cloudinary://", "");
+    const [credentials, cloudName] = cleaned.split("@");
+    const [apiKey, apiSecret] = credentials.split(":");
+    return { cloudName, apiKey, apiSecret };
+  } catch (err) {
+    console.error("Failed to parse CLOUDINARY_URL:", err);
+    return null;
+  }
+}
+
+// Dynamically retrieves and parses Cloudinary settings from env or fallback
+function getCloudinaryConfig() {
+  let cloudName = process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_NAME;
+  let apiKey = process.env.CLOUDINARY_API_KEY || process.env.CLOUDINARY_KEY;
+  let apiSecret = process.env.CLOUDINARY_API_SECRET || process.env.CLOUDINARY_SECRET;
+
+  if (process.env.CLOUDINARY_URL) {
+    const parsed = parseCloudinaryUrl(process.env.CLOUDINARY_URL);
+    if (parsed) {
+      cloudName = cloudName || parsed.cloudName;
+      apiKey = apiKey || parsed.apiKey;
+      apiSecret = apiSecret || parsed.apiSecret;
+    }
+  }
+
+  // Fallback credentials for sandbox/development (or custom user environments if not specified)
+  if (!cloudName || !apiKey || !apiSecret) {
+    cloudName = "epd4yag0";
+    apiKey = "637956393284218";
+    apiSecret = "utaluAXBEK0fP7eEVKEuWhuk-ZY";
+  }
+
+  return { cloudName, apiKey, apiSecret };
+}
+
 // Helper to lazy-initialize Cloudinary client with credentials
 function getCloudinaryClient() {
-  const cloudName = process.env.CLOUDINARY_CLOUD_NAME || "epd4yag0";
-  const apiKey = process.env.CLOUDINARY_API_KEY || "637956393284218";
-  const apiSecret = process.env.CLOUDINARY_API_SECRET || "utaluAXBEK0fP7eEVKEuWhuk-ZY";
+  const { cloudName, apiKey, apiSecret } = getCloudinaryConfig();
 
   if (!cloudName || !apiKey || !apiSecret) {
     return null;
@@ -2386,6 +2423,133 @@ app.post("/api/upload", requireAdmin, async (req, res) => {
       filename: filename,
       mimeType: mimeType
     });
+  }
+});
+
+// Route to generate a signed signature for direct client-side uploads to Cloudinary.
+// This completely bypasses Vercel's 4.5MB payload limit!
+app.post("/api/cloudinary-signature", async (req, res) => {
+  try {
+    const { folder } = req.body;
+    const config = getCloudinaryConfig();
+    if (!config || !config.cloudName || !config.apiKey || !config.apiSecret) {
+      return res.status(400).json({ error: "Cloudinary is not configured." });
+    }
+
+    const timestamp = Math.round(new Date().getTime() / 1000);
+    const paramsToSign: Record<string, any> = {
+      timestamp: timestamp,
+    };
+    if (folder) {
+      paramsToSign.folder = folder;
+    }
+
+    const cloudinaryClient = getCloudinaryClient();
+    if (!cloudinaryClient) {
+      return res.status(500).json({ error: "Failed to initialize Cloudinary client." });
+    }
+
+    const signature = cloudinaryClient.utils.api_sign_request(paramsToSign, config.apiSecret);
+
+    res.json({
+      success: true,
+      signature,
+      timestamp,
+      apiKey: config.apiKey,
+      cloudName: config.cloudName,
+      folder: folder || ""
+    });
+  } catch (error: any) {
+    console.error("[Signature Error] Failed to generate Cloudinary signature:", error.message);
+    res.status(500).json({ error: "Failed to generate signature: " + error.message });
+  }
+});
+
+// Route to trigger a test upload to Cloudinary to diagnose the connection status
+app.post("/api/cloudinary-diagnostic", requireAdmin, async (req, res) => {
+  try {
+    const config = getCloudinaryConfig();
+    const isCustom = !!(process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_NAME || process.env.CLOUDINARY_URL);
+    
+    // Mask apiKey and apiSecret for security
+    const maskString = (str: string | undefined, showLength = 4) => {
+      if (!str) return "Not Set";
+      if (str.length <= showLength) return "*".repeat(str.length);
+      return str.substring(0, showLength) + "*".repeat(str.length - showLength);
+    };
+
+    const diagnostics: Record<string, any> = {
+      cloudName: config?.cloudName || "Not Set",
+      apiKey: maskString(config?.apiKey),
+      apiSecret: maskString(config?.apiSecret),
+      isUsingCustomCredentials: isCustom,
+      envCloudNameSet: !!(process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_NAME),
+      envApiKeySet: !!(process.env.CLOUDINARY_API_KEY || process.env.CLOUDINARY_KEY),
+      envApiSecretSet: !!(process.env.CLOUDINARY_API_SECRET || process.env.CLOUDINARY_SECRET),
+      envUrlSet: !!process.env.CLOUDINARY_URL,
+    };
+
+    const cloudinaryClient = getCloudinaryClient();
+    if (!cloudinaryClient) {
+      return res.json({
+        success: false,
+        error: "Cloudinary client could not be initialized. Please check your credentials.",
+        diagnostics
+      });
+    }
+
+    // Attempt a tiny test upload (1x1 transparent PNG pixel)
+    const testBase64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+    const testPublicId = `diag_test_${Date.now()}`;
+    
+    const startTime = Date.now();
+    let uploadResult: any = null;
+    let uploadError: any = null;
+    
+    try {
+      uploadResult = await cloudinaryClient.uploader.upload(testBase64, {
+        folder: "kachamba_diagnostics",
+        public_id: testPublicId,
+        resource_type: "image"
+      });
+    } catch (err: any) {
+      uploadError = err.message || err;
+    }
+    
+    const uploadTimeMs = Date.now() - startTime;
+    diagnostics.uploadTimeMs = uploadTimeMs;
+
+    if (uploadError) {
+      return res.json({
+        success: false,
+        error: `Upload step failed: ${uploadError}`,
+        diagnostics
+      });
+    }
+
+    // Since we want this to be "without creating a permanent record", immediately destroy it
+    let deleteResult: any = null;
+    let deleteError: any = null;
+    try {
+      deleteResult = await cloudinaryClient.uploader.destroy(`kachamba_diagnostics/${testPublicId}`);
+    } catch (err: any) {
+      deleteError = err.message || err;
+    }
+
+    res.json({
+      success: true,
+      message: "Cloudinary connection is healthy!",
+      diagnostics: {
+        ...diagnostics,
+        uploadedUrl: uploadResult.secure_url,
+        publicId: uploadResult.public_id,
+        deletionStatus: deleteResult ? deleteResult.result : "Failed",
+        deletionError: deleteError
+      }
+    });
+  } catch (error: any) {
+    console.error("[Diagnostic Error] Failed to run Cloudinary diagnostics:", error.message);
+    res.status(500).json({ error: "Diagnostic run failed: " + error.message });
   }
 });
 
