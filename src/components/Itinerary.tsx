@@ -12,6 +12,7 @@ import { User as FirebaseUser } from "firebase/auth";
 import { doc, getDoc, setDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { jsPDF } from "jspdf";
+import { uploadMedia } from "../lib/mediaUpload";
 const sdaLogo = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Seventh-day_Adventist_Church_logo_svg.svg/320px-Seventh-day_Adventist_Church_logo_svg.svg.png";
 
 interface ItineraryProps {
@@ -25,6 +26,7 @@ interface ItineraryProps {
   onBookSelect: (eventName: string) => void;
   user?: FirebaseUser | null;
   onGoogleLogin?: () => void;
+  theme?: string;
 }
 
 export default function Itinerary({ 
@@ -37,8 +39,10 @@ export default function Itinerary({
   onDelete, 
   onBookSelect,
   user,
-  onGoogleLogin
+  onGoogleLogin,
+  theme = "dark"
 }: ItineraryProps) {
+  const isDark = theme === "dark";
   // Favorites logic
   const [favorites, setFavorites] = useState<string[]>(() => {
     try {
@@ -1134,28 +1138,10 @@ export default function Itinerary({
       setFileError(null);
       try {
         const defaultFilename = localFileType === "video" ? "uploaded_video.mp4" : "uploaded_photo.jpg";
-        const res = await fetch("/api/upload", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-admin-passcode": adminPasscode
-          },
-          body: JSON.stringify({
-            filename: defaultFilename,
-            base64: localFileBase64
-          })
-        });
-
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || "Server upload failed.");
-        }
-
-        const data = await res.json();
-        finalMediaUrl = data.url;
+        finalMediaUrl = await uploadMedia(localFileBase64, adminPasscode, defaultFilename);
         finalMediaType = localFileType || "image";
       } catch (err: any) {
-        setFileError(err.message || "Failed to upload file to Server.");
+        setFileError(err.message || "Failed to upload file.");
         setSavingId(null);
         return;
       }
@@ -1195,28 +1181,13 @@ export default function Itinerary({
   const defaultBanner = "https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png";
 
   return (
-    <section
-      id="itinerary"
-      className="py-28 px-4 sm:px-6 md:px-12 bg-slate-950 text-white relative overflow-hidden"
+    <section 
+      id="itinerary" 
+      className="py-24 px-4 sm:px-6 md:px-12 bg-transparent text-white relative border-t border-b border-white/5 overflow-hidden"
     >
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_60%_20%,rgba(245,158,11,0.04)_0%,transparent_60%)] pointer-events-none" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_20%_80%,rgba(225,29,72,0.03)_0%,transparent_60%)] pointer-events-none" />
-
-      {/* Live Dispatches Scrolling Ticker - News Inspired */}
-      <div className="max-w-6xl mx-auto mb-10 glass rounded-xl overflow-hidden py-3 px-4 flex items-center gap-4 print:hidden">
-        <span className="shrink-0 bg-rose-800 text-white text-[9px] font-sans font-bold uppercase tracking-widest px-2.5 py-1 rounded flex items-center gap-1.5 animate-pulse shadow-md shadow-rose-950/40">
-          <Newspaper className="w-3.5 h-3.5" />
-          <span>LATEST MINISTRY DISPATCHES</span>
-        </span>
-        <div className="flex-1 overflow-hidden relative h-5">
-          <div className="absolute animate-marquee whitespace-nowrap text-xs font-sans text-slate-350 hover:[animation-play-state:paused] cursor-pointer flex gap-12">
-            <span>🎤 Adventist Church worship events series announced for July and August 2026.</span>
-            <span className="text-amber-300 font-semibold">📍 Blot Brightons Bullets Charity Initiative is active in July 19, 2026 @ SDA Kachok Church. Let us join hands for Brighton!</span>
-            <span>💿 Recording sessions of Album 6 completed! "Sounds of Togetherness" coming soon near you.</span>
-            <span>🌿 Reserve schedules space by filing a host request using the registration links below.</span>
-          </div>
-        </div>
-      </div>
+      {/* Background Soft Accents to soften dark mode */}
+      <div className="absolute top-10 left-10 w-[500px] h-[500px] bg-amber-500/[0.02] rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-10 right-10 w-[500px] h-[500px] bg-rose-600/[0.02] rounded-full blur-[120px] pointer-events-none" />
 
       <div className="max-w-6xl mx-auto relative z-10">
         
@@ -1238,17 +1209,17 @@ export default function Itinerary({
           </div>
         </div>
 
-        {/* Editorial Header */}
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 mb-12 border-b border-white/5 pb-10 print:hidden">
+        {/* Newspaper Style Editorial Header */}
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 mb-12 border-b border-slate-900 pb-10 print:hidden">
           <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="w-6 h-px bg-amber-400/50" />
-              <span className="label-caps text-amber-400/70 text-[11px]">
+            <div className="flex items-center gap-2">
+              <span className="h-[2px] w-8 bg-amber-500 block" />
+              <span className="text-amber-400 font-mono text-[10px] tracking-widest uppercase font-bold">
                 Missions Gazette
               </span>
             </div>
-            <h2 className="font-display font-bold text-4xl md:text-6xl tracking-tight text-white mb-2 leading-none">
-              Our <span className="text-white/25 font-light">Itinerary</span>
+            <h2 className="font-sans font-extrabold text-4xl md:text-6xl tracking-tight text-white mb-2 leading-none uppercase">
+              Our <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-rose-500 to-amber-300">Itinerary</span>
             </h2>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 font-sans text-xs text-slate-400">
               <span className="text-amber-500 font-semibold">West Kenya Union Conference</span>
@@ -1265,34 +1236,7 @@ export default function Itinerary({
               title="Download print-friendly official bulletin schedule PDF formatted for local church distribution"
             >
                <FileText className="w-3.5 h-3.5 shrink-0 stroke-[2.5]" />
-               <span>Download Itinerary</span>
-            </button>
-            <button
-              onClick={() => downloadItineraryPDF(false)}
-              className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 hover:bg-slate-850 text-slate-300 font-sans font-extrabold text-[11px] uppercase tracking-wider px-4 py-3.5 rounded-xl transition-all cursor-pointer shadow-lg active:scale-95 duration-100"
-              title="Download only the currently selected tab's itinerary"
-            >
-               <Download className="w-3.5 h-3.5 shrink-0 stroke-[2.5]" />
-               <span>Download Tab PDF</span>
-            </button>
-            <button
-              onClick={() => downloadItineraryPDF(true)}
-              className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 hover:bg-slate-800 text-slate-100 font-sans font-extrabold text-[11px] uppercase tracking-wider px-4 py-3.5 rounded-xl transition-all cursor-pointer shadow-lg active:scale-95 duration-100"
-              title="Download the complete itinerary"
-            >
-               <Download className="w-3.5 h-3.5 shrink-0 stroke-[2.5]" />
-               <span>Download Complete PDF</span>
-            </button>
-            <button
-              onClick={() => {
-                document.body.classList.add('print-mode-itinerary');
-                window.print();
-                setTimeout(() => { document.body.classList.remove('print-mode-itinerary'); }, 500);
-              }}
-              className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 hover:bg-slate-800 text-slate-300 font-sans font-bold text-[11px] uppercase tracking-wider px-4 py-3.5 rounded-xl transition-all cursor-pointer"
-            >
-               <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-               <span>Print View</span>
+               <span>Download PDF</span>
             </button>
             {isAdmin && (
               <button
@@ -1676,7 +1620,7 @@ export default function Itinerary({
 
         {/* Dynamic List Block */}
         {filteredItems.length === 0 ? (
-          <div className="text-center py-24 border border-dashed border-slate-900 rounded-3xl bg-slate-950/60 p-10 animate-in fade-in duration-300">
+          <div className="text-center py-24 border border-dashed border-slate-800/60 rounded-3xl glass-card p-10 animate-in fade-in duration-300">
             <Newspaper className="w-12 h-12 text-slate-650 mx-auto mb-4 stroke-[1.5]" />
             <h4 className="font-sans font-bold text-lg text-slate-200">
               {itinerarySearch ? "No Search Matches" : "No Publications Filed"}
@@ -1848,7 +1792,7 @@ export default function Itinerary({
                 <div 
                   key={item.id}
                   id={`itinerary-dispatch-${item.id}`}
-                  className="group relative bg-slate-950 border border-slate-900 hover:border-slate-800 rounded-3xl overflow-hidden transition-all duration-300 shadow-xl flex flex-col lg:flex-row items-stretch scroll-mt-24"
+                  className="group relative glass-card hover:border-amber-400/40 rounded-3xl overflow-hidden transition-all duration-300 shadow-xl flex flex-col lg:flex-row items-stretch scroll-mt-24"
                 >
                   
                   {/* Column 1: Feature Photo/Video Panel (Editorial News Style) */}
