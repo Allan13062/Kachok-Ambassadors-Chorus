@@ -15,7 +15,7 @@ function getLocalJson() {
     console.warn("Error reading local db.json:", err);
   }
   return {
-    passcode: "SDA2026", 
+    passcode: process.env.ADMIN_PASSCODE || "CHANGE_ME_SET_ADMIN_PASSCODE_ENV_VAR", 
     activities: [], 
     itinerary: [], 
     leaders: [], 
@@ -89,7 +89,7 @@ export async function getLocalDb() {
       fetchDoc('configs', 'admin').then(data => {
         if (data) {
           result.passcode = data.passcode || result.passcode;
-          result.adminEmail = data.adminEmail || result.adminEmail || "allangeorge566@gmail.com";
+          result.adminEmail = data.adminEmail || result.adminEmail || process.env.ADMIN_EMAIL || "";
           result.recoveryCode = data.recoveryCode || result.recoveryCode;
           result.recoveryCodeExp = data.recoveryCodeExp || result.recoveryCodeExp;
         }
@@ -137,7 +137,7 @@ export async function insertItem(colName: string, id: string, data: any) {
     if (id === "music") dbData.music = data;
     else if (id === "admin") {
       dbData.passcode = data.passcode || dbData.passcode;
-      dbData.adminEmail = data.adminEmail || dbData.adminEmail || "allangeorge566@gmail.com";
+      dbData.adminEmail = data.adminEmail || dbData.adminEmail || process.env.ADMIN_EMAIL || "";
       dbData.recoveryCode = data.recoveryCode || dbData.recoveryCode;
       dbData.recoveryCodeExp = data.recoveryCodeExp || dbData.recoveryCodeExp;
     }

@@ -94,3 +94,18 @@ export const users = pgTable("users", {
   isLeader: text("is_leader"),
   createdAt: text("created_at")
 });
+
+// Donations Table
+export const donations = pgTable("donations", {
+  id: text("id").primaryKey(),
+  checkoutRequestId: text("checkout_request_id").notNull(),
+  merchantRequestId: text("merchant_request_id"),
+  phone: text("phone").notNull(),
+  amount: integer("amount").notNull(),
+  status: text("status").default("pending"),
+  simulated: text("simulated").default("false"),
+  mpesaReceiptNumber: text("mpesa_receipt_number"),
+  resultDesc: text("result_desc"),
+  createdAt: timestamp("created_at").defaultNow(),
+  completedAt: timestamp("completed_at")
+});

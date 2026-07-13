@@ -7,6 +7,7 @@ interface MemberSpotlightProps {
   spotlights: MemberSpotlightType[];
   isAdmin: boolean;
   onLaunchAdmin: () => void;
+  theme?: "dark" | "light";
 }
 
 const containerVariants = {
@@ -34,7 +35,8 @@ const itemVariants = {
   }
 };
 
-export default function MemberSpotlight({ spotlights, isAdmin, onLaunchAdmin }: MemberSpotlightProps) {
+export default function MemberSpotlight({ spotlights, isAdmin, onLaunchAdmin, theme = "dark" }: MemberSpotlightProps) {
+  const isDark = theme === "dark";
   const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
   const [progress, setProgress] = useState(0);
 
@@ -113,14 +115,20 @@ export default function MemberSpotlight({ spotlights, isAdmin, onLaunchAdmin }: 
   };
 
   return (
-    <div className="w-full bg-slate-900/10 border-y border-slate-900/60 py-6 px-4 md:px-8 mb-10 select-none">
+    <div className={`w-full py-6 px-4 md:px-8 mb-10 select-none border-y ${
+      isDark ? "bg-slate-900/10 border-slate-900/60" : "bg-slate-100/60 border-slate-200"
+    }`}>
       <div className="max-w-6xl mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <div>
-            <h3 className="font-sans font-extrabold text-lg sm:text-xl text-white tracking-tight uppercase">
-              Member <span className="text-amber-400">Spotlight Statuses</span>
+            <div className="flex items-center gap-1.5 text-amber-500 font-mono text-[10px] tracking-widest uppercase font-bold">
+              <Bell className="w-3.5 h-3.5" />
+              <span>Personal Testimony Alerts</span>
+            </div>
+            <h3 className={`font-display font-semibold text-lg sm:text-xl tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
+              Member <span className="font-light text-amber-400">Spotlights</span>
             </h3>
-            <p className="text-[11px] text-slate-400 font-sans mt-0.5">
+            <p className={`text-[11px] font-sans mt-0.5 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
               WhatsApp-style active highlights of our chorus members. Updates stay live for exactly 48 hours.
             </p>
           </div>
@@ -128,7 +136,7 @@ export default function MemberSpotlight({ spotlights, isAdmin, onLaunchAdmin }: 
           {isAdmin && (
             <button
               onClick={onLaunchAdmin}
-              className="self-start sm:self-center bg-amber-500/10 border border-amber-500/20 hover:bg-amber-400 hover:text-slate-950 font-mono text-[10px] uppercase font-bold tracking-wider py-1.5 px-3 rounded-lg text-amber-400 cursor-pointer transition-all shrink-0"
+              className="self-start sm:self-center bg-transparent border border-amber-500/30 hover:bg-amber-500 hover:text-slate-950 font-sans text-[11px] font-semibold py-1.5 px-3.5 rounded-full text-amber-400 cursor-pointer transition-all shrink-0"
             >
               + Create New Status
             </button>
@@ -153,18 +161,18 @@ export default function MemberSpotlight({ spotlights, isAdmin, onLaunchAdmin }: 
                 alert("Nothing new posted! Admins can create live status updates from the Admin Panel.");
               }
             }}>
-              <div className={`w-16 h-16 rounded-full p-[2.5px] bg-gradient-to-tr ${activeSpotlights.length > 0 ? 'from-amber-400 via-rose-500 to-amber-300' : 'from-slate-700 to-slate-850'} transition-all group-hover:scale-105 duration-300 shadow`}>
-                <div className="w-full h-full rounded-full bg-slate-950 flex items-center justify-center overflow-hidden border border-slate-900">
-                  <div className="bg-slate-900 border border-slate-800 p-2.5 rounded-full text-amber-400">
+              <div className={`w-16 h-16 rounded-full p-[2.5px] bg-gradient-to-tr ${activeSpotlights.length > 0 ? 'from-amber-400 via-rose-500 to-amber-300' : isDark ? 'from-slate-700 to-slate-850' : 'from-slate-300 to-slate-200'} transition-all group-hover:scale-105 duration-300 shadow`}>
+                <div className={`w-full h-full rounded-full flex items-center justify-center overflow-hidden border ${isDark ? "bg-slate-950 border-slate-900" : "bg-white border-slate-200"}`}>
+                  <div className={`p-2.5 rounded-full text-amber-400 border ${isDark ? "bg-slate-900 border-slate-800" : "bg-slate-100 border-slate-200"}`}>
                     <Quote className="w-5 h-5" />
                   </div>
                 </div>
               </div>
-              <span className="absolute bottom-0 right-0 bg-amber-500 text-slate-950 font-bold font-mono rounded-full text-[9px] w-5 h-5 flex items-center justify-center border-2 border-slate-950 leading-none shadow">
+              <span className={`absolute bottom-0 right-0 bg-amber-500 text-slate-950 font-bold font-mono rounded-full text-[9px] w-5 h-5 flex items-center justify-center border-2 leading-none shadow ${isDark ? "border-slate-950" : "border-white"}`}>
                 {activeSpotlights.length}
               </span>
             </div>
-            <span className="font-mono text-[9px] uppercase tracking-wider text-slate-400 font-bold max-w-[70px] truncate leading-tight mt-1">
+            <span className={`font-mono text-[9px] uppercase tracking-wider font-bold max-w-[70px] truncate leading-tight mt-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
               Active Updates
             </span>
           </motion.div>
@@ -199,10 +207,10 @@ export default function MemberSpotlight({ spotlights, isAdmin, onLaunchAdmin }: 
                 </div>
               </div>
               <div className="max-w-[76px]">
-                <p className="font-sans font-bold text-[10px] text-slate-200 group-hover:text-amber-400 truncate leading-tight">
+                <p className={`font-sans font-bold text-[10px] group-hover:text-amber-400 truncate leading-tight ${isDark ? "text-slate-200" : "text-slate-700"}`}>
                   {spot.memberName}
                 </p>
-                <p className="font-mono text-[8px] uppercase text-slate-450 tracking-wider font-bold truncate mt-0.5">
+                <p className={`font-mono text-[8px] uppercase tracking-wider font-bold truncate mt-0.5 ${isDark ? "text-slate-450" : "text-slate-400"}`}>
                   {spot.roleOrVoicePart}
                 </p>
               </div>
@@ -210,8 +218,8 @@ export default function MemberSpotlight({ spotlights, isAdmin, onLaunchAdmin }: 
           ))}
 
           {activeSpotlights.length === 0 && (
-            <motion.div variants={itemVariants} className="flex items-center text-left py-2 px-3 border border-dashed border-slate-800 rounded-xl max-w-sm shrink-0 bg-slate-950/20">
-              <p className="font-sans text-[10px] text-slate-450 leading-normal">
+            <motion.div variants={itemVariants} className={`flex items-center text-left py-2 px-3 border border-dashed rounded-xl max-w-sm shrink-0 ${isDark ? "border-slate-800 bg-slate-950/20" : "border-slate-300 bg-slate-100/40"}`}>
+              <p className={`font-sans text-[10px] leading-normal ${isDark ? "text-slate-450" : "text-slate-500"}`}>
                 No testimonies shared in the last 48 hours. {isAdmin ? "Hey admin, click the button on the right to post a new testimony highlight!" : "Check back later for active testimonies."}
               </p>
             </motion.div>
