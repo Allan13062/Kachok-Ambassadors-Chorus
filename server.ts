@@ -8,75 +8,24 @@ import http from "http";
 import https from "https";
 import url from "url";
 import crypto from "crypto";
-import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
-import { google } from "googleapis";
 import { Readable } from "stream";
 
 import { db } from "./src/db/index.ts";
 import { getLocalDb, saveLocalDb, insertItem, deleteItem, getSession, deleteSession } from "./dbStorage.ts";
-import { activities, itinerary, leaders, inquiries, musicConfig, adminConfig, uploads, users, donations } from "./src/db/schema.ts";
-import { eq, and, gt, desc } from "drizzle-orm";
-import { v2 as cloudinary } from "cloudinary";
-
-// Helper to parse standard CLOUDINARY_URL connection strings
-function parseCloudinaryUrl(url: string) {
-  try {
-    // Format: cloudinary://api_key:api_secret@cloud_name
-    const cleaned = url.replace("cloudinary://", "");
-    const [credentials, cloudName] = cleaned.split("@");
-    const [apiKey, apiSecret] = credentials.split(":");
-    return { cloudName, apiKey, apiSecret };
-  } catch (err) {
-    console.error("Failed to parse CLOUDINARY_URL:", err);
-    return null;
-  }
-}
-
-// Dynamically retrieves and parses Cloudinary settings from env or fallback
-function getCloudinaryConfig() {
-  let cloudName = (process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_NAME || "").trim();
-  let apiKey = (process.env.CLOUDINARY_API_KEY || process.env.CLOUDINARY_KEY || "").trim();
-  let apiSecret = (process.env.CLOUDINARY_API_SECRET || process.env.CLOUDINARY_SECRET || "").trim();
-
-  if (process.env.CLOUDINARY_URL) {
-    const parsed = parseCloudinaryUrl(process.env.CLOUDINARY_URL.trim());
-    if (parsed) {
-      cloudName = cloudName || parsed.cloudName.trim();
-      apiKey = apiKey || parsed.apiKey.trim();
-      apiSecret = apiSecret || parsed.apiSecret.trim();
-    }
-  }
-
-  return { cloudName, apiKey, apiSecret };
-}
-
-// Helper to lazy-initialize Cloudinary client with credentials
-function getCloudinaryClient() {
-  const { cloudName, apiKey, apiSecret } = getCloudinaryConfig();
-
-  if (!cloudName || !apiKey || !apiSecret) {
-    return null;
-  }
-
-  cloudinary.config({
-    cloud_name: cloudName,
-    api_key: apiKey,
-    api_secret: apiSecret,
-    secure: true
-  });
-
-  return cloudinary;
-}
+import { activities, itinerary, leaders, inquiries, musicConfig, adminConfig, uploads, users, gallery } from "./src/db/schema.ts";
+import { eq } from "drizzle-orm";
 
 const app = express();
 const PORT = 3000;
 const DB_PATH = path.join(process.cwd(), "data", "db.json");
 
-// Ensure uploads folder exists
+// Ensure uploads folder exists (skip mkdir on Vercel - filesystem is read-only; uploads go to Cloudinary)
 const uploadsDir = path.join(process.cwd(), "uploads");
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+if (!process.env.VERCEL) {
+  try {
+    if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+  } catch (_) {}
 }
 
 // Middleware to parse JSON and Urlencoded with 150mb limit
@@ -521,6 +470,21 @@ app.get("/api/db", async (req, res) => {
       } catch (e) {}
     }
 
+    let galleryList: any[] = [];
+    try {
+      if (isDbAvailable()) {
+        galleryList = await db.select().from(gallery).orderBy(gallery.createdAt);
+      } else {
+        const localData = await getLocalDb();
+        galleryList = localData.gallery || [];
+      }
+    } catch (e) {
+      try {
+        const localData = await getLocalDb();
+        galleryList = localData.gallery || [];
+      } catch (_) {}
+    }
+
     res.json({
       activities: allActs,
       itinerary: allIti,
@@ -529,7 +493,8 @@ app.get("/api/db", async (req, res) => {
       inquiries: inquiriesList,
       subscribers: subscribersList,
       broadcasts: broadcastsList,
-      memberSpotlights: memberSpotlightsList
+      memberSpotlights: memberSpotlightsList,
+      gallery: galleryList
     });
   } catch (error: any) {
     if (true) {
@@ -544,6 +509,7 @@ app.get("/api/db", async (req, res) => {
         localData.subscribers = localData.subscribers || [];
         localData.broadcasts = localData.broadcasts || [];
         localData.memberSpotlights = localData.memberSpotlights || [];
+        localData.gallery = localData.gallery || [];
         localData.music = localData.music || {
           songTitle: "Umchukue Mwanao",
           artistName: "Kachok Ambassadors Chorus",
@@ -570,6 +536,7 @@ app.get("/api/db", async (req, res) => {
       subscribers: [],
       broadcasts: [],
       memberSpotlights: [],
+      gallery: [],
       music: {
         songTitle: "Umchukue Mwanao",
         artistName: "Kachok Ambassadors Chorus",
@@ -871,36 +838,6 @@ app.get("/api/proxy-audio", (req, res) => {
   proxyAudioWithRedirect(targetUrl, req, res);
 });
 
-// Endpoint to securely proxy image links to bypass CORS, canvas taint issues for PDF rendering
-app.get("/api/proxy-image", async (req, res) => {
-  const imageUrl = req.query.url as string;
-  if (!imageUrl) {
-    return res.status(400).send("Missing target image source URL");
-  }
-
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "*");
-
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
-  }
-
-  try {
-    const response = await fetch(imageUrl);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch image: ${response.statusText}`);
-    }
-    const contentType = response.headers.get("content-type") || "image/jpeg";
-    const buffer = await response.arrayBuffer();
-    res.setHeader("Content-Type", contentType);
-    return res.send(Buffer.from(buffer));
-  } catch (err: any) {
-    console.error("Image proxy error for URL:", imageUrl, err);
-    return res.status(500).send("Failed to proxy image: " + err.message);
-  }
-});
-
 // 2. Authenticate passcode
 app.post("/api/auth", async (req, res) => {
   const { passcode } = req.body;
@@ -1162,20 +1099,6 @@ app.post("/api/mpesa/stkpush", async (req, res) => {
       return res.status(400).json({ error: "Invalid phone number format. Please provide a valid Kenyan number (e.g., 0712345678 or 254712345678)." });
     }
 
-    // Rate limit: block a phone number that has requested 3+ pushes in the last 10 minutes.
-    // Checked against the database (not in-memory) since Vercel serverless functions don't
-    // share memory across invocations.
-    try {
-      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
-      const recent = await db.select().from(donations)
-        .where(and(eq(donations.phone, formattedPhone), gt(donations.createdAt, tenMinutesAgo)));
-      if (recent.length >= 3) {
-        return res.status(429).json({ error: "Too many contribution attempts from this number. Please wait a few minutes and try again." });
-      }
-    } catch (e) {
-      console.log("[M-Pesa] Notice: Could not check rate limit, proceeding.");
-    }
-
     const numericAmount = Math.round(Number(amount));
     if (isNaN(numericAmount) || numericAmount <= 0) {
       return res.status(400).json({ error: "Transaction amount must be a positive integer." });
@@ -1280,23 +1203,6 @@ app.post("/api/mpesa/stkpush", async (req, res) => {
             throw new Error("Daraja API rejected the request: " + pushResult.ResponseDescription);
         }
 
-        // Save a pending record now — this is the source of truth the frontend will poll
-        // and the callback below will update. Nothing is shown to the giver as "successful"
-        // until this row actually says so.
-        try {
-          await db.insert(donations).values({
-            id: crypto.randomUUID(),
-            checkoutRequestId: pushResult.CheckoutRequestID,
-            merchantRequestId: pushResult.MerchantRequestID,
-            phone: formattedPhone,
-            amount: numericAmount,
-            status: "pending",
-            simulated: "false"
-          });
-        } catch (e) {
-          console.error("[M-Pesa] Failed to save pending donation record:", e);
-        }
-
         return res.json({
           success: true,
           realApi: true,
@@ -1333,7 +1239,7 @@ app.post("/api/mpesa/stkpush", async (req, res) => {
 });
 
 // Robust Callback Endpoint to handle Safaricom async JSON webhooks
-app.post("/api/mpesa/callback", async (req, res) => {
+app.post("/api/mpesa/callback", (req, res) => {
   console.log("[M-Pesa Webhook] Received callback block.");
   
   try {
@@ -1348,36 +1254,21 @@ app.post("/api/mpesa/callback", async (req, res) => {
     if (ResultCode === 0) {
       // Transaction was highly successful!
       console.log(`[M-Pesa Webhook] Success: Transaction ${CheckoutRequestID} confirmed!`);
-
-      let mpesaReceiptNumber: string | undefined;
+      
       // Parse out the nested Item array values if it exists
       if (CallbackMetadata && CallbackMetadata.Item) {
          const amountObj = CallbackMetadata.Item.find((i: any) => i.Name === "Amount");
          const receiptObj = CallbackMetadata.Item.find((i: any) => i.Name === "MpesaReceiptNumber");
          const phoneObj = CallbackMetadata.Item.find((i: any) => i.Name === "PhoneNumber");
-         mpesaReceiptNumber = receiptObj?.Value;
-
+         
          console.log(`[M-Pesa Webhook] Paid ${amountObj?.Value} KES. Receipt: ${receiptObj?.Value}. From: ${phoneObj?.Value}`);
-      }
-
-      try {
-        await db.update(donations)
-          .set({ status: "completed", mpesaReceiptNumber, resultDesc: ResultDesc, completedAt: new Date() })
-          .where(eq(donations.checkoutRequestId, CheckoutRequestID));
-      } catch (e) {
-        console.error("[M-Pesa Webhook] Failed to persist successful donation:", e);
+         
+         // TODO: In a production app, save this receipt logic strictly to the database (e.g. Postgres or Firestore).
       }
 
     } else {
       // Transaction failed or was cancelled by user
       console.warn(`[M-Pesa Webhook] Failed/Cancelled (${ResultCode}): ${ResultDesc}`);
-      try {
-        await db.update(donations)
-          .set({ status: "failed", resultDesc: ResultDesc, completedAt: new Date() })
-          .where(eq(donations.checkoutRequestId, CheckoutRequestID));
-      } catch (e) {
-        console.error("[M-Pesa Webhook] Failed to persist failed donation:", e);
-      }
     }
 
     // Acknowledge the payload immediately to prevent Safaricom retry loops
@@ -1389,111 +1280,6 @@ app.post("/api/mpesa/callback", async (req, res) => {
   } catch (err: any) {
     console.error("[M-Pesa Webhook] Error processing callback:", err.message);
     return res.status(500).json({ ResultCode: 1, ResultDesc: "Internal Server Error" });
-  }
-});
-
-// Poll the real status of an in-flight contribution (Public — checkoutRequestId is
-// only ever known to the person who initiated that specific push).
-app.get("/api/mpesa/status/:checkoutRequestId", async (req, res) => {
-  try {
-    const record = await db.select().from(donations)
-      .where(eq(donations.checkoutRequestId, req.params.checkoutRequestId)).limit(1);
-    if (record.length === 0) {
-      return res.status(404).json({ error: "No matching transaction found." });
-    }
-    const d = record[0];
-    res.json({
-      status: d.status,
-      amount: d.amount,
-      mpesaReceiptNumber: d.mpesaReceiptNumber,
-      resultDesc: d.resultDesc
-    });
-  } catch (e: any) {
-    res.status(500).json({ error: "Could not check transaction status." });
-  }
-});
-
-// POST Endpoint to save transaction receipts in Cloudinary and Firestore/Database
-app.post("/api/mpesa/receipt/save", async (req, res) => {
-  const { receiptNo, amount, phone, date, pdfBase64, contributorName } = req.body;
-  if (!receiptNo || !pdfBase64) {
-    return res.status(400).json({ error: "Receipt number and PDF base64 data are required." });
-  }
-
-  try {
-    let pdfUrl = "";
-    
-    // Lazy-initialize Cloudinary
-    const cloudinaryClient = getCloudinaryClient();
-    if (cloudinaryClient) {
-      console.log(`[Receipt Cloudinary] Uploading receipt ${receiptNo} to Cloudinary...`);
-      // Cloudinary upload can take a data URI or a base64 string
-      // Prepend data URI prefix if not present
-      const uploadPayload = pdfBase64.startsWith("data:") ? pdfBase64 : `data:application/pdf;base64,${pdfBase64}`;
-      const uploadResult = await cloudinaryClient.uploader.upload(uploadPayload, {
-        folder: "kachamba_receipts",
-        public_id: `receipt_${receiptNo}`,
-        resource_type: "raw"
-      });
-      pdfUrl = uploadResult.secure_url;
-      console.log(`[Receipt Cloudinary] Successfully uploaded receipt ${receiptNo} to Cloudinary: ${pdfUrl}`);
-    } else {
-      console.warn("[Receipt Cloudinary] No Cloudinary configuration detected, falling back to local files.");
-      // Fallback: save locally in uploads folder
-      const fileId = `receipt-${receiptNo}`;
-      const filepath = path.join(process.cwd(), "uploads", `${fileId}.pdf`);
-      const base64Data = pdfBase64.replace(/^data:application\/pdf;base64,/, "");
-      fs.writeFileSync(filepath, Buffer.from(base64Data, "base64"));
-      pdfUrl = `/uploads/${fileId}.pdf`;
-    }
-
-    // Now save to Database & Firestore using existing insertItem abstraction
-    const receiptRecord = {
-      id: receiptNo,
-      receiptNo,
-      amount: Number(amount) || 0,
-      phone: phone || "N/A",
-      date: date || new Date().toISOString(),
-      pdfUrl,
-      contributorName: contributorName || "Anonymous Contributor",
-      createdAt: new Date().toISOString()
-    };
-
-    // Use insertItem which handles both local db.json and Firestore!
-    await insertItem("mpesa_receipts", receiptNo, receiptRecord);
-
-    return res.json({
-      success: true,
-      message: "Receipt successfully processed and saved to Cloudinary and Database.",
-      receiptNo,
-      pdfUrl
-    });
-
-  } catch (err: any) {
-    console.error("[Receipt Saving Error]:", err);
-    return res.status(500).json({ error: "Failed to save receipt: " + err.message });
-  }
-});
-
-// GET Endpoint to fetch all saved transaction receipts
-app.get("/api/mpesa/receipts", async (req, res) => {
-  res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
-  res.set("Expires", "-1");
-  res.set("Pragma", "no-cache");
-
-  try {
-    const localData = await getLocalDb();
-    const list = localData.mpesa_receipts || [];
-    // Sort descending by date or id
-    list.sort((a: any, b: any) => (b.createdAt || b.date || "").localeCompare(a.createdAt || a.date || ""));
-
-    return res.json({
-      success: true,
-      receipts: list
-    });
-  } catch (err: any) {
-    console.error("[Receipt List Error]:", err);
-    return res.status(500).json({ error: "Failed to retrieve receipts list: " + err.message });
   }
 });
 
@@ -2111,26 +1897,6 @@ app.post("/api/auth/social", async (req, res) => {
   }
 });
 
-// 11.5. Diagnostic endpoint for Gemini API key validation
-app.get("/api/debug-ai", (req, res) => {
-  const serverKey = process.env.GEMINI_API_KEY;
-  const isConfigured = !!serverKey;
-  const isPlaceholder = serverKey === "MY_GEMINI_API_KEY";
-  const keyLength = serverKey ? serverKey.length : 0;
-  
-  res.json({
-    status: "ok",
-    environment: process.env.NODE_ENV || "production",
-    isVercel: !!process.env.VERCEL,
-    gemini: {
-      isConfigured,
-      isPlaceholder,
-      keyLength,
-      hasValidClient: isConfigured && !isPlaceholder
-    }
-  });
-});
-
 // 12. Smart AI Inquiry chatbot powered by Gemini (Public)
 app.post("/api/chat", async (req, res) => {
   const { messages } = req.body;
@@ -2428,22 +2194,6 @@ app.post("/api/upload", requireAdmin, async (req, res) => {
   }
 
   try {
-    const cloudinaryClient = getCloudinaryClient();
-    if (cloudinaryClient) {
-      console.log(`[Uploads] Cloudinary configuration detected. Uploading ${filename || "file"} to Cloudinary...`);
-      const uploadResult = await cloudinaryClient.uploader.upload(base64, {
-        folder: "kachamba_sync",
-        resource_type: "auto"
-      });
-      console.log(`[Uploads] Successfully saved file to Cloudinary: ${uploadResult.secure_url}`);
-      return res.json({
-        success: true,
-        url: uploadResult.secure_url,
-        filename: filename || "uploaded_file",
-        mimeType: mimeType
-      });
-    }
-
     if (isDbAvailable()) {
       // 1. If Neon/Postgres is connected and available, save file persistently in Postgres "uploads" table.
       // This bypasses local ephemeral storage and Firestore's 1MB limit entirely!
@@ -2482,135 +2232,6 @@ app.post("/api/upload", requireAdmin, async (req, res) => {
       url: base64,
       filename: filename,
       mimeType: mimeType
-    });
-  }
-});
-
-// Route to generate a signed signature for direct client-side uploads to Cloudinary.
-// This completely bypasses Vercel's 4.5MB payload limit!
-app.post("/api/cloudinary-signature", async (req, res) => {
-  try {
-    const { folder } = req.body;
-    const config = getCloudinaryConfig();
-    if (!config || !config.cloudName || !config.apiKey || !config.apiSecret) {
-      return res.status(400).json({ error: "Cloudinary is not configured." });
-    }
-
-    const timestamp = Math.round(new Date().getTime() / 1000);
-    const paramsToSign: Record<string, any> = {
-      timestamp: timestamp,
-    };
-    if (folder) {
-      paramsToSign.folder = folder;
-    }
-
-    const cloudinaryClient = getCloudinaryClient();
-    if (!cloudinaryClient) {
-      return res.status(500).json({ error: "Failed to initialize Cloudinary client." });
-    }
-
-    const signature = cloudinaryClient.utils.api_sign_request(paramsToSign, config.apiSecret);
-
-    res.json({
-      success: true,
-      signature,
-      timestamp,
-      apiKey: config.apiKey,
-      cloudName: config.cloudName,
-      folder: folder || ""
-    });
-  } catch (error: any) {
-    console.error("[Signature Error] Failed to generate Cloudinary signature:", error.message);
-    res.status(500).json({ error: "Failed to generate signature: " + error.message });
-  }
-});
-
-// Route to trigger a test upload to Cloudinary to diagnose the connection status
-app.post("/api/cloudinary-diagnostic", requireAdmin, async (req, res) => {
-  try {
-    const config = getCloudinaryConfig();
-    const isCustom = !!(process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_NAME || process.env.CLOUDINARY_URL);
-    
-    // Mask apiKey and apiSecret for security
-    const maskString = (str: string | undefined, showLength = 4) => {
-      if (!str) return "Not Set";
-      if (str.length <= showLength) return "*".repeat(str.length);
-      return str.substring(0, showLength) + "*".repeat(str.length - showLength);
-    };
-
-    const diagnostics: Record<string, any> = {
-      cloudName: config?.cloudName || "Not Set",
-      apiKey: maskString(config?.apiKey),
-      apiSecret: maskString(config?.apiSecret),
-      isUsingCustomCredentials: isCustom,
-      envCloudNameSet: !!(process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_NAME),
-      envApiKeySet: !!(process.env.CLOUDINARY_API_KEY || process.env.CLOUDINARY_KEY),
-      envApiSecretSet: !!(process.env.CLOUDINARY_API_SECRET || process.env.CLOUDINARY_SECRET),
-      envUrlSet: !!process.env.CLOUDINARY_URL,
-    };
-
-    const cloudinaryClient = getCloudinaryClient();
-    if (!cloudinaryClient) {
-      return res.json({
-        success: false,
-        error: "Cloudinary client could not be initialized. Please check your credentials.",
-        diagnostics
-      });
-    }
-
-    // Attempt a tiny test upload (1x1 transparent PNG pixel)
-    const testBase64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
-    const testPublicId = `diag_test_${Date.now()}`;
-    
-    const startTime = Date.now();
-    let uploadResult: any = null;
-    let uploadError: any = null;
-    
-    try {
-      uploadResult = await cloudinaryClient.uploader.upload(testBase64, {
-        folder: "kachamba_diagnostics",
-        public_id: testPublicId,
-        resource_type: "image"
-      });
-    } catch (err: any) {
-      uploadError = err.message || err;
-    }
-    
-    const uploadTimeMs = Date.now() - startTime;
-    diagnostics.uploadTimeMs = uploadTimeMs;
-
-    if (uploadError) {
-      return res.json({
-        success: false,
-        error: `Upload step failed: ${uploadError}`,
-        diagnostics
-      });
-    }
-
-    // Since we want this to be "without creating a permanent record", immediately destroy it
-    let deleteResult: any = null;
-    let deleteError: any = null;
-    try {
-      deleteResult = await cloudinaryClient.uploader.destroy(`kachamba_diagnostics/${testPublicId}`);
-    } catch (err: any) {
-      deleteError = err.message || err;
-    }
-
-    res.json({
-      success: true,
-      message: "Cloudinary connection is healthy!",
-      diagnostics: {
-        ...diagnostics,
-        uploadedUrl: uploadResult.secure_url,
-        publicId: uploadResult.public_id,
-        deletionStatus: deleteResult ? deleteResult.result : "Failed",
-        deletionError: deleteError
-      }
-    });
-  } catch (error: any) {
-    console.error("[Diagnostic Error] Failed to run Cloudinary diagnostics:", error.message);
-    res.status(500).json({ 
-      error: "Diagnostic run failed: " + error.message + (error.stack ? "\nStack: " + error.stack : "")
     });
   }
 });
@@ -2686,6 +2307,7 @@ app.post("/api/workspace/meet", requireAdmin, async (req, res) => {
   const rawToken = authHeader.substring(7);
 
   try {
+    const { google } = await import("googleapis");
     const oauth2Client = new google.auth.OAuth2();
     oauth2Client.setCredentials({ access_token: rawToken });
     const spacesResponse = await fetch("https://meet.googleapis.com/v2/spaces", {
@@ -2864,6 +2486,7 @@ app.post("/api/workspace/drive/poster", requireAdmin, async (req, res) => {
       }
     }
 
+    const { google } = await import("googleapis");
     const oauth2Client = new google.auth.OAuth2();
     oauth2Client.setCredentials({ access_token: rawToken });
     const drive = google.drive({ version: "v3", auth: oauth2Client });
@@ -2931,7 +2554,8 @@ async function startServer() {
   })();
 
   if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
-    // Dev Mode uses Vite middleware mode
+    // Dev Mode uses Vite middleware mode (dynamic import so Vite stays a devDependency)
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -2984,6 +2608,122 @@ async function startServer() {
     })();
   });
 }
+
+// ---- GALLERY CRUD ROUTES ----
+
+// Get all gallery photos (public)
+app.get("/api/gallery", async (req, res) => {
+  try {
+    // Try Postgres first
+    if (isDbAvailable()) {
+      try {
+        const photos = await db.select().from(gallery).orderBy(gallery.createdAt);
+        return res.json({ success: true, data: photos });
+      } catch (pgErr: any) {
+        console.warn("[Gallery] Postgres read failed, falling back to local:", pgErr.message);
+      }
+    }
+    // Fallback: local/Firestore
+    const localData = await getLocalDb();
+    return res.json({ success: true, data: localData.gallery || [] });
+  } catch (err: any) {
+    res.status(500).json({ error: "Failed to load gallery: " + err.message });
+  }
+});
+
+// Add gallery photo (Admin)
+app.post("/api/gallery", requireAdmin, async (req, res) => {
+  const { title, category, description, url, mediaType } = req.body;
+  if (!title || !url) {
+    return res.status(400).json({ error: "Title and media URL are required." });
+  }
+  const id = "gal-" + Date.now();
+  const newPhoto = {
+    id,
+    title,
+    category: category || "General",
+    description: description || "",
+    url,
+    mediaType: mediaType || "image",
+    createdAt: new Date().toISOString()
+  };
+  try {
+    // Primary: save to Firestore/local (always works)
+    const localDb: any = await getLocalDb();
+    localDb.gallery = localDb.gallery || [];
+    localDb.gallery.push(newPhoto);
+    await saveLocalDb(localDb);
+    await syncLocalFile("gallery", "insert", newPhoto);
+
+    // Secondary: also save to Postgres if available
+    try {
+      if (isDbAvailable()) {
+        await db.insert(gallery).values({ ...newPhoto, createdAt: undefined });
+      }
+    } catch (pgErr: any) {
+      console.warn("[Gallery] Postgres insert failed, saved to Firestore only:", pgErr.message);
+    }
+
+    res.json({ success: true, data: newPhoto });
+  } catch (err: any) {
+    res.status(500).json({ error: "Failed to save gallery photo: " + err.message });
+  }
+});
+
+// Update gallery photo (Admin)
+app.put("/api/gallery/:id", requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { title, category, description, url, mediaType } = req.body;
+  try {
+    // Update local/Firestore
+    const localDb: any = await getLocalDb();
+    localDb.gallery = localDb.gallery || [];
+    const idx = localDb.gallery.findIndex((p: any) => p.id === id);
+    if (idx !== -1) {
+      localDb.gallery[idx] = { ...localDb.gallery[idx], title, category: category || "General", description: description || "", url, mediaType: mediaType || "image" };
+      await saveLocalDb(localDb);
+      await syncLocalFile("gallery", "update", localDb.gallery[idx]);
+    }
+
+    // Also update Postgres if available
+    try {
+      if (isDbAvailable()) {
+        await db.update(gallery).set({ title, category: category || "General", description: description || "", url, mediaType: mediaType || "image" }).where(eq(gallery.id, id));
+      }
+    } catch (pgErr: any) {
+      console.warn("[Gallery] Postgres update failed:", pgErr.message);
+    }
+
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: "Failed to update gallery photo: " + err.message });
+  }
+});
+
+// Delete gallery photo (Admin)
+app.delete("/api/gallery/:id", requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  try {
+    // Delete from local/Firestore
+    const localDb: any = await getLocalDb();
+    localDb.gallery = (localDb.gallery || []).filter((p: any) => p.id !== id);
+    await saveLocalDb(localDb);
+    await syncLocalFile("gallery", "delete", id);
+
+    // Also delete from Postgres if available
+    try {
+      if (isDbAvailable()) {
+        await db.delete(gallery).where(eq(gallery.id, id));
+      }
+    } catch (pgErr: any) {
+      console.warn("[Gallery] Postgres delete failed:", pgErr.message);
+    }
+
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: "Failed to delete gallery photo: " + err.message });
+  }
+});
 
 // Only start the standalone server if we're not running in a Serverless environment (like Vercel)
 if (!process.env.VERCEL && process.env.NODE_ENV !== "test") {

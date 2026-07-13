@@ -1,252 +1,241 @@
 import React, { useState, useEffect } from "react";
-import { Mail, Phone, MapPin, Send, CheckCircle, Clock } from "lucide-react";
+import { Mail, Phone, MapPin, Send, CheckCircle } from "lucide-react";
+import { motion } from "motion/react";
 
 interface ContactUsProps {
   bookingSubject: string;
   onClearBookingSubject: () => void;
   onInquirySubmitted: () => void;
-  theme?: "dark" | "light";
 }
 
-export default function ContactUs({ bookingSubject, onClearBookingSubject, onInquirySubmitted, theme = "dark" }: ContactUsProps) {
-  const isDark = theme === "dark";
-  const inputClass = `w-full rounded-lg p-2.5 outline-none focus:ring-1 focus:ring-amber-500/10 transition-all border ${
-    isDark
-      ? "bg-slate-900 border-slate-800 focus:border-amber-500 text-white"
-      : "bg-slate-50 border-slate-200 focus:border-amber-500 text-slate-900"
-  }`;
-  const labelClass = `block text-xs font-mono mb-1 uppercase tracking-wider ${isDark ? "text-slate-400" : "text-slate-500"}`;
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    subject: "",
-    message: ""
-  });
+export default function ContactUs({ bookingSubject, onClearBookingSubject, onInquirySubmitted }: ContactUsProps) {
+  const [formData, setFormData] = useState({ name: "", email: "", subject: "", message: "" });
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
 
-  // Sync booking subject triggers from itinerary component
   useEffect(() => {
     if (bookingSubject) {
       setFormData(prev => ({
         ...prev,
         subject: `Booking request: ${bookingSubject}`,
-        message: `Dear Kachamba Chorus,\n\nWe would love to reserve the choir to minister at "${bookingSubject}". Please let us know of availability and requirements.\n\nBlessings!`
+        message: `Dear Kachamba Chorus,\n\nWe would love to reserve the choir for "${bookingSubject}". Please let us know your availability and requirements.\n\nBlessings!`
       }));
-      // Scroll to Contact us smoothly
       const el = document.getElementById("contact");
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth" });
-      }
+      if (el) el.scrollIntoView({ behavior: "smooth" });
     }
   }, [bookingSubject]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.email || !formData.message) {
-      setErrorMsg("Please fill in cooperative name, email, and description message.");
+      setErrorMsg("Please fill in name, email, and message.");
       return;
     }
-
     setLoading(true);
     setErrorMsg("");
     setSuccessMsg("");
-
     try {
-      const response = await fetch("/api/inquiries", {
+      const res = await fetch("/api/inquiries", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData)
       });
-      const data = await response.json();
-
-      if (response.ok) {
-        setSuccessMsg(data.message || "Thank you! Your inquiries have been received.");
+      const data = await res.json();
+      if (res.ok) {
+        setSuccessMsg(data.message || "Thank you! We'll be in touch soon.");
         setFormData({ name: "", email: "", subject: "", message: "" });
         onClearBookingSubject();
-        onInquirySubmitted(); // trigger refresh of inquiries on admin end
+        onInquirySubmitted();
       } else {
-        setErrorMsg(data.error || "Failed to post inquiry. Please try again.");
+        setErrorMsg(data.error || "Failed to send message.");
       }
     } catch {
-      setErrorMsg("Network error occurred. The Express backend may be starting. Please double check.");
+      setErrorMsg("Network error. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
+  const contactInfo = [
+    { icon: MapPin, label: "Location", value: "SDA Kachok Church, Kisumu, Kenya" },
+    { icon: Phone, label: "Phone", value: "+254 797 450 206" },
+    { icon: Mail, label: "Email", value: "kachambachorus@gmail.com" },
+  ];
+
   return (
-    <section 
-      id="contact" 
-      className={`py-20 px-6 md:px-12 border-t ${isDark ? "bg-slate-900 border-slate-805 text-white" : "bg-slate-100 border-slate-200 text-slate-900"}`}
-    >
-      <div className="max-w-6xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-          
-          {/* Quick Contact & Physical Address Info */}
-          <div className="lg:col-span-5 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-2 text-amber-500 font-mono text-xs tracking-[0.15em] uppercase mb-3">
-                <Mail className="w-4 h-4" />
-                <span>Christian Engagement</span>
-              </div>
-              <h2 className={`font-display font-semibold text-3xl md:text-5xl tracking-tight mb-6 ${isDark ? "text-white" : "text-slate-900"}`}>
-                Get In <span className={isDark ? "font-light text-white/70" : "font-light text-slate-500"}>Touch</span>
-              </h2>
-              <p className={`font-sans text-sm md:text-base leading-relaxed mb-8 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
-                Want us to host a vocal workshop, minister in your Divine Sabbath Service, sing at your Christian wedding, or attend an evangelistic conference? Fill in your booking inquiry here.
-              </p>
+    <section id="contact" className="relative py-28 px-6 md:px-12 bg-slate-950 overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_80%,rgba(245,158,11,0.04)_0%,transparent_60%)] pointer-events-none" />
 
-              {/* Physical/Spiritual Contact Details */}
-              <div className="flex flex-col gap-6 font-sans">
-                <div className="flex gap-4">
-                  <div className={`p-3 rounded-lg border text-amber-400 shrink-0 h-fit ${isDark ? "bg-slate-950 border-slate-805" : "bg-white border-slate-200"}`}>
-                    <MapPin className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className={`font-bold text-sm uppercase font-mono tracking-wider ${isDark ? "text-slate-300" : "text-slate-600"}`}>Sanctuary Address</h4>
-                    <p className={`text-sm mt-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>SDA Kachok Church, Kisumu</p>
-                    <p className={`text-xs ${isDark ? "text-slate-500" : "text-slate-400"}`}>Kisumu, Kenya</p>
-                  </div>
-                </div>
+      <div className="max-w-6xl mx-auto relative">
 
-                <div className="flex gap-4">
-                  <div className={`p-3 rounded-lg border text-amber-400 shrink-0 h-fit ${isDark ? "bg-slate-950 border-slate-805" : "bg-white border-slate-200"}`}>
-                    <Phone className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className={`font-bold text-sm uppercase font-mono tracking-wider ${isDark ? "text-slate-300" : "text-slate-600"}`}>Choir Booking Hotlines</h4>
-                    <p className={`text-sm mt-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>Phone: +254797450206</p>
-                  </div>
-                </div>
-
-                <div className="flex gap-4">
-                  <div className={`p-3 rounded-lg border text-amber-400 shrink-0 h-fit ${isDark ? "bg-slate-950 border-slate-805" : "bg-white border-slate-200"}`}>
-                    <Mail className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className={`font-bold text-sm uppercase font-mono tracking-wider ${isDark ? "text-slate-300" : "text-slate-600"}`}>Vocal Team Inbox</h4>
-                    <a 
-                      href="mailto:kachambachorus@gmail.com?subject=Inquiry%20for%20Kachamba%20Chorus"
-                      className="text-amber-400 hover:text-amber-300 text-sm mt-1 block font-medium transition-colors hover:underline"
-                      title="Email Kachamba Chorus directly"
-                    >
-                      kachambachorus@gmail.com
-                    </a>
-                    <a 
-                      href="mailto:kachambachorus@gmail.com?subject=Inquiry%20for%20Kachamba%20Chorus"
-                      className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-500 hover:text-amber-400 mt-2 transition-colors hover:underline group"
-                    >
-                      <span>✉ Send Quick Email Link</span> <span className="group-hover:translate-x-0.5 transition-transform inline-block">&rarr;</span>
-                    </a>
-                    <p className={`text-xs ${isDark ? "text-slate-500" : "text-slate-400"}`}>Subject response rate: Under 24 Hours</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Prayer Note Card */}
-            <div className={`mt-8 border p-4 rounded-xl flex items-start gap-3 ${isDark ? "bg-slate-950/40 border-slate-800" : "bg-white border-slate-200"}`}>
-              <Clock className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-              <div className={`font-sans text-xs leading-relaxed ${isDark ? "text-slate-400" : "text-slate-600"}`}>
-                <strong>Sabbath Notice:</strong> As true Adventists, we observe rest on the Seventh-day Sabbath (Friday sunset until Saturday sunset). All virtual or operational booking feedback will be happily delivered after Sunday morning.
-              </div>
-            </div>
+        {/* Header */}
+        <div className="text-center mb-16">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <div className="w-6 h-px bg-amber-400/50" />
+            <span className="label-caps text-amber-400/70 text-[11px]">Get In Touch</span>
+            <div className="w-6 h-px bg-amber-400/50" />
           </div>
+          <h2 className="font-display font-bold text-4xl md:text-6xl text-white tracking-tight leading-none mb-3">
+            Contact <span className="text-white/25 font-light">Us</span>
+          </h2>
+          <p className="text-white/40 text-sm font-light max-w-xs mx-auto">
+            Book the choir, ask a question, or just say hello.
+          </p>
+        </div>
 
-          {/* Real POST Inquiry Message Form */}
-          <div className={`lg:col-span-7 border rounded-2xl p-6 md:p-8 shadow-xl ${isDark ? "bg-slate-950/80 border-slate-800" : "bg-white border-slate-200"}`}>
-            <h3 className={`font-sans font-bold text-2xl mb-2 ${isDark ? "text-amber-300" : "text-amber-600"}`}>Send an Inquiry or Booking</h3>
-            <p className={`font-sans text-xs md:text-sm mb-6 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-              Your inquiry goes straight to the choir committee. We register and discuss all bookings in our weekly Sunday council meetings.
-            </p>
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
 
+          {/* Contact Info Panel */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.7 }}
+            className="lg:col-span-2 glass rounded-2xl p-8 flex flex-col gap-8"
+          >
+            <div>
+              <h3 className="font-display font-semibold text-xl text-white mb-2">Kachamba Chorus</h3>
+              <p className="text-white/40 text-sm font-light leading-relaxed">
+                Seventh-day Adventist Ambassador Youth Ministry, spreading the Gospel through choral harmony.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-5">
+              {contactInfo.map(({ icon: Icon, label, value }) => (
+                <div key={label} className="flex items-start gap-3">
+                  <div className="w-8 h-8 glass rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Icon className="w-3.5 h-3.5 text-amber-400/70" />
+                  </div>
+                  <div>
+                    <p className="label-caps text-[9px] text-white/30 mb-0.5">{label}</p>
+                    <p className="text-white/65 text-sm">{value}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Sabbath notice */}
+            <div className="glass-light rounded-xl p-4 border border-amber-400/10">
+              <p className="label-caps text-[10px] text-amber-400/70 mb-1.5">Sabbath Hours</p>
+              <p className="text-white/45 text-xs leading-relaxed">
+                We observe the Sabbath from Friday sunset to Saturday sunset. Responses during this time will be addressed the following day.
+              </p>
+            </div>
+
+            {/* Social links */}
+            <div className="flex items-center gap-3 pt-2 border-t border-white/5">
+              {[
+                { href: "https://www.facebook.com/share/1GjHUY1u8a/", label: "Facebook" },
+                { href: "https://www.tiktok.com/@kachokambassadors", label: "TikTok" },
+                { href: "https://youtube.com/@kachambachorus", label: "YouTube" },
+              ].map(({ href, label }) => (
+                <a
+                  key={label}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="glass label-caps text-[10px] text-white/40 hover:text-amber-400 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  {label}
+                </a>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Form */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.7 }}
+            className="lg:col-span-3 glass rounded-2xl p-8"
+          >
             {successMsg ? (
-              <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 p-6 rounded-xl flex flex-col items-center text-center gap-3">
-                <CheckCircle className="w-12 h-12 text-emerald-400 animate-bounce" />
-                <h4 className={`font-bold text-lg ${isDark ? "text-white" : "text-slate-900"}`}>Message Logged!</h4>
-                <p className="text-sm font-sans max-w-sm">
-                  {successMsg}
-                </p>
+              <div className="h-full flex flex-col items-center justify-center text-center gap-4 py-8">
+                <div className="w-14 h-14 glass rounded-full flex items-center justify-center">
+                  <CheckCircle className="w-7 h-7 text-emerald-400" />
+                </div>
+                <h3 className="font-display text-xl text-white">Message Sent!</h3>
+                <p className="text-white/45 text-sm max-w-xs">{successMsg}</p>
                 <button
                   onClick={() => setSuccessMsg("")}
-                  className="mt-2 text-xs font-mono text-amber-400 border border-amber-500/20 px-4 py-1.5 rounded hover:bg-amber-500 hover:text-slate-950 transition-colors cursor-pointer"
+                  className="label-caps text-[11px] text-amber-400 hover:text-amber-300 transition-colors mt-2"
                 >
-                  Post Another Message
+                  Send Another →
                 </button>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="flex flex-col gap-4 text-sm font-sans">
-                {errorMsg && (
-                  <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg text-center font-mono text-xs">
-                    {errorMsg}
-                  </div>
-                )}
+              <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                <h3 className="font-display font-semibold text-xl text-white mb-2">Send a Message</h3>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className={labelClass}>Your Name</label>
-                    <input 
+                    <label className="label-caps text-[10px] text-white/35 block mb-1.5">Name *</label>
+                    <input
                       type="text"
+                      value={formData.name}
+                      onChange={(e) => setFormData(p => ({ ...p, name: e.target.value }))}
+                      placeholder="Your full name"
+                      className="w-full glass rounded-xl px-4 py-3 text-sm text-white/80 placeholder-white/20 focus:outline-none focus:border-amber-500/30 transition-all"
                       required
-                      value={formData.name || ""}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className={inputClass}
-                      placeholder="e.g. Pastor John"
                     />
                   </div>
-
                   <div>
-                    <label className={labelClass}>Email Address</label>
-                    <input 
+                    <label className="label-caps text-[10px] text-white/35 block mb-1.5">Email *</label>
+                    <input
                       type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))}
+                      placeholder="your@email.com"
+                      className="w-full glass rounded-xl px-4 py-3 text-sm text-white/80 placeholder-white/20 focus:outline-none focus:border-amber-500/30 transition-all"
                       required
-                      value={formData.email || ""}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className={inputClass}
-                      placeholder="e.g. john@church.org"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className={labelClass}>Subject</label>
-                  <input 
+                  <label className="label-caps text-[10px] text-white/35 block mb-1.5">Subject</label>
+                  <input
                     type="text"
-                    value={formData.subject || ""}
-                    onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                    className={inputClass}
-                    placeholder="e.g. Booking for Youth Campout"
+                    value={formData.subject}
+                    onChange={(e) => setFormData(p => ({ ...p, subject: e.target.value }))}
+                    placeholder="Booking request, inquiry, etc."
+                    className="w-full glass rounded-xl px-4 py-3 text-sm text-white/80 placeholder-white/20 focus:outline-none focus:border-amber-500/30 transition-all"
                   />
                 </div>
 
                 <div>
-                  <label className={labelClass}>Detailed Message</label>
-                  <textarea 
+                  <label className="label-caps text-[10px] text-white/35 block mb-1.5">Message *</label>
+                  <textarea
+                    value={formData.message}
+                    onChange={(e) => setFormData(p => ({ ...p, message: e.target.value }))}
+                    placeholder="Tell us how we can help you…"
+                    rows={5}
+                    className="w-full glass rounded-xl px-4 py-3 text-sm text-white/80 placeholder-white/20 focus:outline-none focus:border-amber-500/30 transition-all resize-none"
                     required
-                    value={formData.message || ""}
-                    onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                    rows={6}
-                    className={`${inputClass} resize-none`}
-                    placeholder="Write details about physical coordinates, transportation provisions, choir duration, or song themes..."
                   />
                 </div>
+
+                {errorMsg && (
+                  <p className="text-red-400/80 text-xs">{errorMsg}</p>
+                )}
 
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-amber-500 hover:bg-amber-400 disabled:bg-slate-755 disabled:text-slate-500 text-slate-950 font-sans font-bold py-3.5 px-6 rounded-xl hover:-translate-y-0.5 transition-all shadow-lg shadow-amber-500/5 cursor-pointer mt-2 flex items-center justify-center gap-2"
+                  className="flex items-center justify-center gap-2.5 bg-amber-400 hover:bg-amber-300 disabled:bg-amber-400/40 text-slate-950 font-semibold label-caps text-[11px] px-6 py-3.5 rounded-full transition-all cursor-pointer shadow-lg shadow-amber-500/15 self-start"
                 >
-                  <Send className="w-4 h-4" />
-                  <span>{loading ? "Sending Inquiry..." : "Send Official Inquiry"}</span>
+                  {loading ? (
+                    <span className="w-4 h-4 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin" />
+                  ) : (
+                    <Send className="w-3.5 h-3.5" />
+                  )}
+                  {loading ? "Sending…" : "Send Message"}
                 </button>
               </form>
             )}
-          </div>
-
+          </motion.div>
         </div>
       </div>
     </section>

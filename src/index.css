@@ -1,14 +1,11 @@
-@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-@import url('https://fonts.cdnfonts.com/css/glacial-indifference');
-@import url('https://fonts.cdnfonts.com');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Space Grotesk", sans-serif;
+  --font-serif: "Cormorant Garamond", Georgia, serif;
   --font-mono: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-glacial: "Glacial Indifference", sans-serif;
-  --font-archivoblack: "Archivo Black", sans-serif;
 
   --color-slate-350: #a1b0cb;
   --color-slate-450: #64748b;
@@ -25,21 +22,67 @@
   --color-amber-605: #b45309;
 }
 
-.font-glacial {
-  font-family: 'Glacial Indifference', 'Inter', sans-serif !important;
-}
-
-.font-archivoblack {
-  font-family: 'Archivo Black', sans-serif !important;
-}
-
 html {
   scroll-behavior: smooth;
 }
 
-/* Custom modern scrollbars */
+/* =========================================
+   GLASS MORPHISM UTILITIES
+   ========================================= */
+.glass {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-light {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.glass-dark {
+  background: rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.glass-nav {
+  background: rgba(7, 14, 27, 0.72);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.glass-nav-transparent {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: 1px solid transparent;
+}
+
+/* =========================================
+   SCROLLBAR
+   ========================================= */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: #070e1b;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(245, 158, 11, 0.2);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(245, 158, 11, 0.45);
+}
+
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
   background: rgba(15, 23, 42, 0.6);
@@ -52,774 +95,68 @@ html {
   background: rgba(245, 158, 11, 0.4);
 }
 
-/* ==========================================
- * LIGHT THEME STYLES - GORGEOUS MODERN LIGHT PRESET
- * ========================================== */
+/* =========================================
+   LIGHT THEME
+   ========================================= */
 html.light, .light {
   color-scheme: light;
-  background-color: #f8fafc !important;
-  color: #0f172a !important;
-
-  /* Overrides for tailwind custom amber variables inside light mode - restored to gorgeous warm brand-aligned gold/yellow */
-  --color-amber-50: #fffbeb !important;
-  --color-amber-100: #fef3c7 !important;
-  --color-amber-200: #fde68a !important;
-  --color-amber-300: #fcd34d !important;
-  --color-amber-400: #fbbf24 !important;
-  --color-amber-405: #f59e0b !important;
-  --color-amber-450: #f59e0b !important;
-  --color-amber-500: #f59e0b !important;
-  --color-amber-550: #d97706 !important;
-  --color-amber-600: #d97706 !important;
-  --color-amber-605: #b45309 !important;
-  --color-amber-700: #b45309 !important;
-  --color-amber-800: #92400e !important;
-  --color-amber-900: #78350f !important;
-}
-
-/* Light heading fallback - only override if they don't have specialized coloring or gradients */
-.light h1:not([class*="text-"]):not([class*="bg-gradient"]),
-.light h2:not([class*="text-"]):not([class*="bg-gradient"]),
-.light h3:not([class*="text-"]):not([class*="bg-gradient"]),
-.light h4:not([class*="text-"]):not([class*="bg-gradient"]),
-.light h5:not([class*="text-"]):not([class*="bg-gradient"]),
-.light h6:not([class*="text-"]):not([class*="bg-gradient"]) {
-  color: #0f172a !important;
-}
-
-/* Base neutral text overrides */
-.light .text-slate-50,
-.light .text-slate-100,
-.light .text-slate-200 {
-  color: #0f172a !important;
-}
-.light h1.text-white:not([class*="text-amber"]):not([class*="bg-gradient"]),
-.light h2.text-white:not([class*="text-amber"]):not([class*="bg-gradient"]),
-.light h3.text-white:not([class*="text-amber"]):not([class*="bg-gradient"]),
-.light h4.text-white:not([class*="text-amber"]):not([class*="bg-gradient"]),
-.light p.text-white:not([class*="text-amber"]):not([class*="bg-gradient"]) {
-  color: #0f172a !important;
-}
-
-/* Shift Kachamba Chorus Logo color to a custom premium white & blue */
-.light img[alt*="Kachamba Chorus"],
-.light img[alt*="Kachamba"],
-.light img[alt*="Choir Logo"],
-.light img[alt*="Logo"]:not([alt*="SDA"]) {
-  filter: hue-rotate(185deg) saturate(150%) brightness(1.1) contrast(1.05) drop-shadow(0 2px 4px rgba(59, 130, 246, 0.15)) !important;
-}
-
-/* Ensure colored backgrounds, buttons, and active indicators keep white text */
-.light button,
-.light button *,
-.light [class*="bg-amber-"] *,
-.light [class*="bg-blue-"] *,
-.light [class*="bg-emerald-"] *,
-.light [class*="bg-rose-"] *,
-.light [class*="bg-red-"] *,
-.light [class*="bg-green-"] * {
-  --tw-text-opacity: 1 !important;
-}
-.light button.text-white,
-.light button .text-white,
-.light .bg-amber-500 .text-white,
-.light .bg-amber-600 .text-white,
-.light .bg-blue-600 .text-white,
-.light .bg-emerald-500 .text-white,
-.light .bg-rose-500 .text-white,
-.light .bg-red-500 .text-white,
-.light .text-white-force {
-  color: #ffffff !important;
-}
-.light .bg-slate-950 {
-  background-color: #ffffff !important;
-  background-image: none !important;
-  border-color: #cbd5e1 !important;
-  color: #0f172a !important;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.04), 0 2px 4px -2px rgba(0, 0, 0, 0.04) !important;
-}
-.light .bg-slate-900 {
-  background-color: #f8fafc !important;
-  background-image: none !important;
-  border-color: #b2c1d3 !important;
-  color: #0f172a !important;
-}
-.light .bg-slate-800,
-.light .bg-slate-850 {
   background-color: #f1f5f9 !important;
-  background-image: none !important;
-  border-color: #94a3b8 !important;
-  color: #0f172a !important;
-}
-.light [class*="bg-slate-950/"],
-.light [class*="bg-slate-900/"],
-.light [class*="bg-slate-800/"],
-.light [class*="bg-slate-950\\/"],
-.light [class*="bg-slate-900\\/"],
-.light [class*="bg-slate-800\\/"] {
-  background-color: #f1f5f9 !important;
-  background-image: none !important;
-  border-color: #cbd5e1 !important;
   color: #0f172a !important;
 }
 
-/* Ensure modal/overlay screens are premium translucent blurs in light mode instead of solid light gray */
-.light .fixed[class*="bg-slate-950"],
-.light .fixed [class*="bg-slate-950"],
-.light .fixed[class*="bg-slate-900"],
-.light .fixed [class*="bg-slate-900"],
-.light [class*="fixed"][class*="bg-slate-"],
-.light [class*="fixed"] [class*="bg-slate-"] {
-  background-color: rgba(255, 255, 255, 0.75) !important;
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
-  background-image: none !important;
+html.light .glass {
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+html.light .glass-light {
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(15, 23, 42, 0.1);
+}
+html.light .glass-nav {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.09);
 }
 
-/* Make sure all transparent text gradients are gorgeous, high-contrast, vibrant and extremely legible in light mode */
-.light .text-transparent.bg-clip-text,
-.light [class*="text-transparent"][class*="bg-clip-text"] {
-  -webkit-text-fill-color: transparent !important;
-  -webkit-background-clip: text !important;
-  background-clip: text !important;
-  background-image: linear-gradient(to right, #b45309, #d97706, #ea580c) !important;
-}
-.light input,
-.light select,
-.light textarea {
-  background-color: #ffffff !important;
-  color: #0f172a !important;
-  border-color: #cbd5e1 !important;
-}
-.light input:focus,
-.light select:focus,
-.light textarea:focus {
-  border-color: #3b82f6 !important;
-  outline: none !important;
-}
-.light input::placeholder,
-.light textarea::placeholder {
-  color: #475569 !important;
-}
-.light .border-slate-800,
-.light .border-slate-850,
-.light .border-slate-700,
-.light .border-slate-900,
-.light [class*="border-slate-"] {
-  border-color: #b2c1d3 !important;
-}
-.light .text-slate-350,
-.light .text-slate-300 {
-  color: #0f172a !important;
-}
-.light .text-slate-450,
-.light .text-slate-400 {
-  color: #1e293b !important;
-}
-.light .text-slate-500 {
-  color: #334155 !important;
-}
-.light [class*="text-slate-300/"],
-.light [class*="text-slate-400/"],
-.light [class*="text-slate-500/"],
-.light [class*="text-slate-300\\/"],
-.light [class*="text-slate-400\\/"],
-.light [class*="text-slate-500\\/"] {
-  color: #1e293b !important;
+/* =========================================
+   TYPOGRAPHY UTILITIES
+   ========================================= */
+.label-caps {
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-weight: 500;
 }
 
-/* Explicit standard-class amber-to-amber styles for complete brand vibrance */
-.light .text-amber-50 { color: #fffbeb !important; }
-.light .text-amber-100 { color: #fef3c7 !important; }
-.light .text-amber-200 { color: #fde68a !important; }
-.light .text-amber-300 { color: #d97706 !important; }
-.light .text-amber-400 { color: #f59e0b !important; }
-.light .text-amber-450 { color: #f59e0b !important; }
-.light .text-amber-500 { color: #d97706 !important; }
-.light .text-amber-550 { color: #d97706 !important; }
-.light .text-amber-600 { color: #b45309 !important; }
-.light .text-amber-605 { color: #b45309 !important; }
-.light .text-amber-700 { color: #b45309 !important; }
-.light .text-amber-800 { color: #92400e !important; }
-.light .text-amber-900 { color: #78350f !important; }
-
-/* Translucent standard backgrounds */
-.light [class*="bg-amber-500/10"],
-.light [class*="bg-amber-500\\/10"],
-.light [class*="bg-amber-500/15"],
-.light [class*="bg-amber-500\\/15"] {
-  background-color: rgba(245, 158, 11, 0.15) !important;
-  color: #b45309 !important;
-}
-.light [class*="bg-amber-400/10"],
-.light [class*="bg-amber-400\\/10"] {
-  background-color: rgba(245, 158, 11, 0.1) !important;
-  color: #b45309 !important;
+.display-serif {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-weight: 300;
+  letter-spacing: -0.01em;
 }
 
-.light .bg-amber-50 { background-color: #fffbeb !important; }
-.light .bg-amber-100 { background-color: #fef3c7 !important; }
-.light .bg-amber-200 { background-color: #fde68a !important; }
-.light .bg-amber-300 { background-color: #fcd34d !important; }
-.light .bg-amber-400 { background-color: #fbbf24 !important; }
-.light .bg-amber-500 { background-color: #f59e0b !important; }
-.light .bg-amber-600 { background-color: #d97706 !important; }
-.light .bg-amber-700 { background-color: #b45309 !important; }
-
-.light .border-amber-300 { border-color: #fde68a !important; }
-.light .border-amber-400 { border-color: #fcd34d !important; }
-.light .border-amber-500 { border-color: #fbbf24 !important; }
-.light .border-amber-600 { border-color: #f59e0b !important; }
-.light [class*="border-amber-"] { border-color: #fde68a !important; }
-
-.light .focus\:border-amber-400:focus { border-color: #fbbf24 !important; }
-.light .focus\:border-amber-500:focus { border-color: #f59e0b !important; }
-.light .focus-within\:border-amber-500:focus-within { border-color: #f59e0b !important; }
-
-.light .ring-amber-500 { --tw-ring-color: #f59e0b !important; }
-.light [class*="ring-amber-500/"],
-.light [class*="ring-amber-500\\/"] {
-  --tw-ring-color: rgba(245, 158, 11, 0.25) !important;
+/* =========================================
+   SECTION DIVIDER — hair-thin amber line
+   ========================================= */
+.section-divider {
+  width: 40px;
+  height: 1px;
+  background: rgba(245, 158, 11, 0.5);
+  margin: 0 auto 1.5rem;
 }
 
-.light [class*="shadow-amber-500/"],
-.light [class*="shadow-amber-500\\/"] {
-  box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.1), 0 2px 4px -2px rgba(59, 130, 246, 0.1) !important;
+/* =========================================
+   ANIMATIONS
+   ========================================= */
+@keyframes pulse-slow {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
+.animate-pulse-slow {
+  animation: pulse-slow 6s ease-in-out infinite;
 }
 
-/* Light theme custom scrollbars */
-.light .custom-scrollbar::-webkit-scrollbar-track,
-.light::-webkit-scrollbar-track {
-  background: #f1f5f9 !important;
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
-.light .custom-scrollbar::-webkit-scrollbar-thumb,
-.light::-webkit-scrollbar-thumb {
-  background: rgba(59, 130, 246, 0.3) !important;
-}
-.light .custom-scrollbar::-webkit-scrollbar-thumb:hover,
-.light::-webkit-scrollbar-thumb:hover {
-  background: rgba(59, 130, 246, 0.5) !important;
-}
-
-/* Home / Hero Section */
-.light #home {
-  background: #f8fafc !important;
-  color: #0f172a !important;
-}
-.light #home .z-0 img {
-  opacity: 0.6 !important;
-  filter: grayscale(10%) saturate(120%) brightness(1.05) !important;
-  mix-blend-mode: normal !important;
-}
-.light #home .z-0 > div.bg-gradient-to-b {
-  background: linear-gradient(to bottom, rgba(248,250,252,0.95), rgba(248,250,252,0.4), rgba(248,250,252,0.95)) !important;
-}
-.light #home .z-0 > div.bg-radial-at-c {
-  background: radial-gradient(circle at center, rgba(248,250,252,0.2), rgba(248,250,252,0.5), rgba(248,250,252,0.95)) !important;
-}
-.light #home h2 {
-  color: #1e293b !important;
-  text-shadow: 0 1px 4px rgba(255,255,255,1), 0 0 10px rgba(255,255,255,0.8);
-}
-.light #home p {
-  color: #334155 !important;
-  text-shadow: 0 1px 4px rgba(255,255,255,1), 0 0 10px rgba(255,255,255,0.8);
-  font-weight: 700 !important;
-}
-.light #home h1 {
-  background-image: linear-gradient(to right, #d97706, #fbbf24, #f59e0b) !important;
-  color: transparent !important;
-  -webkit-background-clip: text !important;
-  background-clip: text !important;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.15)) !important;
-}
-.light #home button.bg-slate-850 {
-  background-color: #ffffff !important;
-  color: #0f172a !important;
-  border-color: #cbd5e1 !important;
-}
-.light #home button.bg-slate-850:hover {
-  background-color: #f1f5f9 !important;
-}
-.light #home .bg-slate-950\/80 {
-  background-color: rgba(255,255,255,0.85) !important;
-  border-color: #cbd5e1 !important;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
-}
-.light #home .bg-slate-950\/80 .text-amber-400 {
-  color: #d97706 !important;
-}
-.light #home .bg-slate-950\/80 .text-slate-500 {
-  color: #475569 !important;
-}
-.light #home .border-slate-800\/80 {
-  border-color: #cbd5e1 !important;
-}
-.light #home .bg-blue-500\/15,
-.light #home .bg-amber-500\/15 {
-  background-color: rgba(245, 158, 11, 0.15) !important;
-  border-color: rgba(245, 158, 11, 0.3) !important;
-  color: #b45309 !important;
-}
-.light #home .italic.text-slate-300 {
-  color: #334155 !important;
-  text-shadow: 0 1px 1px rgba(255,255,255,0.9);
-}
-.light #home .italic.text-slate-300 .text-slate-400 {
-  color: #475569 !important;
-}
-.light #home .border-slate-800\/60 {
-  border-color: #cbd5e1 !important;
-}
- 
- /* Itinerary Section */
- .light #itinerary {
-   background-color: #f8fafc !important;
-   border-color: #e2e8f0 !important;
- }
- .light #itinerary h2 {
-   color: #0f172a !important;
- }
- .light #itinerary .bg-slate-950\/60,
- .light #itinerary .bg-slate-950\/40 {
-   background-color: #ffffff !important;
-   border-color: #cbd5e1 !important;
-   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05) !important;
- }
- .light #itinerary .text-amber-300 {
-   color: #d97706 !important;
- }
- .light #itinerary .text-amber-300:hover {
-   color: #b45309 !important;
- }
- .light #itinerary .bg-slate-900 {
-   background-color: #f1f5f9 !important;
-   border-color: #e2e8f0 !important;
-   color: #1e293b !important;
- }
- .light #itinerary .bg-slate-900 .text-amber-500 {
-   color: #d97706 !important;
- }
- .light #itinerary .border-slate-800 {
-   border-color: #e2e8f0 !important;
- }
- .light #itinerary p.italic {
-   background-color: #fffbeb !important;
-   border-color: #fbbf24 !important;
-   color: #78350f !important;
- }
- 
- /* Activities Section */
- .light #activities {
-   background-color: #ffffff !important;
-   border-color: #e2e8f0 !important;
- }
- .light #activities h2 {
-   color: #0f172a !important;
- }
- .light #activities .bg-slate-900\/80 {
-   background-color: #ffffff !important;
-   border-color: #cbd5e1 !important;
-   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05) !important;
- }
- .light #activities .border-slate-800 {
-   border-color: #e2e8f0 !important;
- }
- .light #activities .text-amber-300,
- .light #activities .text-amber-400 {
-   color: #d97706 !important;
- }
-.light #activities h3 {
-  color: #0f172a !important;
-}
-.light #activities .bg-slate-950\/80 {
-  background-color: rgba(241, 245, 249, 0.9) !important;
-}
-
-/* Gallery Section */
-.light #gallery {
-  background-color: #f8fafc !important;
-  border-color: #e2e8f0 !important;
-}
-.light #gallery h2 {
-  color: #0f172a !important;
-}
-.light #gallery .bg-slate-900 {
-  background-color: #ffffff !important;
-  border-color: #cbd5e1 !important;
-}
-.light #gallery .border-slate-800 {
-  border-color: #e2e8f0 !important;
-}
-
-/* Music Section */
-.light #music {
-  background-color: #ffffff !important;
-  border-color: #e2e8f0 !important;
-}
-.light #music h2,
-.light #music h3 {
-  color: #0f172a !important;
-}
-.light #music .bg-slate-950\/80 {
-  background-color: #ffffff !important;
-  border-color: #cbd5e1 !important;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05) !important;
-}
-.light #music .bg-slate-950\/40 {
-  background-color: #f8fafc !important;
-  border-color: #e2e8f0 !important;
-}
-.light #music .bg-slate-900\/60 {
-  background-color: #f1f5f9 !important;
-  border-color: #e2e8f0 !important;
-}
-.light #music .text-slate-100 {
-  color: #0f172a !important;
-}
-.light #music .text-slate-400 {
-  color: #475569 !important;
-}
-.light #music .text-slate-300 {
-  color: #334155 !important;
-}
-.light #music .border-slate-800 {
-  border-color: #e2e8f0 !important;
-}
-
-/* Join section */
-.light #join {
-  background-color: #ffffff !important;
-}
-.light #join h2 {
-  color: #0f172a !important;
-}
-.light #join .border-slate-800 {
-  border-color: #e2e8f0 !important;
-}
-.light #join .border-slate-850 {
-  border-color: #e2e8f0 !important;
-}
-.light #join .bg-slate-900\/60,
-.light #join .bg-slate-900 {
-  background-color: #f8fafc !important;
-  border-color: #cbd5e1 !important;
-  color: #0f172a !important;
-}
-.light #join input,
-.light #join select,
-.light #join textarea {
-  background-color: #ffffff !important;
-  border-color: #cbd5e1 !important;
-  color: #0f172a !important;
-}
-.light #join input::placeholder,
-.light #join textarea::placeholder {
-  color: #94a3b8 !important;
-}
-
-/* Contact section */
-.light #contact {
-  background-color: #f8fafc !important;
-  border-color: #e2e8f0 !important;
-}
-.light #contact h2,
-.light #contact h3 {
-  color: #0f172a !important;
-}
-.light #contact .bg-slate-950\/80,
-.light #contact .bg-slate-950\/40,
-.light #contact .bg-slate-950 {
-  background-color: #ffffff !important;
-  border-color: #cbd5e1 !important;
-  color: #0f172a !important;
-}
-.light #contact input,
-.light #contact select,
-.light #contact textarea {
-  background-color: #f8fafc !important;
-  border-color: #cbd5e1 !important;
-  color: #0f172a !important;
-}
-.light #contact input::placeholder,
-.light #contact textarea::placeholder {
-  color: #94a3b8 !important;
-}
-.light #contact h4 {
-  color: #0f172a !important;
-}
-.light #contact .border-slate-800,
-.light #contact .border-slate-805 {
-  border-color: #e2e8f0 !important;
-}
-
-/* Chatbot general styling */
-.light .chat-bot-window {
-  background-color: #ffffff !important;
-  border-color: #cbd5e1 !important;
-  color: #0f172a !important;
-}
-
-/* Footer Section */
-.light footer {
-  background-color: #f8fafc !important;
-  border-color: #e2e8f0 !important;
-}
-.light footer a {
-  color: #475569 !important;
-}
-.light footer a:hover {
-  color: #d97706 !important;
-}
-.light footer p {
-  color: #64748b !important;
-}
-.light footer .text-slate-400 {
-  color: #475569 !important;
-}
-.light footer .text-slate-600 {
-  color: #64748b !important;
-}
-.light footer h4 {
-  color: #b45309 !important;
-}
-
-/* ==========================================
- * PRINT MEDIA QUERIES
- * ========================================== */
-@media print {
-  /* Global print defaults */
-  html, body {
-    background: #ffffff !important;
-    color: #000000 !important;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  /* Force full height and visibility for all scrollable parents, avoiding truncated pages */
-  #root,
-  main {
-    overflow: visible !important;
-    height: auto !important;
-    min-height: 0 !important;
-    max-height: none !important;
-    position: static !important;
-    box-shadow: none !important;
-    text-shadow: none !important;
-  }
-
-  /* Default print hides */
-  nav, 
-  header, 
-  footer, 
-  .sticky, 
-  .chat-bot-window, 
-  video, 
-  button, 
-  input, 
-  select, 
-  textarea, 
-  form, 
-  .print-hidden,
-  .print\:hidden {
-    display: none !important;
-  }
-
-  @page {
-    size: A4 portrait;
-    margin: 1.35in 0.8in 0.8in 0.8in !important;
-  }
-
-  /*
-   * ITINERARY PRINT MODE 
-   * Isolate the #itinerary section by hiding all adjacent sections/elements under print-mode-itinerary
-   */
-  body.print-mode-itinerary #home,
-  body.print-mode-itinerary #activities,
-  body.print-mode-itinerary #leadership,
-  body.print-mode-itinerary #music,
-  body.print-mode-itinerary #gallery,
-  body.print-mode-itinerary #join,
-  body.print-mode-itinerary #contact,
-  body.print-mode-itinerary .sticky,
-  body.print-mode-itinerary header,
-  body.print-mode-itinerary footer,
-  body.print-mode-itinerary .chat-bot-window {
-    display: none !important;
-  }
-
-  body.print-mode-itinerary #itinerary {
-    display: block !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    border: none !important;
-    background: #ffffff !important;
-  }
-
-  body.print-mode-itinerary #itinerary * {
-    color: #000000 !important;
-    background: transparent !important;
-    border-color: #e2e8f0 !important;
-    font-family: 'Glacial Indifference', 'Inter', sans-serif !important;
-  }
-
-  /* Set the repeating top page header containing SDA Logo & Kachamba Chorus neatly aligned */
-  body.print-mode-itinerary .itinerary-print-header {
-    display: flex !important;
-    position: fixed !important;
-    top: -1.05in !important; /* Offset up into the print margin-top zone */
-    left: 0 !important;
-    right: 0 !important;
-    height: 0.8in !important;
-    border-b: 2px solid #000000 !important;
-    border-bottom: 2px solid #000000 !important;
-    align-items: center !important;
-    gap: 1.25rem !important;
-    background-color: #ffffff !important;
-    z-index: 99999 !important;
-    padding-bottom: 8px !important;
-  }
-
-  body.print-mode-itinerary .itinerary-print-header img {
-    width: 48px !important;
-    height: 48px !important;
-    object-fit: contain !important;
-    display: block !important;
-  }
-
-  body.print-mode-itinerary #itinerary h1,
-  body.print-mode-itinerary #itinerary h2,
-  body.print-mode-itinerary #itinerary h3,
-  body.print-mode-itinerary #itinerary h4,
-  body.print-mode-itinerary #itinerary h5,
-  body.print-mode-itinerary #itinerary .choir-name,
-  body.print-mode-itinerary #itinerary .event-title,
-  body.print-mode-itinerary #itinerary .font-archivoblack,
-  body.print-mode-itinerary #itinerary [id^="itinerary-dispatch-"] h3 {
-    font-family: 'Archivo Black', sans-serif !important;
-  }
-
-  /* Avoid splitting an itinerary/calendar entry across two physical sheets */
-  body.print-mode-itinerary [id^="itinerary-dispatch-"] {
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-    margin-bottom: 2rem !important;
-    padding: 1.5rem !important;
-    border: 1px solid #cbd5e1 !important;
-    border-radius: 8px !important;
-    background: #ffffff !important;
-    display: flex !important;
-    flex-direction: row !important;
-    gap: 1.5rem !important;
-  }
-
-  /* Hide media preview icons, buttons status badges in dispatch item on print */
-  body.print-mode-itinerary [id^="itinerary-dispatch-"] button,
-  body.print-mode-itinerary [id^="itinerary-dispatch-"] .absolute.inset-x-2.bottom-2 {
-    display: none !important;
-  }
-
-  /* 
-   * RECEIPT PRINT MODE 
-   * Isolate the Join section and only expose the digital receipt
-   */
-  body.print-mode-receipt #home,
-  body.print-mode-receipt #itinerary,
-  body.print-mode-receipt #activities,
-  body.print-mode-receipt #leadership,
-  body.print-mode-receipt #music,
-  body.print-mode-receipt #gallery,
-  body.print-mode-receipt #contact,
-  body.print-mode-receipt .sticky,
-  body.print-mode-receipt header,
-  body.print-mode-receipt footer,
-  body.print-mode-receipt .chat-bot-window {
-    display: none !important;
-  }
-
-  body.print-mode-receipt #join {
-    display: block !important;
-    width: 100% !important;
-    padding: 0 !important;
-    margin: 0 !important;
-  }
-
-  body.print-mode-receipt #join form,
-  body.print-mode-receipt #join .mb-5:not(#mpesa-receipt-container),
-  body.print-mode-receipt #join .flex:not(#mpesa-receipt-container *) {
-    display: none !important;
-  }
-
-  body.print-mode-receipt #mpesa-receipt-container {
-    display: block !important;
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-
-  body.print-mode-receipt #mpesa-receipt {
-    display: block !important;
-    margin: 0.5in auto !important;
-    padding: 2.5rem !important;
-    border: 3px double #000000 !important;
-    background: #ffffff !important;
-    color: #000000 !important;
-    max-width: 5in !important;
-    border-radius: 12px !important;
-    box-shadow: none !important;
-  }
-
-  body.print-mode-receipt #mpesa-receipt * {
-    color: #000000 !important;
-    background: transparent !important;
-    border-color: #e2e8f0 !important;
-    font-family: 'Glacial Indifference', 'Inter', sans-serif !important;
-  }
-
-  body.print-mode-receipt #mpesa-receipt h4,
-  body.print-mode-receipt #mpesa-receipt .till-organization-name,
-  body.print-mode-receipt #mpesa-receipt .receipt-title,
-  body.print-mode-receipt #mpesa-receipt .text-receipt-sda-header,
-  body.print-mode-receipt #mpesa-receipt span.text-4xl,
-  body.print-mode-receipt #mpesa-receipt span.text-3xl {
-    font-family: 'Archivo Black', sans-serif !important;
-  }
-}
-
-/* ==========================================
- * HIGH-FIDELITY GLASSMORPHISM & ACRYLIC STYLES
- * ========================================== */
-.glass-card {
-  background: rgba(8, 14, 27, 0.45) !important;
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3) !important;
-}
-
-html.light .glass-card, .light .glass-card {
-  background: rgba(255, 255, 255, 0.45) !important;
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
-  border: 1px solid rgba(15, 23, 42, 0.08) !important;
-  box-shadow: 0 8px 32px 0 rgba(15, 23, 42, 0.05) !important;
-}
-
-.glass-input {
-  background: rgba(8, 14, 27, 0.5) !important;
-  backdrop-filter: blur(8px) !important;
-  -webkit-backdrop-filter: blur(8px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-}
-
-html.light .glass-input, .light .glass-input {
-  background: rgba(255, 255, 255, 0.8) !important;
-  backdrop-filter: blur(8px) !important;
-  -webkit-backdrop-filter: blur(8px) !important;
-  border: 1px solid rgba(15, 23, 42, 0.12) !important;
-}
-
-

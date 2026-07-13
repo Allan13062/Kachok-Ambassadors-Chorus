@@ -7,6 +7,7 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { onAuthStateChanged, User as FirebaseUser, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
 import { auth, db } from "./lib/firebase";
+import { uploadToFirebaseStorage } from "./lib/uploadToStorage";
 import { useAdminAuth } from "./hooks/useAdminAuth";
 import Header from "./components/Header";
 import Hero from "./components/Hero";
@@ -14,17 +15,15 @@ import Itinerary from "./components/Itinerary";
 import Activities from "./components/Activities";
 import MusicStreaming from "./components/MusicStreaming";
 import Gallery from "./components/Gallery";
-import SupportOurMission from "./components/SupportOurMission";
+import JoinUs from "./components/JoinUs";
 import ContactUs from "./components/ContactUs";
 import ChatBot from "./components/ChatBot";
 import AdminPanel from "./components/AdminPanel";
 import Leaders from "./components/Leaders";
 import AuthModal from "./components/AuthModal";
-import { Activity, ItineraryItem, Inquiry, MusicData, Leader, Subscriber, Broadcast, MemberSpotlight as MemberSpotlightType } from "./types";
+import { Activity, ItineraryItem, Inquiry, MusicData, Leader, Subscriber, Broadcast, MemberSpotlight as MemberSpotlightType, GalleryPhoto } from "./types";
 import MemberSpotlight from "./components/MemberSpotlight";
 import { Music, Heart, Calendar, Compass, Star, Facebook, Youtube } from "lucide-react";
-import { uploadMedia } from "./lib/mediaUpload";
-import { Analytics } from "@vercel/analytics/react";
 
 function FadeInSection({ children }: { children: React.ReactNode }) {
   return (
@@ -102,6 +101,7 @@ export default function App() {
     subscribers: Subscriber[];
     broadcasts: Broadcast[];
     memberSpotlights: MemberSpotlightType[];
+    gallery: GalleryPhoto[];
   }>({
     activities: [],
     itinerary: [],
@@ -109,7 +109,8 @@ export default function App() {
     leaders: [],
     subscribers: [],
     broadcasts: [],
-    memberSpotlights: []
+    memberSpotlights: [],
+    gallery: []
   });
 
   const [music, setMusic] = useState<MusicData>({
@@ -197,7 +198,8 @@ export default function App() {
           leaders: data.leaders || [],
           subscribers: data.subscribers || [],
           broadcasts: data.broadcasts || [],
-          memberSpotlights: data.memberSpotlights || []
+          memberSpotlights: data.memberSpotlights || [],
+          gallery: data.gallery || []
         });
         if (data.music) {
           setMusic(data.music);
@@ -228,7 +230,7 @@ export default function App() {
   // Scrollspy helper tracking navbar highlighting
   useEffect(() => {
     const handleScroll = () => {
-      const sections = ["home", "itinerary", "activities", "leadership", "music", "gallery", "support", "contact"];
+      const sections = ["home", "itinerary", "activities", "leadership", "music", "gallery", "join", "contact"];
       const currentScroll = window.scrollY + 200; // Offset checking
 
       for (const section of sections) {
@@ -311,21 +313,74 @@ export default function App() {
     }
   };
 
-  // Uploads a data URL directly to Cloudinary (bypassing Vercel's 4.5MB function
-  // body limit) and returns the final URL. Throws on failure — callers must
-  // catch this and tell the admin, rather than silently pretending it saved.
+  const compressImage = (base64Str: string, maxWidth = 800): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.src = base64Str;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const ratio = Math.min(maxWidth / img.width, 1);
+        canvas.width = img.width * ratio;
+        canvas.height = img.height * ratio;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL("image/jpeg", 0.7)); // compress heavily
+        } else {
+          resolve(base64Str);
+        }
+      };
+      img.onerror = () => resolve(base64Str); // Fallback
+    });
+  };
+
   const uploadBase64IfNeeded = async (base64Str: string | undefined | null, defaultFilename = "upload.jpg"): Promise<string | undefined | null> => {
     if (!base64Str || !base64Str.startsWith("data:")) {
       return base64Str;
     }
-    if (!adminPasscode) return base64Str;
-    return uploadMedia(base64Str, adminPasscode, defaultFilename);
+
+    let processedBase64 = base64Str;
+    if (base64Str.startsWith("data:image/")) {
+      processedBase64 = await compressImage(base64Str);
+    }
+
+    // Primary: upload to Firebase Storage (durable, works from Vercel)
+    try {
+      const url = await uploadToFirebaseStorage(processedBase64, defaultFilename);
+      return url;
+    } catch (storageErr) {
+      console.warn("Firebase Storage upload failed, falling back to server upload:", storageErr);
+    }
+
+    // Fallback: server-side upload (Postgres/Firestore)
+    if (!adminPasscode) return processedBase64;
+    try {
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-passcode": adminPasscode
+        },
+        body: JSON.stringify({
+          filename: defaultFilename,
+          base64: processedBase64
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.url || processedBase64;
+      } else {
+        console.error("Fallback server upload also failed.");
+      }
+    } catch (err) {
+      console.error("Network error during fallback upload:", err);
+    }
+    return processedBase64;
   };
 
   // Activity actions (Admin CRUD)
   const handleSaveActivity = async (formData: any): Promise<boolean> => {
     if (!adminPasscode) return false;
-    const previousActivities = dbData.activities;
     try {
       const imageUrl = await uploadBase64IfNeeded(formData.image, "activity.jpg");
       const payload = { ...formData, image: imageUrl };
@@ -357,13 +412,8 @@ export default function App() {
         fetchData();
         return true;
       }
-      // Save failed server-side — undo the optimistic update so the UI doesn't lie.
-      setDbData(prev => ({ ...prev, activities: previousActivities }));
-      const errBody = await res.json().catch(() => ({} as any));
-      alert(`Could not save this program: ${errBody.error || res.statusText}`);
-    } catch (err: any) {
-      setDbData(prev => ({ ...prev, activities: previousActivities }));
-      alert(`Could not save this program: ${err.message || "unknown error"}`);
+    } catch {
+      console.error("Failed to capture activity program.");
     }
     return false;
   };
@@ -389,7 +439,6 @@ export default function App() {
   // Itinerary actions (Admin CRUD)
   const handleSaveItinerary = async (formData: any): Promise<boolean> => {
     if (!adminPasscode) return false;
-    const previousItinerary = dbData.itinerary;
     try {
       const mediaUrl = await uploadBase64IfNeeded(formData.mediaUrl, formData.mediaType === "video" ? "tour_video.mp4" : "tour_photo.jpg");
       const payload = { ...formData, mediaUrl };
@@ -421,19 +470,14 @@ export default function App() {
         fetchData();
         return true;
       }
-      setDbData(prev => ({ ...prev, itinerary: previousItinerary }));
-      const errBody = await res.json().catch(() => ({} as any));
-      alert(`Could not save this tour stop: ${errBody.error || res.statusText}`);
-    } catch (err: any) {
-      setDbData(prev => ({ ...prev, itinerary: previousItinerary }));
-      alert(`Could not save this tour stop: ${err.message || "unknown error"}`);
+    } catch {
+      console.error("Failed to schedule tour.");
     }
     return false;
   };
 
   const handleSaveMusic = async (formData: MusicData): Promise<boolean> => {
     if (!adminPasscode) return false;
-    const previousMusic = music;
     try {
       const audioUrl = await uploadBase64IfNeeded(formData.audioUrl, "snippet.wav");
       const coverUrl = await uploadBase64IfNeeded(formData.coverUrl, "cover.jpg");
@@ -455,12 +499,8 @@ export default function App() {
         fetchData();
         return true;
       }
-      setMusic(previousMusic);
-      const errBody = await res.json().catch(() => ({} as any));
-      alert(`Could not save music details: ${errBody.error || res.statusText}`);
-    } catch (error: any) {
-      setMusic(previousMusic);
-      alert(`Could not save music details: ${error.message || "unknown error"}`);
+    } catch (error) {
+      console.error("Failed to update dynamic music details:", error);
     }
     return false;
   };
@@ -487,7 +527,6 @@ export default function App() {
   // Leaders actions (Admin CRUD)
   const handleSaveLeader = async (formData: any): Promise<boolean> => {
     if (!adminPasscode) return false;
-    const previousLeaders = dbData.leaders;
 
     // Optimistically update UI instantly so that the saved profile and cropped photo render at once
     setDbData(prev => {
@@ -520,12 +559,8 @@ export default function App() {
         fetchData();
         return true;
       }
-      setDbData(prev => ({ ...prev, leaders: previousLeaders }));
-      const errBody = await res.json().catch(() => ({} as any));
-      alert(`Could not save this leader's profile: ${errBody.error || res.statusText}`);
-    } catch (err: any) {
-      setDbData(prev => ({ ...prev, leaders: previousLeaders }));
-      alert(`Could not save this leader's profile: ${err.message || "unknown error"}`);
+    } catch {
+      console.error("Failed to save leader profile.");
     }
     return false;
   };
@@ -548,27 +583,44 @@ export default function App() {
     }
   };
 
+  const handleSaveGalleryPhoto = async (formData: any): Promise<boolean> => {
+    if (!adminPasscode) return false;
+    try {
+      const mediaUrl = await uploadBase64IfNeeded(formData.url, formData.mediaType === "video" ? "gallery_video.mp4" : "gallery_photo.jpg");
+      const payload = { ...formData, url: mediaUrl };
+      const method = formData.id ? "PUT" : "POST";
+      const endpoint = formData.id ? `/api/gallery/${formData.id}` : "/api/gallery";
+      const res = await fetch(endpoint, {
+        method,
+        headers: { "Content-Type": "application/json", "x-admin-passcode": adminPasscode },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) { fetchData(); return true; }
+    } catch { console.error("Failed to save gallery photo."); }
+    return false;
+  };
+
+  const handleDeleteGalleryPhoto = async (id: string) => {
+    if (!adminPasscode) return;
+    if (!confirm("Remove this photo/video from the gallery?")) return;
+    try {
+      const res = await fetch(`/api/gallery/${id}`, {
+        method: "DELETE",
+        headers: { "x-admin-passcode": adminPasscode }
+      });
+      if (res.ok) fetchData();
+    } catch { console.error("Gallery deletion failed."); }
+  };
+
   return (
-    <div className={`min-h-screen overflow-x-hidden flex flex-col font-sans antialiased selection:bg-amber-500/20 selection:text-amber-300 transition-colors duration-300 relative ${
+    <div className={`min-h-screen overflow-x-hidden flex flex-col font-sans antialiased selection:bg-amber-500/20 selection:text-amber-300 transition-colors duration-300 ${
       theme === "dark" 
         ? "bg-slate-950 text-white" 
         : "bg-slate-50 text-slate-900"
     }`}>
       
-      {/* High-contrast ambient background orbs & grid system for ultimate glass depth */}
-      <div className="fixed inset-0 pointer-events-none select-none z-0 overflow-hidden opacity-100 transition-opacity duration-300">
-        <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-amber-500/5 blur-[120px] dark:bg-amber-500/3" />
-        <div className="absolute top-[30%] right-[-10%] w-[60vw] h-[60vw] rounded-full bg-blue-500/5 blur-[135px] dark:bg-blue-600/3" />
-        <div className="absolute bottom-[-10%] left-[20%] w-[50vw] h-[50vw] rounded-full bg-rose-500/5 blur-[120px] dark:bg-rose-500/3" />
-        
-        {/* Fine, high-precision technical layout grid */}
-        <div className="absolute inset-0 opacity-[0.4] dark:opacity-[0.15] bg-[linear-gradient(to_right,rgba(148,163,184,0.1)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.1)_1px,transparent_1px)] bg-[size:4rem_4rem]" />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-slate-950/20 to-transparent pointer-events-none" />
-      </div>
-
       {/* Decorative Header Frame line */}
       <div className="h-1 w-full bg-gradient-to-r from-amber-500 via-amber-300 to-amber-600 sticky top-0 z-50 pointer-events-none" />
-
 
       {/* Navigation Header */}
       <Header 
@@ -594,14 +646,13 @@ export default function App() {
         />
       </FadeInSection>
 
-      <main className="flex-1 relative z-10">
+      <main className="flex-1">
         
         {/* Dynamic Member Spotlight Section */}
         <FadeInSection>
           <MemberSpotlight
             spotlights={dbData.memberSpotlights}
             isAdmin={!!adminPasscode}
-            theme={theme}
             onLaunchAdmin={() => {
               setAdminScrollTarget("spotlight");
               setIsAdminOpen(true);
@@ -615,7 +666,6 @@ export default function App() {
             items={dbData.itinerary}
             isAdmin={!!adminPasscode}
             adminPasscode={adminPasscode}
-            theme={theme}
             onRefresh={fetchData}
             onAdd={() => {
               setItiToEdit(null);
@@ -641,7 +691,6 @@ export default function App() {
           <Activities 
             items={dbData.activities}
             isAdmin={!!adminPasscode}
-            theme={theme}
             onAdd={() => {
               setActToEdit(null);
               setAdminScrollTarget("activities");
@@ -661,7 +710,6 @@ export default function App() {
           <Leaders 
             items={dbData.leaders}
             isAdmin={!!adminPasscode}
-            theme={theme}
             onAdd={() => {
               setLdrToEdit(null);
               setAdminScrollTarget("leaders");
@@ -678,17 +726,17 @@ export default function App() {
 
         {/* Music Streaming and Releases Section */}
         <FadeInSection>
-          <MusicStreaming music={music} theme={theme} />
+          <MusicStreaming music={music} />
         </FadeInSection>
 
         {/* Dynamic Photo Gallery */}
         <FadeInSection>
-          <Gallery theme={theme} />
+          <Gallery photos={dbData.gallery} />
         </FadeInSection>
 
-        {/* Support Our Mission Section */}
+        {/* Join Us Recruitment Section */}
         <FadeInSection>
-          <SupportOurMission theme={theme} webLogo={webLogo} />
+          <JoinUs />
         </FadeInSection>
 
         {/* Real Contact/Booking Form */}
@@ -697,7 +745,6 @@ export default function App() {
             bookingSubject={bookingPrefill}
             onClearBookingSubject={() => setBookingPrefill("")}
             onInquirySubmitted={() => fetchData()}
-            theme={theme}
           />
         </FadeInSection>
 
@@ -747,6 +794,9 @@ export default function App() {
             subscribers={dbData.subscribers}
             broadcasts={dbData.broadcasts}
             memberSpotlights={dbData.memberSpotlights}
+            galleryPhotos={dbData.gallery}
+            onSaveGalleryPhoto={handleSaveGalleryPhoto}
+            onDeleteGalleryPhoto={handleDeleteGalleryPhoto}
             onRefresh={fetchData}
             scrollToSection={adminScrollTarget}
           />
@@ -914,81 +964,62 @@ export default function App() {
 
 
       {/* Footer */}
-      <footer className="bg-slate-950 border-t border-slate-900 py-12 px-6 text-center text-slate-500 text-xs">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="text-left w-full md:w-auto">
-            <h4 className="font-sans font-bold text-amber-400 text-sm">KACHAMBA CHORUS</h4>
-            <p className="text-slate-400 font-mono text-[10px] uppercase tracking-wider mt-1">
-              Seventh-day Adventist Ambassador Youth Ministry
+      <footer className="bg-slate-950 border-t border-white/5 py-16 px-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-10 mb-10">
+            {/* Brand */}
+            <div>
+              <h4 className="font-display font-bold text-white text-base mb-1">KACHAMBA CHORUS</h4>
+              <p className="label-caps text-[9px] text-amber-400/60 mb-4">Seventh-day Adventist Ambassador Youth Ministry</p>
+              <p className="text-white/30 text-xs leading-relaxed">
+                SDA Kachok Church, Kisumu, Kenya<br />
+                +254 797 450 206 · kachambachorus@gmail.com
+              </p>
+            </div>
+
+            {/* Links */}
+            <div className="flex flex-col gap-2">
+              <p className="label-caps text-[10px] text-white/25 mb-1">Navigate</p>
+              {["Itinerary", "Ministries", "Music", "Gallery", "Join Us", "Contact"].map(label => (
+                <a
+                  key={label}
+                  href={`#${label.toLowerCase().replace(" ", "")}`}
+                  className="label-caps text-[11px] text-white/40 hover:text-amber-400 transition-colors"
+                >
+                  {label}
+                </a>
+              ))}
+            </div>
+
+            {/* Social */}
+            <div>
+              <p className="label-caps text-[10px] text-white/25 mb-4">Follow Us</p>
+              <div className="flex flex-col gap-2">
+                {[
+                  { href: "https://www.facebook.com/share/1GjHUY1u8a/", label: "Facebook" },
+                  { href: "https://www.tiktok.com/@kachokambassadors", label: "TikTok" },
+                  { href: "https://youtube.com/@kachambachorus", label: "YouTube" },
+                ].map(({ href, label }) => (
+                  <a
+                    key={label}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="label-caps text-[11px] text-white/40 hover:text-amber-400 transition-colors"
+                  >
+                    ↗ {label}
+                  </a>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-white/5 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <p className="label-caps text-[10px] text-white/20">
+              © {new Date().getFullYear()} Kachok Ambassadors Chorus · All rights reserved
             </p>
-            <div className="text-slate-500 mt-2.5 text-[11px] font-sans">
-              <p>SDA Kachok Church, Kisumu</p>
-              <p className="mt-0.5">
-                Phone: +254797450206 | Email:{" "}
-                <a 
-                  href="mailto:kachambachorus@gmail.com?subject=Inquiry%20for%20Kachamba%20Chorus"
-                  className="text-amber-500 hover:text-amber-400 font-semibold transition-colors hover:underline"
-                  title="Direct mail inquiry"
-                >
-                  kachambachorus@gmail.com
-                </a>
-              </p>
-              <p className="mt-1">
-                <a 
-                  href="mailto:kachambachorus@gmail.com?subject=Inquiry%20for%20Kachamba%20Chorus"
-                  className="inline-flex items-center gap-1 text-[10px] text-amber-500 hover:text-amber-400 hover:underline transition-colors"
-                >
-                  ✉ Direct Email Inquiry
-                </a>
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-col items-center gap-4">
-            <div className="flex gap-4 font-medium text-slate-400 text-sm">
-              <a href="#itinerary" className="hover:text-amber-400 font-sans transition-colors">Tours</a>
-              <a href="#activities" className="hover:text-amber-400 font-sans transition-colors">Ministries</a>
-              <a href="#music" className="hover:text-amber-400 font-sans transition-colors">Music</a>
-              <a href="#gallery" className="hover:text-amber-400 font-sans transition-colors">Gallery</a>
-              <a href="#support" className="hover:text-amber-400 font-sans transition-colors">Support Us</a>
-            </div>
-            
-            {/* Social Media Presence icons */}
-            <div className="flex items-center gap-3">
-              <a 
-                href="https://www.facebook.com/share/1GjHUY1u8a/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-slate-900 hover:bg-amber-500 hover:text-slate-950 text-slate-400 p-2 rounded-full border border-slate-800 hover:border-amber-400 transition-all cursor-pointer font-sans"
-                title="Follow Kachamba Chorus on Facebook"
-              >
-                <Facebook className="w-4 h-4" />
-              </a>
-              <a 
-                href="https://www.tiktok.com/@kachokambassadors?_r=1&_t=ZS-974QMSEh16L"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-slate-900 hover:bg-amber-500 hover:text-slate-950 text-slate-400 p-2 rounded-full border border-slate-800 hover:border-amber-400 transition-all cursor-pointer font-sans"
-                title="Follow us on TikTok"
-              >
-                <Music className="w-4 h-4" />
-              </a>
-              <a 
-                href="https://youtube.com/@kachambachorus?si=Mqg13XYzO8QFE9fE"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-slate-900 hover:bg-amber-500 hover:text-slate-950 text-slate-400 p-2 rounded-full border border-slate-800 hover:border-amber-400 transition-all cursor-pointer font-sans"
-                title="Subscribe to our YouTube Channel"
-              >
-                <Youtube className="w-4 h-4" />
-              </a>
-            </div>
-          </div>
-
-          <div className="text-center md:text-right w-full md:w-auto">
-            <p className="font-sans leading-relaxed text-slate-500">
-              &copy; {new Date().getFullYear()} Kachok Ambassadors Chorus. All Rights Reserved.<br />
-              <span className="font-sans text-[10px] text-slate-600 tracking-wide uppercase">Sounds Of Togetherness since 2021</span>
+            <p className="label-caps text-[10px] text-white/15">
+              Sounds Of Togetherness since 2021
             </p>
           </div>
         </div>
@@ -1005,9 +1036,6 @@ export default function App() {
           />
         )}
       </AnimatePresence>
-
-      {/* Vercel Web Analytics */}
-      <Analytics />
 
     </div>
   );
