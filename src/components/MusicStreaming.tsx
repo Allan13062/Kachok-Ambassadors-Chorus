@@ -3,7 +3,8 @@ import { Headphones, Play, Pause, ExternalLink, Disc, Share2, Volume2, Music, X 
 import { MusicData } from "../types";
 import { motion } from "motion/react";
 
-export default function MusicStreaming({ music, theme }: { music: MusicData; theme?: string }) {
+export default function MusicStreaming({ music, theme = "dark" }: { music: MusicData; theme?: "dark" | "light" }) {
+  const isDark = theme === "dark";
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLyricsOpen, setIsLyricsOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -166,22 +167,22 @@ export default function MusicStreaming({ music, theme }: { music: MusicData; the
   return (
     <section 
       id="music" 
-      className="py-20 px-6 md:px-12 bg-slate-900 border-t border-b border-slate-800 text-white relative overflow-hidden"
+      className={`py-20 px-6 md:px-12 border-t border-b relative overflow-hidden ${
+        isDark ? "bg-slate-900 border-slate-800 text-white" : "bg-slate-100 border-slate-200 text-slate-900"
+      }`}
     >
-      {/* Background radial soft light gradient */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full bg-amber-550/5 blur-3xl pointer-events-none" />
 
       <div className="max-w-6xl mx-auto relative z-10">
         
         {/* Section Header */}
         <div className="text-center max-w-2xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 text-amber-400 font-mono text-xs tracking-wider uppercase mb-2">
-            
+          <div className="inline-flex items-center gap-2 text-amber-400 font-mono text-xs tracking-[0.15em] uppercase mb-3">
+            <span>Sounds of Togetherness</span>
           </div>
-          <h2 className="font-sans font-extrabold text-3xl md:text-5xl tracking-tight text-white">
-            Our Music & Streaming
+          <h2 className={`font-display font-semibold text-3xl md:text-5xl tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
+            Music &amp; <span className={isDark ? "font-light text-white/70" : "font-light text-slate-500"}>Streaming</span>
           </h2>
-          <p className="font-sans text-slate-400 text-sm md:text-base mt-2">
+          <p className={`font-sans text-sm md:text-base mt-3 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
             Listen, share, and worship with us on the go. Explore our latest album releases and connect with our social streaming accounts.
           </p>
         </div>
@@ -263,11 +264,9 @@ export default function MusicStreaming({ music, theme }: { music: MusicData; the
                     <p className="font-sans font-extrabold text-xs leading-snug text-white uppercase tracking-wider drop-shadow-md line-clamp-2">
                       {music?.albumName || "SOUNDS OF TOGETHERNESS"}
                     </p>
-                    {music?.label && (
-                      <p className="font-mono text-[9px] text-amber-400/80 tracking-wide mt-1 uppercase drop-shadow-md">
-                        {music.label}
-                      </p>
-                    )}
+                    <p className="font-mono text-[9px] text-amber-400/80 tracking-wide mt-1 uppercase drop-shadow-md">
+                      {music?.label || "Coming Soon"}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -301,6 +300,7 @@ export default function MusicStreaming({ music, theme }: { music: MusicData; the
                 </div>
                 <div className="flex justify-between items-center text-[10px] font-mono text-slate-500 mt-2">
                   <span>{formatTime(currentTime)}</span>
+                  <span className="text-[9px] text-amber-500/60 font-sans uppercase font-bold tracking-wider">45s Preview Snippet</span>
                   <span>{formatTime(trackDuration)}</span>
                 </div>
               </div>
@@ -317,7 +317,7 @@ export default function MusicStreaming({ music, theme }: { music: MusicData; the
 
                 <button 
                   onClick={() => setIsPlaying(!isPlaying)}
-                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 p-4 rounded-full shadow-lg shadow-amber-500/10 hover:shadow-amber-500/20 active:scale-95 transition-all cursor-pointer"
+                  className="bg-amber-500 hover:bg-amber-405 text-slate-950 p-4 rounded-full shadow-lg shadow-amber-500/10 hover:shadow-amber-500/20 active:scale-95 transition-all cursor-pointer"
                 >
                   {isPlaying ? <Pause className="w-6 h-6 fill-current" /> : <Play className="w-6 h-6 fill-current ml-0.5" />}
                 </button>
@@ -329,6 +329,21 @@ export default function MusicStreaming({ music, theme }: { music: MusicData; the
                 >
                   +10s
                 </button>
+              </div>
+
+              {/* Simulated Audio Spectrum Waveform */}
+              <div className="flex items-end justify-center gap-0.5 h-10 mt-6 w-full px-4 overflow-hidden">
+                {audioBars.map((barHeight, idx) => (
+                  <motion.div 
+                    key={idx}
+                    className="w-1.5 rounded-t"
+                    animate={{ height: `${barHeight}%` }}
+                    transition={{ type: "spring", stiffness: 200, damping: 25 }}
+                    style={{ 
+                      backgroundColor: idx % 2 === 0 ? "rgba(245, 158, 11, 0.5)" : "rgba(217, 119, 6, 0.3)" 
+                    }}
+                  />
+                ))}
               </div>
 
               {/* Description & lyrics preview snippet */}
