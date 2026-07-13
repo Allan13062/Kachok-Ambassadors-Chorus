@@ -26,6 +26,7 @@ interface ItineraryProps {
   onBookSelect: (eventName: string) => void;
   user?: FirebaseUser | null;
   onGoogleLogin?: () => void;
+  theme?: string;
 }
 
 export default function Itinerary({ 
@@ -38,8 +39,10 @@ export default function Itinerary({
   onDelete, 
   onBookSelect,
   user,
-  onGoogleLogin
+  onGoogleLogin,
+  theme = "dark"
 }: ItineraryProps) {
+  const isDark = theme === "dark";
   // Favorites logic
   const [favorites, setFavorites] = useState<string[]>(() => {
     try {

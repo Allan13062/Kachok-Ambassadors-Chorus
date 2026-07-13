@@ -2,15 +2,25 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /admins/{adminId} {
+      // Needed so a freshly-signed-in user can check "am I an admin?" before
+      // they're confirmed as one.
       allow read: if true;
-      allow write: if request.auth != null && (
-        request.auth.token.email == "allangeorge566@gmail.com" ||
-        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == "super_admin"
-      );
+      allow write: if request.auth != null &&
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role in ["admin", "super_admin"];
     }
+
+    // Each signed-in user may only read/write their own profile document
+    // (used for saved favorites, etc.) — never anyone else's.
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Everything else (subscribers, inquiries, broadcasts, gallery, sessions,
+    // configs, ...) is written exclusively by the Express server via the
+    // Firebase Admin SDK, which bypasses these rules entirely. There is no
+    // legitimate reason for a browser to read or write it directly.
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }
-

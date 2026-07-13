@@ -7,6 +7,7 @@ interface MemberSpotlightProps {
   spotlights: MemberSpotlightType[];
   isAdmin: boolean;
   onLaunchAdmin: () => void;
+  theme?: string;
 }
 
 const containerVariants = {

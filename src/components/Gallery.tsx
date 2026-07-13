@@ -2,7 +2,8 @@ import React, { useState } from "react";
 import { Image as ImageIcon, ZoomIn, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
-export default function Gallery() {
+export default function Gallery({ theme = "dark" }: { theme?: "dark" | "light" }) {
+  const isDark = theme === "dark";
   const [selectedImg, setSelectedImg] = useState<{ url: string; title: string } | null>(null);
 
   // Sample gorgeous imagery showcasing various church choral, nature & Christian ministry fields
@@ -48,19 +49,19 @@ export default function Gallery() {
   return (
     <section 
       id="gallery" 
-      className="py-20 px-6 md:px-12 bg-slate-900 border-t border-b border-slate-800 text-white"
+      className={`py-20 px-6 md:px-12 border-t border-b ${isDark ? "bg-slate-900 border-slate-800 text-white" : "bg-slate-100 border-slate-200 text-slate-900"}`}
     >
       <div className="max-w-6xl mx-auto">
         
         {/* Section Header */}
         <div className="text-center max-w-2xl mx-auto mb-12">
-          <div className="inline-flex items-center gap-2 text-amber-400 font-mono text-xs tracking-wider uppercase mb-2">
-            
+          <div className="inline-flex items-center gap-2 text-amber-400 font-mono text-xs tracking-[0.15em] uppercase mb-3">
+            <span>Moments in Ministry</span>
           </div>
-          <h2 className="font-sans font-extrabold text-3xl md:text-5xl tracking-tight text-white">
+          <h2 className={`font-display font-semibold text-3xl md:text-5xl tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
             Gallery
           </h2>
-          <p className="font-sans text-slate-400 text-sm md:text-base mt-2">
+          <p className={`font-sans text-sm md:text-base mt-3 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
             Capturing sincere moments of prayer, harmonious melodies, and vibrant outreach ministries.
           </p>
         </div>
@@ -69,15 +70,12 @@ export default function Gallery() {
         <motion.div 
           initial="hidden"
           whileInView="visible"
-          viewport={{ once: true, margin: "-100px" }}
+          viewport={{ once: true, margin: "-50px" }}
           variants={{
             hidden: { opacity: 0 },
             visible: {
               opacity: 1,
-              transition: { 
-                staggerChildren: 0.15,
-                delayChildren: 0.05
-              }
+              transition: { staggerChildren: 0.2 }
             }
           }}
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
@@ -86,17 +84,14 @@ export default function Gallery() {
             <motion.div 
               key={index}
               variants={{
-                hidden: { opacity: 0, y: 20, scale: 0.96 },
-                visible: { 
-                  opacity: 1, 
-                  y: 0, 
-                  scale: 1,
-                  transition: { type: "spring", stiffness: 80, damping: 15 } 
-                }
+                hidden: { opacity: 0, y: 25 },
+                visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 70, damping: 20 } }
               }}
-              whileHover={{ y: -5, scale: 1.02, boxShadow: "0 15px 30px -5px rgba(245, 158, 11, 0.08)" }}
+              whileHover={{ y: -5, scale: 1.03, boxShadow: "0 15px 30px -5px rgba(245, 158, 11, 0.08)" }}
               onClick={() => setSelectedImg({ url: photo.url, title: photo.title })}
-              className="group relative bg-slate-950/80 border border-slate-805 hover:border-amber-400/40 rounded-2xl overflow-hidden shadow-lg transition-all cursor-zoom-in"
+              className={`group relative rounded-2xl overflow-hidden shadow-lg transition-all cursor-zoom-in border ${
+                isDark ? "bg-slate-950/80 border-slate-800 hover:border-amber-400/40" : "bg-white border-slate-200 hover:border-amber-400/60"
+              }`}
             >
               
               {/* Picture Frame */}
@@ -124,10 +119,10 @@ export default function Gallery() {
 
               {/* Picture Context */}
               <div className="p-5">
-                <h3 className="font-sans font-bold text-base text-amber-200 group-hover:text-amber-100 transition-colors">
+                <h3 className={`font-sans font-bold text-base transition-colors ${isDark ? "text-amber-200 group-hover:text-amber-100" : "text-amber-700 group-hover:text-amber-600"}`}>
                   {photo.title}
                 </h3>
-                <p className="font-sans text-xs text-slate-400 mt-1 lines-2 leading-relaxed">
+                <p className={`font-sans text-xs mt-1 lines-2 leading-relaxed ${isDark ? "text-slate-400" : "text-slate-500"}`}>
                   {photo.description}
                 </p>
               </div>

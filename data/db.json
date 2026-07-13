@@ -1,5 +1,5 @@
 {
-  "passcode": "SDA2026",
+  "passcode": "CHANGE_ME_SET_ADMIN_PASSCODE_ENV_VAR",
   "activities": [
     {
       "id": "act-1783158774741",
@@ -85,7 +85,7 @@
     "coverUrl": "https://www.image2url.com/r2/default/images/1781158805053-8065486f-a622-4189-b9ac-56226bce6af9.png",
     "quoteText": "Coming Soon",
     "label": "Album 6",
-    "lyrics": "[Acapella Harmony Intro]\n(Ibrahimu, Ibrahimu...\nMchukue mwanao, umpendaye sana Isaka...\nUkamtoe dhabihu...)\n\n(Verse 1)\nSiku ile Mungu alimwita Ibrahimu akasema: \"Ibrahimu!\"\nNaye akaitika kwa upole: \"Mimi hapa Bwana.\"\nAkamwambia: \"Umchukue mwanao, mwana wako wa pekee,\nIsaka yule unayempenda sana, ukaende mpaka nchi ya Moria,\nUkamtoe awe dhabihu ya kuteketezwa juu ya mlima nitakaokuonyesha.\"\n\n(Chorus)\nAkatandika punda wake asubuhi, akachukua kuni na moto,\nAkaanza safari ya utiifu, akamchukua mwanawe Isaka.\nMwanangu kumbuka, utiifu kwa Bwana ni ufunguo wa baraka,\nUnapoombwa kutoa kilicho bora, usisite wala usilalamike,\nMaana Mungu wetu aliye hai, kila wakati atajipatia!\n\n(Verse 2)\nWakiwa njiani mwana Isaka akamwuliza baba yake kwa unyenyekevu:\n\"Baba yangu, moto upo na kuni zipo, lakini yuko wapi kondoo?\"\nIbrahimu akamjibu kwa imani kuu, akasema kwa ujasiri:\n\"Mwanangu, Mungu atajipatia mwenyewe kondoo wa dhabihu.\"\nWakaendelea mbele kwa pamoja, mioyo yao ikiwa imejaa imani.\n\n(Bridge)\nWalipofika juu ya madhabahu, Ibrahimu akanyosha mkono wake,\nAkatwaa kisu amtoe mwanawe dhabihu, ghafla Malaika wa Bwana akaita:\n\"Ibrahimu! Ibrahimu! Usinyoshe mkono wako juu ya kijana!\"\nTazama! Nyuma yake kulikuwa na kondoo dume, amenaswa pembe zake kichakani,\nIbrahimu akamtoe yule kondoo badala ya Isaka!\n\n[Outro]\nBwana atajipatia... Yehova Yire!\nUtiifu wako utaleta baraka kubwa maishani mwako.\nMchukue mwanao, mchukue kila ulichonacho, umkabidhi Bwana,\nMshahara wako utakuwa mkuu mbinguni. Amina!"
+    "lyrics": "[Acapella Harmony Intro]\n(Ibrahimu, Ibrahimu...\nMchukue mwanao, umpendaye sana Isaka...\nUkamtoe dhabihu...)\n\n(Verse 1)\nSiku ile Mungu alimwita Ibrahimu akasema: \"Ibrahimu!\"\nNaye akaitika kwa upole: \"Mimi hapa Bwana.\"\nAkamwambia: \"Umchukue mwanao, mwana wako wa pekee,\nIsaka yule unayempenda sana, ukaende mpaka nchi ya Moria,\nUkamtoe awe dhabihu ya kuteketezwa juu ya mlima nitakaokuonyesha.\"\n\n(Chorus)\nAkatandika punda wake asubuhi, akachukua kuni and moto,\nAkaanza safari ya utiifu, akamchukua mwanawe Isaka.\nMwanangu kumbuka, utiifu kwa Bwana ni ufunguo wa baraka,\nUnapoombwa kutoa kilicho bora, usisite wala usilalamike,\nMaana Mungu wetu aliye hai, kila wakati atajipatia!\n\n(Verse 2)\nWakiwa njiani mwana Isaka akamwuliza baba yake kwa unyenyekevu:\n\"Baba yangu, moto upo na kuni zipo, lakini yuko wapi kondoo?\"\nIbrahimu akamjibu kwa imani kuu, akasema kwa ujasiri:\n\"Mwanangu, Mungu atajipatia mwenyewe kondoo wa dhabihu.\"\nWakaendelea mbele kwa pamoja, mioyo yao ikiwa imejaa imani.\n\n(Bridge)\nWalipofika juu ya madhabahu, Ibrahimu akanyosha mkono wake,\nAkatwaa kisu amtoe mwanawe dhabihu, ghafla Malaika wa Bwana akaita:\n\"Ibrahimu! Ibrahimu! Usinyoshe mkono wako juu ya kijana!\"\nTazama! Nyuma yake kulikuwa na kondoo dume, amenaswa pembe zake kichakani,\nIbrahimu akamtoe yule kondoo badala ya Isaka!\n\n[Outro]\nBwana atajipatia... Yehova Yire!\nUtiifu wako utaleta baraka kubwa maishani mwako.\nMchukue mwanao, mchukue kila ulichonacho, umkabidhi Bwana,\nMshahara wako utakuwa mkuu mbinguni. Amina!"
   },
   "leaders": [
     {
@@ -158,7 +158,7 @@
       "voicePart": "Listener",
       "providerId": "email",
       "createdAt": "2026-06-22T06:47:47.109Z",
-      "password": "SDA2026"
+      "password": "CHANGE_ME"
     }
   ],
   "sessions": [

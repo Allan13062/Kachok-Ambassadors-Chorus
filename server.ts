@@ -15,8 +15,8 @@ import { Readable } from "stream";
 
 import { db } from "./src/db/index.ts";
 import { getLocalDb, saveLocalDb, insertItem, deleteItem, getSession, deleteSession } from "./dbStorage.ts";
-import { activities, itinerary, leaders, inquiries, musicConfig, adminConfig, uploads, users } from "./src/db/schema.ts";
-import { eq } from "drizzle-orm";
+import { activities, itinerary, leaders, inquiries, musicConfig, adminConfig, uploads, users, donations } from "./src/db/schema.ts";
+import { eq, and, gt, desc } from "drizzle-orm";
 import { v2 as cloudinary } from "cloudinary";
 
 // Helper to parse standard CLOUDINARY_URL connection strings
@@ -1162,6 +1162,20 @@ app.post("/api/mpesa/stkpush", async (req, res) => {
       return res.status(400).json({ error: "Invalid phone number format. Please provide a valid Kenyan number (e.g., 0712345678 or 254712345678)." });
     }
 
+    // Rate limit: block a phone number that has requested 3+ pushes in the last 10 minutes.
+    // Checked against the database (not in-memory) since Vercel serverless functions don't
+    // share memory across invocations.
+    try {
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+      const recent = await db.select().from(donations)
+        .where(and(eq(donations.phone, formattedPhone), gt(donations.createdAt, tenMinutesAgo)));
+      if (recent.length >= 3) {
+        return res.status(429).json({ error: "Too many contribution attempts from this number. Please wait a few minutes and try again." });
+      }
+    } catch (e) {
+      console.log("[M-Pesa] Notice: Could not check rate limit, proceeding.");
+    }
+
     const numericAmount = Math.round(Number(amount));
     if (isNaN(numericAmount) || numericAmount <= 0) {
       return res.status(400).json({ error: "Transaction amount must be a positive integer." });
@@ -1266,6 +1280,23 @@ app.post("/api/mpesa/stkpush", async (req, res) => {
             throw new Error("Daraja API rejected the request: " + pushResult.ResponseDescription);
         }
 
+        // Save a pending record now — this is the source of truth the frontend will poll
+        // and the callback below will update. Nothing is shown to the giver as "successful"
+        // until this row actually says so.
+        try {
+          await db.insert(donations).values({
+            id: crypto.randomUUID(),
+            checkoutRequestId: pushResult.CheckoutRequestID,
+            merchantRequestId: pushResult.MerchantRequestID,
+            phone: formattedPhone,
+            amount: numericAmount,
+            status: "pending",
+            simulated: "false"
+          });
+        } catch (e) {
+          console.error("[M-Pesa] Failed to save pending donation record:", e);
+        }
+
         return res.json({
           success: true,
           realApi: true,
@@ -1302,7 +1333,7 @@ app.post("/api/mpesa/stkpush", async (req, res) => {
 });
 
 // Robust Callback Endpoint to handle Safaricom async JSON webhooks
-app.post("/api/mpesa/callback", (req, res) => {
+app.post("/api/mpesa/callback", async (req, res) => {
   console.log("[M-Pesa Webhook] Received callback block.");
   
   try {
@@ -1317,21 +1348,36 @@ app.post("/api/mpesa/callback", (req, res) => {
     if (ResultCode === 0) {
       // Transaction was highly successful!
       console.log(`[M-Pesa Webhook] Success: Transaction ${CheckoutRequestID} confirmed!`);
-      
+
+      let mpesaReceiptNumber: string | undefined;
       // Parse out the nested Item array values if it exists
       if (CallbackMetadata && CallbackMetadata.Item) {
          const amountObj = CallbackMetadata.Item.find((i: any) => i.Name === "Amount");
          const receiptObj = CallbackMetadata.Item.find((i: any) => i.Name === "MpesaReceiptNumber");
          const phoneObj = CallbackMetadata.Item.find((i: any) => i.Name === "PhoneNumber");
-         
+         mpesaReceiptNumber = receiptObj?.Value;
+
          console.log(`[M-Pesa Webhook] Paid ${amountObj?.Value} KES. Receipt: ${receiptObj?.Value}. From: ${phoneObj?.Value}`);
-         
-         // TODO: In a production app, save this receipt logic strictly to the database (e.g. Postgres or Firestore).
+      }
+
+      try {
+        await db.update(donations)
+          .set({ status: "completed", mpesaReceiptNumber, resultDesc: ResultDesc, completedAt: new Date() })
+          .where(eq(donations.checkoutRequestId, CheckoutRequestID));
+      } catch (e) {
+        console.error("[M-Pesa Webhook] Failed to persist successful donation:", e);
       }
 
     } else {
       // Transaction failed or was cancelled by user
       console.warn(`[M-Pesa Webhook] Failed/Cancelled (${ResultCode}): ${ResultDesc}`);
+      try {
+        await db.update(donations)
+          .set({ status: "failed", resultDesc: ResultDesc, completedAt: new Date() })
+          .where(eq(donations.checkoutRequestId, CheckoutRequestID));
+      } catch (e) {
+        console.error("[M-Pesa Webhook] Failed to persist failed donation:", e);
+      }
     }
 
     // Acknowledge the payload immediately to prevent Safaricom retry loops
@@ -1343,6 +1389,27 @@ app.post("/api/mpesa/callback", (req, res) => {
   } catch (err: any) {
     console.error("[M-Pesa Webhook] Error processing callback:", err.message);
     return res.status(500).json({ ResultCode: 1, ResultDesc: "Internal Server Error" });
+  }
+});
+
+// Poll the real status of an in-flight contribution (Public — checkoutRequestId is
+// only ever known to the person who initiated that specific push).
+app.get("/api/mpesa/status/:checkoutRequestId", async (req, res) => {
+  try {
+    const record = await db.select().from(donations)
+      .where(eq(donations.checkoutRequestId, req.params.checkoutRequestId)).limit(1);
+    if (record.length === 0) {
+      return res.status(404).json({ error: "No matching transaction found." });
+    }
+    const d = record[0];
+    res.json({
+      status: d.status,
+      amount: d.amount,
+      mpesaReceiptNumber: d.mpesaReceiptNumber,
+      resultDesc: d.resultDesc
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: "Could not check transaction status." });
   }
 });
 

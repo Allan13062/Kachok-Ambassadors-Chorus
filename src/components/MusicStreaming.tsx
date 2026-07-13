@@ -3,7 +3,7 @@ import { Headphones, Play, Pause, ExternalLink, Disc, Share2, Volume2, Music, X 
 import { MusicData } from "../types";
 import { motion } from "motion/react";
 
-export default function MusicStreaming({ music }: { music: MusicData }) {
+export default function MusicStreaming({ music, theme }: { music: MusicData; theme?: string }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLyricsOpen, setIsLyricsOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);

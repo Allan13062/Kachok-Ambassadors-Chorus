@@ -311,52 +311,21 @@ export default function App() {
     }
   };
 
-  const compressImage = (base64Str: string, maxWidth = 800): Promise<string> => {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.src = base64Str;
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const ratio = Math.min(maxWidth / img.width, 1);
-        canvas.width = img.width * ratio;
-        canvas.height = img.height * ratio;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL("image/jpeg", 0.7)); // compress heavily
-        } else {
-          resolve(base64Str);
-        }
-      };
-      img.onerror = () => resolve(base64Str); // Fallback
-    });
-  };
-
+  // Uploads a data URL directly to Cloudinary (bypassing Vercel's 4.5MB function
+  // body limit) and returns the final URL. Throws on failure — callers must
+  // catch this and tell the admin, rather than silently pretending it saved.
   const uploadBase64IfNeeded = async (base64Str: string | undefined | null, defaultFilename = "upload.jpg"): Promise<string | undefined | null> => {
     if (!base64Str || !base64Str.startsWith("data:")) {
       return base64Str;
     }
-    
-    // Admin uploads only
     if (!adminPasscode) return base64Str;
-    
-    let processedBase64 = base64Str;
-    if (base64Str.startsWith("data:image/")) {
-        processedBase64 = await compressImage(base64Str);
-    }
-
-    try {
-      const url = await uploadMedia(processedBase64, adminPasscode, defaultFilename);
-      return url || processedBase64;
-    } catch (err) {
-      console.error("Error during base64 upload:", err);
-    }
-    return processedBase64;
+    return uploadMedia(base64Str, adminPasscode, defaultFilename);
   };
 
   // Activity actions (Admin CRUD)
   const handleSaveActivity = async (formData: any): Promise<boolean> => {
     if (!adminPasscode) return false;
+    const previousActivities = dbData.activities;
     try {
       const imageUrl = await uploadBase64IfNeeded(formData.image, "activity.jpg");
       const payload = { ...formData, image: imageUrl };
@@ -388,8 +357,13 @@ export default function App() {
         fetchData();
         return true;
       }
-    } catch {
-      console.error("Failed to capture activity program.");
+      // Save failed server-side — undo the optimistic update so the UI doesn't lie.
+      setDbData(prev => ({ ...prev, activities: previousActivities }));
+      const errBody = await res.json().catch(() => ({} as any));
+      alert(`Could not save this program: ${errBody.error || res.statusText}`);
+    } catch (err: any) {
+      setDbData(prev => ({ ...prev, activities: previousActivities }));
+      alert(`Could not save this program: ${err.message || "unknown error"}`);
     }
     return false;
   };
@@ -415,6 +389,7 @@ export default function App() {
   // Itinerary actions (Admin CRUD)
   const handleSaveItinerary = async (formData: any): Promise<boolean> => {
     if (!adminPasscode) return false;
+    const previousItinerary = dbData.itinerary;
     try {
       const mediaUrl = await uploadBase64IfNeeded(formData.mediaUrl, formData.mediaType === "video" ? "tour_video.mp4" : "tour_photo.jpg");
       const payload = { ...formData, mediaUrl };
@@ -446,14 +421,19 @@ export default function App() {
         fetchData();
         return true;
       }
-    } catch {
-      console.error("Failed to schedule tour.");
+      setDbData(prev => ({ ...prev, itinerary: previousItinerary }));
+      const errBody = await res.json().catch(() => ({} as any));
+      alert(`Could not save this tour stop: ${errBody.error || res.statusText}`);
+    } catch (err: any) {
+      setDbData(prev => ({ ...prev, itinerary: previousItinerary }));
+      alert(`Could not save this tour stop: ${err.message || "unknown error"}`);
     }
     return false;
   };
 
   const handleSaveMusic = async (formData: MusicData): Promise<boolean> => {
     if (!adminPasscode) return false;
+    const previousMusic = music;
     try {
       const audioUrl = await uploadBase64IfNeeded(formData.audioUrl, "snippet.wav");
       const coverUrl = await uploadBase64IfNeeded(formData.coverUrl, "cover.jpg");
@@ -475,8 +455,12 @@ export default function App() {
         fetchData();
         return true;
       }
-    } catch (error) {
-      console.error("Failed to update dynamic music details:", error);
+      setMusic(previousMusic);
+      const errBody = await res.json().catch(() => ({} as any));
+      alert(`Could not save music details: ${errBody.error || res.statusText}`);
+    } catch (error: any) {
+      setMusic(previousMusic);
+      alert(`Could not save music details: ${error.message || "unknown error"}`);
     }
     return false;
   };
@@ -503,6 +487,7 @@ export default function App() {
   // Leaders actions (Admin CRUD)
   const handleSaveLeader = async (formData: any): Promise<boolean> => {
     if (!adminPasscode) return false;
+    const previousLeaders = dbData.leaders;
 
     // Optimistically update UI instantly so that the saved profile and cropped photo render at once
     setDbData(prev => {
@@ -535,8 +520,12 @@ export default function App() {
         fetchData();
         return true;
       }
-    } catch {
-      console.error("Failed to save leader profile.");
+      setDbData(prev => ({ ...prev, leaders: previousLeaders }));
+      const errBody = await res.json().catch(() => ({} as any));
+      alert(`Could not save this leader's profile: ${errBody.error || res.statusText}`);
+    } catch (err: any) {
+      setDbData(prev => ({ ...prev, leaders: previousLeaders }));
+      alert(`Could not save this leader's profile: ${err.message || "unknown error"}`);
     }
     return false;
   };
@@ -612,6 +601,7 @@ export default function App() {
           <MemberSpotlight
             spotlights={dbData.memberSpotlights}
             isAdmin={!!adminPasscode}
+            theme={theme}
             onLaunchAdmin={() => {
               setAdminScrollTarget("spotlight");
               setIsAdminOpen(true);
@@ -625,6 +615,7 @@ export default function App() {
             items={dbData.itinerary}
             isAdmin={!!adminPasscode}
             adminPasscode={adminPasscode}
+            theme={theme}
             onRefresh={fetchData}
             onAdd={() => {
               setItiToEdit(null);
@@ -650,6 +641,7 @@ export default function App() {
           <Activities 
             items={dbData.activities}
             isAdmin={!!adminPasscode}
+            theme={theme}
             onAdd={() => {
               setActToEdit(null);
               setAdminScrollTarget("activities");
@@ -669,6 +661,7 @@ export default function App() {
           <Leaders 
             items={dbData.leaders}
             isAdmin={!!adminPasscode}
+            theme={theme}
             onAdd={() => {
               setLdrToEdit(null);
               setAdminScrollTarget("leaders");
@@ -685,12 +678,12 @@ export default function App() {
 
         {/* Music Streaming and Releases Section */}
         <FadeInSection>
-          <MusicStreaming music={music} />
+          <MusicStreaming music={music} theme={theme} />
         </FadeInSection>
 
         {/* Dynamic Photo Gallery */}
         <FadeInSection>
-          <Gallery />
+          <Gallery theme={theme} />
         </FadeInSection>
 
         {/* Support Our Mission Section */}
@@ -704,6 +697,7 @@ export default function App() {
             bookingSubject={bookingPrefill}
             onClearBookingSubject={() => setBookingPrefill("")}
             onInquirySubmitted={() => fetchData()}
+            theme={theme}
           />
         </FadeInSection>
 

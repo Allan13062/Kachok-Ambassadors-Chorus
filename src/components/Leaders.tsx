@@ -9,9 +9,11 @@ interface LeadersProps {
   onAdd: () => void;
   onEdit: (leader: Leader) => void;
   onDelete: (id: string) => void;
+  theme?: "dark" | "light";
 }
 
-export default function Leaders({ items, isAdmin, onAdd, onEdit, onDelete }: LeadersProps) {
+export default function Leaders({ items, isAdmin, onAdd, onEdit, onDelete, theme = "dark" }: LeadersProps) {
+  const isDark = theme === "dark";
   const [selectedLeader, setSelectedLeader] = useState<Leader | null>(null);
 
   // Synchronize selectedLeader details immediately when underlying source list updates
@@ -92,20 +94,22 @@ export default function Leaders({ items, isAdmin, onAdd, onEdit, onDelete }: Lea
   return (
     <section 
       id="leadership" 
-      className="py-16 md:py-24 px-4 sm:px-6 md:px-12 bg-slate-950/40 border-t border-slate-900 text-white relative"
+      className={`py-16 md:py-24 px-4 sm:px-6 md:px-12 border-t relative ${
+        isDark ? "bg-slate-950/40 border-slate-900 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+      }`}
     >
       <div className="max-w-6xl mx-auto">
         
         {/* Section Header */}
         <div className="text-center max-w-2xl mx-auto mb-12 md:mb-16">
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full text-amber-400 font-mono text-[10px] sm:text-xs tracking-wider uppercase mb-3">
+          <div className="inline-flex items-center gap-2 px-3 py-1 border border-amber-500/25 rounded-full text-amber-400 font-mono text-[10px] sm:text-xs tracking-[0.15em] uppercase mb-4">
             <Users className="w-3.5 h-3.5" />
             <span>Kachamba Chorus Executive</span>
           </div>
-          <h2 className="font-sans font-extrabold text-3xl sm:text-4xl md:text-5xl tracking-tight text-white uppercase">
-            Our <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-rose-500 to-amber-300">Leadership</span>
+          <h2 className={`font-display font-semibold text-3xl sm:text-4xl md:text-5xl tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
+            Our <span className={isDark ? "font-light text-white/70" : "font-light text-slate-500"}>Leadership</span>
           </h2>
-          <p className="font-sans text-slate-400 text-xs sm:text-sm md:text-base mt-2 px-2">
+          <p className={`font-sans text-xs sm:text-sm md:text-base mt-3 px-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
             Meet the dedicated stewards guiding the musical, spiritual, and missionary endeavors of our chorus.
           </p>
         </div>
@@ -115,7 +119,9 @@ export default function Leaders({ items, isAdmin, onAdd, onEdit, onDelete }: Lea
           {items.map((leader) => (
             <div 
               key={leader.id}
-              className="group relative bg-slate-900/40 backdrop-blur-md border border-slate-850 hover:border-amber-400/30 rounded-2xl overflow-hidden shadow-xl hover:shadow-2xl hover:shadow-amber-500/5 hover:-translate-y-1 hover:scale-[1.03] transition-all duration-300 flex flex-col justify-between"
+              className={`group relative backdrop-blur-md rounded-2xl overflow-hidden shadow-xl hover:shadow-2xl hover:shadow-amber-500/5 hover:-translate-y-1 hover:scale-[1.03] transition-all duration-300 flex flex-col justify-between border ${
+                isDark ? "bg-slate-900/40 border-slate-850 hover:border-amber-400/30" : "bg-white border-slate-200 hover:border-amber-400/50"
+              }`}
             >
               <div>
                 {/* Leader Picture Box - 16:10 or square responsive frame */}
@@ -171,16 +177,16 @@ export default function Leaders({ items, isAdmin, onAdd, onEdit, onDelete }: Lea
                 {/* Context Box */}
                 <div className="p-5 sm:p-6" onClick={() => setSelectedLeader(leader)}>
                   <div className="cursor-pointer">
-                    <h3 className="font-sans font-extrabold text-base sm:text-lg text-slate-100 group-hover:text-amber-400 transition-colors">
+                    <h3 className={`font-sans font-extrabold text-base sm:text-lg group-hover:text-amber-400 transition-colors ${isDark ? "text-slate-100" : "text-slate-900"}`}>
                       {leader.name}
                     </h3>
                     
                     {leader.bio ? (
-                      <p className="font-sans text-xs text-slate-400 leading-relaxed mt-2 line-clamp-2 italic">
+                      <p className={`font-sans text-xs leading-relaxed mt-2 line-clamp-2 italic ${isDark ? "text-slate-400" : "text-slate-500"}`}>
                         "{leader.bio}"
                       </p>
                     ) : (
-                      <p className="font-sans text-xs text-slate-500 leading-relaxed mt-2 italic">
+                      <p className={`font-sans text-xs leading-relaxed mt-2 italic ${isDark ? "text-slate-500" : "text-slate-400"}`}>
                         "Dedicated to praise and acappella ministry."
                       </p>
                     )}
@@ -190,8 +196,8 @@ export default function Leaders({ items, isAdmin, onAdd, onEdit, onDelete }: Lea
 
               {/* Contacts Panel (Integrated Quick Actions) */}
               {leader.phone && (
-                <div className="px-5 sm:px-6 pb-5 pt-3 border-t border-slate-800/40 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-mono truncate">
+                <div className={`px-5 sm:px-6 pb-5 pt-3 border-t flex items-center justify-between gap-2 ${isDark ? "border-slate-800/40" : "border-slate-200"}`}>
+                  <div className={`flex items-center gap-1.5 text-[10px] font-mono truncate ${isDark ? "text-slate-500" : "text-slate-400"}`}>
                     <Phone className="w-3 h-3 text-amber-500/60 shrink-0" />
                     <span className="truncate">{leader.phone}</span>
                   </div>
@@ -200,14 +206,14 @@ export default function Leaders({ items, isAdmin, onAdd, onEdit, onDelete }: Lea
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       onClick={() => handleShareProfile(leader)}
-                      className="bg-slate-950 hover:bg-indigo-500 hover:text-white text-indigo-400 p-1.5 rounded-md border border-slate-800 hover:border-indigo-500/30 transition-all text-[10px] font-mono flex items-center gap-1 font-bold cursor-pointer"
+                      className={`hover:bg-indigo-500 hover:text-white text-indigo-400 p-1.5 rounded-md border transition-all text-[10px] font-mono flex items-center gap-1 font-bold cursor-pointer ${isDark ? "bg-slate-950 border-slate-800 hover:border-indigo-500/30" : "bg-slate-50 border-slate-200 hover:border-indigo-400"}`}
                       title="Share Profile"
                     >
                       <Share2 className="w-3 h-3" />
                     </button>
                     <a
                       href={`tel:${getCleanPhone(leader.phone)}`}
-                      className="bg-slate-950 hover:bg-amber-500 text-slate-400 hover:text-slate-950 p-1.5 rounded-md border border-slate-800 hover:border-amber-400 transition-all text-[10px] font-mono flex items-center gap-1 font-bold"
+                      className={`hover:bg-amber-500 hover:text-slate-950 p-1.5 rounded-md border transition-all text-[10px] font-mono flex items-center gap-1 font-bold ${isDark ? "bg-slate-950 text-slate-400 border-slate-800 hover:border-amber-400" : "bg-slate-50 text-slate-500 border-slate-200 hover:border-amber-400"}`}
                       title="Call Steward"
                     >
                       <Phone className="w-3 h-3" />
@@ -217,7 +223,7 @@ export default function Leaders({ items, isAdmin, onAdd, onEdit, onDelete }: Lea
                       href={getWhatsAppUrl(leader.phone)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="bg-slate-950 hover:bg-emerald-505 hover:text-white text-emerald-400 p-1.5 rounded-md border border-slate-800 hover:border-emerald-500/30 transition-all text-[10px] font-mono flex items-center gap-1 font-bold"
+                      className={`hover:bg-emerald-505 hover:text-white text-emerald-400 p-1.5 rounded-md border transition-all text-[10px] font-mono flex items-center gap-1 font-bold ${isDark ? "bg-slate-950 border-slate-800 hover:border-emerald-500/30" : "bg-slate-50 border-slate-200 hover:border-emerald-400"}`}
                       title="Chat on WhatsApp"
                     >
                       <MessageCircle className="w-3 h-3" />
@@ -234,15 +240,17 @@ export default function Leaders({ items, isAdmin, onAdd, onEdit, onDelete }: Lea
           {isAdmin && (
             <button
               onClick={onAdd}
-              className="border-2 border-dashed border-slate-800 hover:border-amber-400/40 rounded-2xl bg-slate-900/5 hover:bg-slate-905/35 transition-all flex flex-col items-center justify-center p-8 text-center min-h-[360px] cursor-pointer group"
+              className={`border-2 border-dashed rounded-2xl transition-all flex flex-col items-center justify-center p-8 text-center min-h-[360px] cursor-pointer group ${
+                isDark ? "border-slate-800 hover:border-amber-400/40 bg-slate-900/5 hover:bg-slate-905/35" : "border-slate-300 hover:border-amber-400/60 bg-slate-50 hover:bg-slate-100"
+              }`}
             >
-              <div className="bg-slate-900 border border-slate-800 group-hover:border-amber-400/30 p-3.5 rounded-full text-slate-500 group-hover:text-amber-400 transition-all shadow mb-4">
+              <div className={`p-3.5 rounded-full group-hover:text-amber-400 transition-all shadow mb-4 border ${isDark ? "bg-slate-900 border-slate-800 text-slate-500" : "bg-white border-slate-200 text-slate-400"}`}>
                 <Plus className="w-7 h-7" />
               </div>
-              <span className="font-sans font-bold text-sm text-slate-300 group-hover:text-white transition-colors">
+              <span className={`font-sans font-bold text-sm group-hover:text-amber-500 transition-colors ${isDark ? "text-slate-300 group-hover:text-white" : "text-slate-600"}`}>
                 Enlist Council Steward
               </span>
-              <p className="font-sans text-[11px] text-slate-500 max-w-[200px] mt-1.5 leading-relaxed">
+              <p className={`font-sans text-[11px] max-w-[200px] mt-1.5 leading-relaxed ${isDark ? "text-slate-500" : "text-slate-400"}`}>
                 Add a new choir director, local secretary, or treasurer to public profiles directory.
               </p>
             </button>

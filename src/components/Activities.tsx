@@ -9,9 +9,11 @@ interface ActivitiesProps {
   onAdd: () => void;
   onEdit: (activity: Activity) => void;
   onDelete: (id: string) => void;
+  theme?: "dark" | "light";
 }
 
-export default function Activities({ items, isAdmin, onAdd, onEdit, onDelete }: ActivitiesProps) {
+export default function Activities({ items, isAdmin, onAdd, onEdit, onDelete, theme = "dark" }: ActivitiesProps) {
+  const isDark = theme === "dark";
   const [activeMedia, setActiveMedia] = useState<{ url: string; type: 'image' | 'video' | ''; title: string } | null>(null);
   const [copiedItemId, setCopiedItemId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -37,20 +39,20 @@ export default function Activities({ items, isAdmin, onAdd, onEdit, onDelete }: 
   return (
     <section 
       id="activities" 
-      className="py-20 px-6 md:px-12 bg-transparent text-white relative"
+      className={`py-20 px-6 md:px-12 relative ${isDark ? "bg-slate-950 text-white" : "bg-white text-slate-900"}`}
     >
       <div className="max-w-6xl mx-auto">
 
         {/* Section Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
           <div>
-            <div className="flex items-center gap-2 text-amber-400 font-mono text-xs tracking-wider uppercase mb-2">
-              <span>Choral Growth & Service</span>
+            <div className="flex items-center gap-2 text-amber-400 font-mono text-xs tracking-[0.15em] uppercase mb-3">
+              <span>Choral Growth &amp; Service</span>
             </div>
-            <h2 className="font-sans font-extrabold text-3xl md:text-5xl tracking-tight text-white animate-fade-in">
-              Our Ministries & Activities
+            <h2 className={`font-display font-semibold text-3xl md:text-5xl tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
+              Our <span className={isDark ? "font-light text-white/70" : "font-light text-slate-500"}>Ministries</span>
             </h2>
-            <p className="font-sans text-slate-400 text-sm md:text-base mt-2 max-w-2xl">
+            <p className={`font-sans text-sm md:text-base mt-3 max-w-2xl ${isDark ? "text-slate-400" : "text-slate-600"}`}>
               We gather to seek, prepare, and share. Learn more about our regular choral practices, musical seminars, and humanitarian missions.
             </p>
           </div>
@@ -58,7 +60,7 @@ export default function Activities({ items, isAdmin, onAdd, onEdit, onDelete }: 
           {isAdmin && (
             <button
               onClick={onAdd}
-              className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-900 font-sans font-bold text-sm px-5 py-2.5 rounded-lg shadow-lg shadow-amber-500/10 transition-all cursor-pointer inline-flex self-start md:self-auto"
+              className="flex items-center gap-2 bg-transparent border border-amber-500/40 hover:bg-amber-500 hover:text-slate-950 text-amber-400 font-sans font-semibold text-sm px-5 py-2.5 rounded-full transition-all cursor-pointer inline-flex self-start md:self-auto"
             >
               <Plus className="w-4 h-4" />
               <span>Add New Ministry</span>
@@ -75,7 +77,11 @@ export default function Activities({ items, isAdmin, onAdd, onEdit, onDelete }: 
                 placeholder="Search ministries page, location, and keywords..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-800 focus:border-amber-500 rounded-xl py-3 pl-11 pr-10 text-sm text-white placeholder-slate-500 focus:outline-none transition-all shadow-inner"
+                className={`w-full rounded-xl py-3 pl-11 pr-10 text-sm focus:outline-none transition-all shadow-inner border ${
+                  isDark
+                    ? "bg-slate-900 border-slate-800 focus:border-amber-500 text-white placeholder-slate-500"
+                    : "bg-slate-50 border-slate-200 focus:border-amber-500 text-slate-900 placeholder-slate-400"
+                }`}
               />
               <svg 
                 className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-500" 
@@ -101,12 +107,12 @@ export default function Activities({ items, isAdmin, onAdd, onEdit, onDelete }: 
 
         {/* Activities Grid */}
         {items.length === 0 ? (
-          <div className="text-center py-12 border border-dashed border-slate-850 rounded-2xl bg-slate-900/20">
-            <p className="text-slate-400 text-sm">No ministry programs recorded at this time.</p>
+          <div className={`text-center py-12 border border-dashed rounded-2xl ${isDark ? "border-slate-850 bg-slate-900/20" : "border-slate-300 bg-slate-50"}`}>
+            <p className={`text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>No ministry programs recorded at this time.</p>
           </div>
         ) : filteredItems.length === 0 ? (
-          <div className="text-center py-12 border border-dashed border-slate-850 rounded-2xl bg-slate-900/20">
-            <p className="text-slate-400 text-sm">No ministry programs match your search filter.</p>
+          <div className={`text-center py-12 border border-dashed rounded-2xl ${isDark ? "border-slate-850 bg-slate-900/20" : "border-slate-300 bg-slate-50"}`}>
+            <p className={`text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>No ministry programs match your search filter.</p>
           </div>
         ) : (
           <motion.div 
@@ -131,7 +137,11 @@ export default function Activities({ items, isAdmin, onAdd, onEdit, onDelete }: 
                   visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 70, damping: 20 } }
                 }}
                 whileHover={{ y: -6, scale: 1.015, boxShadow: "0 15px 30px -5px rgba(245, 158, 11, 0.08)" }}
-                className="group relative flex flex-col bg-slate-900/80 border border-slate-800 hover:border-amber-400/40 rounded-2xl overflow-hidden transition-all shadow-lg scroll-mt-24"
+                className={`group relative flex flex-col rounded-2xl overflow-hidden transition-all shadow-lg scroll-mt-24 border ${
+                  isDark
+                    ? "bg-slate-900/80 border-slate-800 hover:border-amber-400/40"
+                    : "bg-white border-slate-200 hover:border-amber-400/60"
+                }`}
               >
                 
                 {/* Visual Cover */}
@@ -174,30 +184,30 @@ export default function Activities({ items, isAdmin, onAdd, onEdit, onDelete }: 
                 {/* Card Context */}
                 <div className="flex-1 p-6 md:p-8 flex flex-col justify-between">
                   <div>
-                    <h3 className="font-sans font-bold text-xl text-white group-hover:text-amber-300 transition-colors">
+                    <h3 className={`font-sans font-bold text-xl group-hover:text-amber-300 transition-colors ${isDark ? "text-white" : "text-slate-900"}`}>
                       {act.title}
                     </h3>
                     
-                    <div className="flex flex-col gap-2 my-4 text-xs font-mono text-slate-400">
-                      <span className="flex items-center gap-2 text-slate-300">
+                    <div className={`flex flex-col gap-2 my-4 text-xs font-mono ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                      <span className={`flex items-center gap-2 ${isDark ? "text-slate-300" : "text-slate-600"}`}>
                         <Calendar className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                         <span>{act.date}</span>
                       </span>
-                      <span className="flex items-center gap-2 text-slate-300">
+                      <span className={`flex items-center gap-2 ${isDark ? "text-slate-300" : "text-slate-600"}`}>
                         <MapPin className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                         <span>{act.location}</span>
                       </span>
                     </div>
 
-                    <p className="text-sm font-sans text-slate-400 leading-relaxed line-clamp-4">
+                    <p className={`text-sm font-sans leading-relaxed line-clamp-4 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                       {act.description}
                     </p>
                   </div>
 
                   {/* Actions Bar */}
-                  <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-800/80">
+                  <div className={`flex items-center justify-between mt-6 pt-4 border-t ${isDark ? "border-slate-800/80" : "border-slate-200"}`}>
                     <div className="flex items-center gap-3">
-                      <span className="flex items-center gap-1.5 text-xs text-slate-500 font-medium whitespace-nowrap">
+                      <span className={`flex items-center gap-1.5 text-xs font-medium whitespace-nowrap ${isDark ? "text-slate-500" : "text-slate-400"}`}>
                         <Heart className="w-4 h-4 text-pink-500 fill-pink-500/10 animate-pulse" />
                         Ministry Active
                       </span>
