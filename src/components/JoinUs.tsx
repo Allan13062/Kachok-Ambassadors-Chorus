@@ -25,7 +25,7 @@ export default function JoinUs() {
     receiptTitle: "",
     receiptLogo: "https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png",
     receiptExtraLogo: "",
-    receiptMessage: "We have received your generous gift. May God bless you abundantly.",
+    receiptMessage: "We have received your generous contribution. May God bless you abundantly.",
     receiptLayout: "modern",
     receiptHeaderSize: "text-xl",
     receiptHeaderColor: "text-slate-800",
@@ -370,7 +370,7 @@ export default function JoinUs() {
             Participate &<br /><span className="text-white/25 font-light">Elevate</span>
           </h2>
           <p className="text-white/40 text-sm font-light max-w-md mx-auto leading-relaxed">
-            Help Kachamba Chorus travel further, record more tracks, and distribute gospel music across East Africa.
+            Help Kachamba Chorus further the Gospel cause.
           </p>
         </div>
 
@@ -437,7 +437,7 @@ export default function JoinUs() {
                   <div className="mb-6">
                     <h3 className="font-sans font-bold text-xl text-white">Join the Chorus</h3>
                     <p className="font-sans text-xs text-slate-400 mt-1">
-                      Fill in your details, and our choir director will contact you before next Saturday afternoon's practice.
+                      Fill in your details, and our choir director will contact you soon.
                     </p>
                   </div>
 
@@ -446,7 +446,7 @@ export default function JoinUs() {
                       <CheckCircle className="w-10 h-10 text-emerald-400 animate-bounce" />
                       <h4 className="font-sans font-bold text-lg text-white">Application Received!</h4>
                       <p className="font-sans text-xs leading-relaxed max-w-xs">
-                        Praise God! We have recorded your interest in the **{formData.voicePart}** part. Our Choir secretary will reach out shortly to guide you about Saturday practice audition at Kachok Church.
+                        Praise God! We have recorded your interest in the **{formData.voicePart}** part. Our Choir secretary will reach out shortly to guide you on our meetings.
                       </p>
                     </div>
                   ) : (
