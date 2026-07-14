@@ -7,7 +7,7 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { onAuthStateChanged, User as FirebaseUser, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
 import { auth, db } from "./lib/firebase";
-import { uploadToFirebaseStorage } from "./lib/uploadToStorage";
+import { uploadMedia } from "./lib/mediaUpload";
 import { useAdminAuth } from "./hooks/useAdminAuth";
 import Header from "./components/Header";
 import Hero from "./components/Hero";
@@ -344,36 +344,13 @@ export default function App() {
       processedBase64 = await compressImage(base64Str);
     }
 
-    // Primary: upload to Firebase Storage (durable, works from Vercel)
+    // Upload to Cloudinary (durable CDN storage). uploadMedia tries a signed direct
+    // client-side upload first, then falls back to the server /api/upload route.
     try {
-      const url = await uploadToFirebaseStorage(processedBase64, defaultFilename);
+      const url = await uploadMedia(processedBase64, adminPasscode, defaultFilename);
       return url;
-    } catch (storageErr) {
-      console.warn("Firebase Storage upload failed, falling back to server upload:", storageErr);
-    }
-
-    // Fallback: server-side upload (Postgres/Firestore)
-    if (!adminPasscode) return processedBase64;
-    try {
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-passcode": adminPasscode
-        },
-        body: JSON.stringify({
-          filename: defaultFilename,
-          base64: processedBase64
-        })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        return data.url || processedBase64;
-      } else {
-        console.error("Fallback server upload also failed.");
-      }
-    } catch (err) {
-      console.error("Network error during fallback upload:", err);
+    } catch (uploadErr) {
+      console.error("Cloudinary upload failed:", uploadErr);
     }
     return processedBase64;
   };
