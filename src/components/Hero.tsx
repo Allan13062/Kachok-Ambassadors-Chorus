@@ -63,11 +63,43 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.55, duration: 1, ease: "easeOut" }}
-          className="font-display font-bold tracking-tight text-5xl sm:text-7xl md:text-8xl text-white leading-[0.95] mb-4"
+          className="leading-[0.95] mb-4 text-center"
         >
-          KACHAMBA
-          <br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-400 to-amber-200 font-light italic" style={{ fontFamily: "'Cormorant Garamond', serif", fontStyle: "italic", fontWeight: 300, fontSize: "0.95em" }}>
+          {/* KACHAMBA — Boldini chrome gradient style */}
+          <span
+            style={{
+              fontFamily: "'Bebas Neue', 'Impact', 'Arial Black', sans-serif",
+              fontWeight: 400,
+              fontSize: "clamp(4.5rem, 14vw, 10rem)",
+              letterSpacing: "0.03em",
+              lineHeight: 1,
+              display: "block",
+              background: "linear-gradient(180deg, #FFFFFF 0%, #FFFFFF 22%, #F8F8F8 34%, #FFFFFF 46%, #E2E2E2 57%, #B0B0B0 69%, #6C6C6C 82%, #3A3A3A 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+              filter: "drop-shadow(0 0 32px rgba(255,255,255,0.22))",
+            }}
+          >
+            KACHAMBA
+          </span>
+          {/* Chorus — Cormorant italic amber */}
+          <span
+            className="text-transparent bg-clip-text font-light italic"
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontStyle: "italic",
+              fontWeight: 300,
+              fontSize: "clamp(2.8rem, 8.5vw, 6.2rem)",
+              letterSpacing: "0.01em",
+              lineHeight: 1,
+              display: "block",
+              background: "linear-gradient(90deg, #FCD34D, #F59E0B, #FDE68A)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+            }}
+          >
             Chorus
           </span>
         </motion.h1>
