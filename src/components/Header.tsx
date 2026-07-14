@@ -61,15 +61,17 @@ export default function Header({ isAdmin, onOpenAdmin, onLogout, activeSection, 
   const isDark = theme === "dark";
   const navBg = scrolled
     ? isDark
-      ? "glass-nav shadow-lg shadow-black/20"
+      ? "glass-nav shadow-xl shadow-black/30"
       : "glass-nav shadow-md shadow-black/5"
     : "glass-nav-transparent";
 
   return (
     <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${navBg}`}>
+      {/* Top vibrant accent border */}
+      <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-amber-400/70 to-transparent" />
       {/* Scroll progress line */}
       <div
-        className="absolute bottom-0 left-0 h-px bg-gradient-to-r from-amber-500/80 via-amber-400/60 to-transparent transition-all duration-150 ease-out"
+        className="absolute bottom-0 left-0 h-[2px] bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-300 transition-all duration-150 ease-out shadow-[0_0_8px_rgba(245,158,11,0.6)]"
         style={{ width: `${scrollProgress}%` }}
       />
 
@@ -95,28 +97,27 @@ export default function Header({ isAdmin, onOpenAdmin, onLogout, activeSection, 
         </button>
 
         {/* Desktop Nav */}
-        <nav className="hidden md:flex items-center gap-7 lg:gap-9">
+        <nav className="hidden md:flex items-center gap-1">
           {navItems.map((item) => {
             const isActive = activeSection === item.id;
-            const textColor = scrolled
-              ? isDark
-                ? isActive ? "text-amber-400" : "text-white/70 hover:text-white"
-                : isActive ? "text-amber-600" : "text-slate-600 hover:text-slate-900"
-              : isActive
-                ? "text-amber-400"
-                : "text-white/70 hover:text-white";
             return (
               <button
                 key={item.id}
                 onClick={() => scrollTo(item.id)}
-                className={`relative label-caps text-[11px] py-1 cursor-pointer transition-colors duration-200 ${textColor}`}
+                className={`relative label-caps text-[11px] px-3.5 py-2 rounded-lg cursor-pointer transition-all duration-200 ${
+                  isActive
+                    ? "text-amber-400 bg-amber-400/10 border border-amber-400/20"
+                    : isDark
+                      ? "text-white/60 hover:text-white hover:bg-white/6"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-black/6"
+                }`}
               >
                 {item.label}
                 {isActive && (
                   <motion.span
-                    layoutId="navUnderline"
-                    className="absolute -bottom-0.5 left-0 right-0 h-px bg-amber-400/80 rounded-full"
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    layoutId="navPill"
+                    className="absolute inset-0 rounded-lg bg-amber-400/10 border border-amber-400/20 -z-10"
+                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
                   />
                 )}
               </button>

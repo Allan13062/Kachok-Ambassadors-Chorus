@@ -97,11 +97,21 @@ export default function Leaders({ items, isAdmin, onAdd, onEdit, onDelete }: Lea
           variants={{ hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.07 } } }}
           className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4"
         >
-          {items.map((leader) => (
+          {items.map((leader, idx) => {
+            const accents = [
+              "border-amber-400/50 hover:shadow-amber-500/15",
+              "border-cyan-400/50 hover:shadow-cyan-500/15",
+              "border-violet-400/50 hover:shadow-violet-500/15",
+              "border-emerald-400/50 hover:shadow-emerald-500/15",
+              "border-rose-400/50 hover:shadow-rose-500/15",
+              "border-sky-400/50 hover:shadow-sky-500/15",
+            ];
+            const ac = accents[idx % accents.length];
+            return (
             <motion.div
               key={leader.id}
               variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0, transition: { duration: 0.45 } } }}
-              className="glass rounded-2xl overflow-hidden group cursor-pointer hover:border-white/15 transition-all duration-300"
+              className={`glass rounded-2xl overflow-hidden group cursor-pointer transition-all duration-300 hover:border-white/20 hover:shadow-lg border-t-2 ${ac}`}
               onClick={() => setSelectedLeader(leader)}
             >
               {/* Avatar */}
@@ -139,7 +149,7 @@ export default function Leaders({ items, isAdmin, onAdd, onEdit, onDelete }: Lea
                 )}
               </div>
             </motion.div>
-          ))}
+          );})}
         </motion.div>
       </div>
 

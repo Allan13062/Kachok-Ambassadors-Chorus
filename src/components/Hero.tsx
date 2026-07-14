@@ -1,5 +1,5 @@
 import React from "react";
-import { ChevronDown, Calendar, Sparkles } from "lucide-react";
+import { ChevronDown, Calendar, MessageCircle } from "lucide-react";
 import { motion } from "motion/react";
 
 interface HeroProps {
@@ -30,7 +30,7 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
       >
         <img
           src="/WhatsApp Image 2026-06-11 at 11.06.18 AM.jpeg"
-          alt="Kachamba Chorus"
+          alt="Kachamba Chorus Choir"
           className="w-full h-full object-cover"
         />
         {/* Multi-layer darkening overlay */}
@@ -71,10 +71,10 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
               fontFamily: "'Glacial Indifference', 'Century Gothic', 'Futura', sans-serif",
               fontWeight: 700,
               fontSize: "clamp(4.5rem, 14vw, 10rem)",
-              letterSpacing: "0.02em",
+              letterSpacing: "0.03em",
               lineHeight: 1,
               display: "block",
-              background: "linear-gradient(180deg, #FCD34D 0%, #F59E0B 25%, #FFFFFF 100%)",
+              background: "linear-gradient(180deg, #FCD34D 0%, #F59E0B 25%, #FFFFFF 55%, #FDE68A 78%, #FFFFFF 100%)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",
@@ -144,7 +144,7 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
             onClick={onAskAI}
             className="flex items-center gap-2.5 glass label-caps text-[11px] px-8 py-3.5 rounded-full text-white/70 hover:text-white transition-all cursor-pointer"
           >
-            <Sparkles className="w-3.5 h-3.5 text-amber-400/70" />
+            <MessageCircle className="w-3.5 h-3.5 text-amber-400/70" />
             Ask Kachamba AI
           </motion.button>
         </motion.div>

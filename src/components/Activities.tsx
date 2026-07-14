@@ -25,7 +25,7 @@ export default function Activities({ items, isAdmin, onAdd, onEdit, onDelete }: 
   );
 
   const handleCopyActivity = (id: string, title: string, date: string, location: string) => {
-    const text = `Kachamba Chorus\n\n📢 ${title}\n🗓️ ${date}\n📍 ${location}\n\n${window.location.origin}/#activities-ministry-${id}`;
+    const text = `Kachamba Chorus Ministry ✨\n\n📢 ${title}\n🗓️ ${date}\n📍 ${location}\n\n${window.location.origin}/#activities-ministry-${id}`;
     navigator.clipboard.writeText(text).then(() => {
       setCopiedItemId(id);
       setTimeout(() => setCopiedItemId(null), 2000);
@@ -95,17 +95,25 @@ export default function Activities({ items, isAdmin, onAdd, onEdit, onDelete }: 
           variants={{ hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.08 } } }}
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5"
         >
-          {filteredItems.map((act) => {
+          {filteredItems.map((act, idx) => {
             const hasMedia = !!(act.mediaUrl || act.imageUrl);
             const mediaUrl = act.mediaUrl || act.imageUrl || "";
             const isVideo = act.mediaType === "video" || mediaUrl.match(/\.(mp4|webm|mov)$/i);
             const isActive = act.status === "active" || act.status === "ongoing";
+            const accents = [
+              { border: "border-amber-400/50", glow: "hover:shadow-amber-500/15", top: "from-amber-500/20" },
+              { border: "border-cyan-400/50",  glow: "hover:shadow-cyan-500/15",  top: "from-cyan-500/20"  },
+              { border: "border-violet-400/50",glow: "hover:shadow-violet-500/15",top: "from-violet-500/20"},
+              { border: "border-emerald-400/50",glow:"hover:shadow-emerald-500/15",top:"from-emerald-500/20"},
+              { border: "border-rose-400/50",  glow: "hover:shadow-rose-500/15",  top: "from-rose-500/20"  },
+            ];
+            const ac = accents[idx % accents.length];
 
             return (
               <motion.div
                 key={act.id}
                 variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5 } } }}
-                className="glass rounded-2xl overflow-hidden group hover:border-white/15 transition-all duration-300"
+                className={`glass rounded-2xl overflow-hidden group transition-all duration-300 hover:border-white/20 hover:shadow-xl ${ac.glow} border-t-2 ${ac.border}`}
               >
                 {/* Media */}
                 {hasMedia ? (

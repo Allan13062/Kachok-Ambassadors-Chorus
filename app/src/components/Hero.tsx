@@ -1,5 +1,5 @@
 import React from "react";
-import { ChevronDown, Calendar, Sparkles } from "lucide-react";
+import { ChevronDown, Calendar, MessageCircle } from "lucide-react";
 import { motion } from "motion/react";
 
 interface HeroProps {
@@ -144,7 +144,7 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
             onClick={onAskAI}
             className="flex items-center gap-2.5 glass label-caps text-[11px] px-8 py-3.5 rounded-full text-white/70 hover:text-white transition-all cursor-pointer"
           >
-            <Sparkles className="w-3.5 h-3.5 text-amber-400/70" />
+            <MessageCircle className="w-3.5 h-3.5 text-amber-400/70" />
             Ask Kachamba AI
           </motion.button>
         </motion.div>
