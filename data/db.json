@@ -176,5 +176,13 @@
       "role": "admin",
       "createdAt": "2026-06-22T07:02:27.137Z"
     }
+  ],
+  "uploads": [
+    {
+      "id": "file-1784012888947-sdstpel",
+      "filename": "test.png",
+      "mimeType": "image/png",
+      "base64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC"
+    }
   ]
 }

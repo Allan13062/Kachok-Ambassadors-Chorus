@@ -95,6 +95,17 @@ export const users = pgTable("users", {
   createdAt: text("created_at")
 });
 
+// Gallery Table (media items uploaded to the gallery)
+export const gallery = pgTable("gallery", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  category: text("category").default("General"),
+  description: text("description"),
+  url: text("url"),
+  mediaType: text("media_type").default("image"),
+  createdAt: timestamp("created_at").defaultNow()
+});
+
 // Donations Table
 export const donations = pgTable("donations", {
   id: text("id").primaryKey(),

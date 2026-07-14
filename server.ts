@@ -1,5 +1,9 @@
 import dotenv from "dotenv";
+// Load env from all standard locations so credentials (e.g. Cloudinary) are picked up
+// regardless of which file the platform writes them to.
 dotenv.config();
+dotenv.config({ path: ".env.local" });
+dotenv.config({ path: ".env.development.local" });
 
 import express from "express";
 import path from "path";
@@ -10,6 +14,7 @@ import url from "url";
 import crypto from "crypto";
 import { GoogleGenAI } from "@google/genai";
 import { Readable } from "stream";
+import { v2 as cloudinary } from "cloudinary";
 
 import { db } from "./src/db/index.ts";
 import { getLocalDb, saveLocalDb, insertItem, deleteItem, getSession, deleteSession } from "./dbStorage.ts";
@@ -19,6 +24,25 @@ import { eq } from "drizzle-orm";
 const app = express();
 const PORT = 3000;
 const DB_PATH = path.join(process.cwd(), "data", "db.json");
+
+// Configure Cloudinary from environment variables for persistent media storage.
+// Cloudinary API keys are always numeric; secrets are alphanumeric. Some environments
+// have these two values swapped, so we auto-detect the numeric key to stay resilient.
+const rawCloudinaryKey = process.env.CLOUDINARY_API_KEY || "";
+const rawCloudinarySecret = process.env.CLOUDINARY_API_SECRET || "";
+const cloudinaryApiKey = /^[0-9]+$/.test(rawCloudinaryKey) ? rawCloudinaryKey : rawCloudinarySecret;
+const cloudinaryApiSecret = /^[0-9]+$/.test(rawCloudinaryKey) ? rawCloudinarySecret : rawCloudinaryKey;
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: cloudinaryApiKey,
+  api_secret: cloudinaryApiSecret,
+  secure: true,
+});
+
+function isCloudinaryConfigured(): boolean {
+  return !!(process.env.CLOUDINARY_CLOUD_NAME && cloudinaryApiKey && cloudinaryApiSecret);
+}
 
 // Ensure uploads folder exists (skip mkdir on Vercel - filesystem is read-only; uploads go to Cloudinary)
 const uploadsDir = path.join(process.cwd(), "uploads");
@@ -2175,8 +2199,36 @@ app.delete("/api/leaders/:id", requireAdmin, async (req, res) => {
   }
 });
 
+// 15b. Cloudinary Signature Route (Admin)
+// Returns a signed signature so the client can upload media DIRECTLY to Cloudinary,
+// bypassing the serverless request body size limit (important for large videos).
+app.post("/api/cloudinary-signature", requireAdmin, async (req, res) => {
+  if (!isCloudinaryConfigured()) {
+    return res.status(400).json({ success: false, error: "Cloudinary is not configured." });
+  }
+  try {
+    const folder = (req.body && req.body.folder) || "kachamba_sync";
+    const timestamp = Math.round(Date.now() / 1000);
+    const signature = cloudinary.utils.api_sign_request(
+      { timestamp, folder },
+      cloudinaryApiSecret
+    );
+    return res.json({
+      success: true,
+      signature,
+      timestamp,
+      folder,
+      apiKey: cloudinaryApiKey,
+      cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    });
+  } catch (err: any) {
+    console.error("[Cloudinary Signature] Failed:", err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // 16. Persistent File Upload Route (Admin)
-// Stores uploaded files persistently in Postgres/Neon, falling back to Firestore/local memory.
+// Uploads files to Cloudinary for permanent persistence, falling back to Postgres/Firestore.
 app.post("/api/upload", requireAdmin, async (req, res) => {
   const { filename, base64 } = req.body;
   if (!base64) {
@@ -2194,6 +2246,23 @@ app.post("/api/upload", requireAdmin, async (req, res) => {
   }
 
   try {
+    // 0. PRIMARY: Upload to Cloudinary for permanent, CDN-backed persistence.
+    // Cloudinary returns a stable secure_url that survives refreshes, logouts and redeploys.
+    if (isCloudinaryConfigured()) {
+      const uploadResult = await cloudinary.uploader.upload(base64, {
+        folder: "kachamba_sync",
+        resource_type: "auto",
+        public_id: fileId,
+      });
+      console.log(`[Uploads] Saved file ${fileId} (${filename}) to Cloudinary: ${uploadResult.secure_url}`);
+      return res.json({
+        success: true,
+        url: uploadResult.secure_url,
+        filename: filename,
+        mimeType: mimeType,
+      });
+    }
+
     if (isDbAvailable()) {
       // 1. If Neon/Postgres is connected and available, save file persistently in Postgres "uploads" table.
       // This bypasses local ephemeral storage and Firestore's 1MB limit entirely!
