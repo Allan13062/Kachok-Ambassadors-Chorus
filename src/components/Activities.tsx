@@ -25,7 +25,7 @@ export default function Activities({ items, isAdmin, onAdd, onEdit, onDelete }: 
   );
 
   const handleCopyActivity = (id: string, title: string, date: string, location: string) => {
-    const text = `Kachamba Chorus Ministry ✨\n\n📢 ${title}\n🗓️ ${date}\n📍 ${location}\n\n${window.location.origin}/#activities-ministry-${id}`;
+    const text = `Kachamba Chorus\n\n📢 ${title}\n🗓️ ${date}\n📍 ${location}\n\n${window.location.origin}/#activities-ministry-${id}`;
     navigator.clipboard.writeText(text).then(() => {
       setCopiedItemId(id);
       setTimeout(() => setCopiedItemId(null), 2000);
