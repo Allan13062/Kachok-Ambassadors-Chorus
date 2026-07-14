@@ -68,8 +68,8 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
           {/* KACHAMBA — Boldini chrome gradient style */}
           <span
             style={{
-              fontFamily: "'Bebas Neue', 'Impact', 'Arial Black', sans-serif",
-              fontWeight: 400,
+              fontFamily: "'Glacial Indifference', 'Century Gothic', 'Futura', sans-serif",
+              fontWeight: 700,
               fontSize: "clamp(4.5rem, 14vw, 10rem)",
               letterSpacing: "0.03em",
               lineHeight: 1,
