@@ -30,7 +30,7 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
       >
         <img
           src="/WhatsApp Image 2026-06-11 at 11.06.18 AM.jpeg"
-          alt="Kachamba Chorus Choir"
+          alt="Kachamba Chorus"
           className="w-full h-full object-cover"
         />
         {/* Multi-layer darkening overlay */}
@@ -71,10 +71,10 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
               fontFamily: "'Glacial Indifference', 'Century Gothic', 'Futura', sans-serif",
               fontWeight: 700,
               fontSize: "clamp(4.5rem, 14vw, 10rem)",
-              letterSpacing: "0.03em",
+              letterSpacing: "0.02em",
               lineHeight: 1,
               display: "block",
-              background: "linear-gradient(180deg, #FCD34D 0%, #F59E0B 25%, #FFFFFF 55%, #FDE68A 78%, #FFFFFF 100%)",
+              background: "linear-gradient(180deg, #FCD34D 0%, #F59E0B 25%, #FFFFFF 100%)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",
