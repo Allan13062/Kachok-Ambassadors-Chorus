@@ -74,18 +74,17 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
               letterSpacing: "0.03em",
               lineHeight: 1,
               display: "block",
-              background: "linear-gradient(180deg, #FFFFFF 0%, #FFFFFF 22%, #F8F8F8 34%, #FFFFFF 46%, #E2E2E2 57%, #B0B0B0 69%, #6C6C6C 82%, #3A3A3A 100%)",
+              background: "linear-gradient(180deg, #FCD34D 0%, #F59E0B 25%, #FFFFFF 55%, #FDE68A 78%, #FFFFFF 100%)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",
-              filter: "drop-shadow(0 0 32px rgba(255,255,255,0.22))",
+              filter: "drop-shadow(0 0 32px rgba(251,191,36,0.30))",
             }}
           >
             KACHAMBA
           </span>
           {/* Chorus — Cormorant italic amber */}
           <span
-            className="text-transparent bg-clip-text font-light italic"
             style={{
               fontFamily: "'Cormorant Garamond', serif",
               fontStyle: "italic",
@@ -94,10 +93,7 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
               letterSpacing: "0.01em",
               lineHeight: 1,
               display: "block",
-              background: "linear-gradient(90deg, #FCD34D, #F59E0B, #FDE68A)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
+              color: "#FFFFFF",
             }}
           >
             Chorus
