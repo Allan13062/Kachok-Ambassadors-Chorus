@@ -13,42 +13,48 @@ const containerVariants = {
   visible: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.18, // Slightly slower, more deliberate pacing between elements
-      delayChildren: 0.35,
+      staggerChildren: 0.22, // Deliberate, evenly measured pacing between elements
+      delayChildren: 0.3,
     },
   },
 };
 
-// Elements sliding in from the LEFT
+// A single, refined ease used across every reveal for a cohesive, premium feel
+const EASE_PROFESSIONAL = [0.19, 1, 0.22, 1] as const;
+
+// Elements sliding in from the LEFT — travel starts at the true screen edge
 const slideLeftVariants = {
-  hidden: { opacity: 0, x: -70, filter: "blur(10px)" },
+  hidden: { opacity: 0, x: "-65vw", scale: 0.96, filter: "blur(4px)" },
   visible: {
     opacity: 1,
     x: 0,
+    scale: 1,
     filter: "blur(0px)",
-    transition: { duration: 1.7, ease: [0.16, 1, 0.3, 1] }, // Slow, epic cinematic ease-out
+    transition: { duration: 2.5, ease: EASE_PROFESSIONAL },
   },
 };
 
-// Elements sliding in from the RIGHT
+// Elements sliding in from the RIGHT — travel starts at the true screen edge
 const slideRightVariants = {
-  hidden: { opacity: 0, x: 70, filter: "blur(10px)" },
+  hidden: { opacity: 0, x: "65vw", scale: 0.96, filter: "blur(4px)" },
   visible: {
     opacity: 1,
     x: 0,
+    scale: 1,
     filter: "blur(0px)",
-    transition: { duration: 1.7, ease: [0.16, 1, 0.3, 1] },
+    transition: { duration: 2.5, ease: EASE_PROFESSIONAL },
   },
 };
 
 // Text drops down centrally
 const dropDownVariants = {
-  hidden: { opacity: 0, y: -36, filter: "blur(8px)" },
+  hidden: { opacity: 0, y: -40, scale: 0.97, filter: "blur(4px)" },
   visible: {
     opacity: 1,
     y: 0,
+    scale: 1,
     filter: "blur(0px)",
-    transition: { duration: 1.8, ease: [0.16, 1, 0.3, 1] },
+    transition: { duration: 2.5, ease: EASE_PROFESSIONAL },
   },
 };
 
@@ -291,7 +297,7 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
       <motion.button
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 2.6, duration: 1 }}
+        transition={{ delay: 4.4, duration: 1 }}
         onClick={() => scrollTo("itinerary")}
         className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 cursor-pointer group"
       >
