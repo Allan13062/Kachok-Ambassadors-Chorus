@@ -7,21 +7,21 @@ interface HeroProps {
   webLogo?: string;
 }
 
-// Words to swap through
-const SWAPPING_PHRASES = [
-  "absolute vocal harmony",
-  "youth fellowship",
-  "passionate community mission outreach",
+// Complete, rich textual variations to cycle through
+const MISSION_STATEMENTS = [
+  "Spreading the Gospel through absolute vocal harmony, youth fellowship, and passionate community mission outreach across Kenya.",
+  "Uniting hearts through the power of choral excellence, lifting up youth ministries, and sharing divine grace in every song.",
+  "Proclaiming faith through rich SATB absolute harmony, authentic fellowship, and impactful missionary service across counties."
 ];
 
 export default function Hero({ onAskAI, webLogo }: HeroProps) {
-  const [index, setIndex] = useState(0);
+  const [statementIndex, setStatementIndex] = useState(0);
 
-  // Cycle through phrases every 3 seconds
+  // Cycle statements smoothly every 4.5 seconds
   useEffect(() => {
     const timer = setInterval(() => {
-      setIndex((prevIndex) => (prevIndex + 1) % SWAPPING_PHRASES.length);
-    }, 3000);
+      setStatementIndex((prev) => (prev + 1) % MISSION_STATEMENTS.length);
+    }, 4500);
     return () => clearInterval(timer);
   }, []);
 
@@ -127,30 +127,21 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
           Sounds Of Togetherness · Since 2021
         </motion.p>
 
-        {/* Dynamic Swapping Body Description */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.95, duration: 1 }}
-          className="text-white/60 text-sm md:text-base max-w-xl mx-auto leading-relaxed font-light mb-12 min-h-[3rem] md:min-h-[2.5rem]"
-        >
-          <span>Spreading the Gospel through </span>
-          <span className="inline-block relative">
-            <AnimatePresence mode="wait">
-              <motion.span
-                key={index}
-                initial={{ opacity: 0, y: 8, filter: "blur(4px)" }}
-                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                exit={{ opacity: 0, y: -8, filter: "blur(4px)" }}
-                transition={{ duration: 0.4, ease: "easeInOut" }}
-                className="inline-block text-amber-400 font-medium"
-              >
-                {SWAPPING_PHRASES[index]}
-              </motion.span>
-            </AnimatePresence>
-          </span>
-          <span> across Kenya.</span>
-        </motion.div>
+        {/* Entire Block Animated Area */}
+        <div className="w-full max-w-xl mx-auto mb-12 min-h-[4.5rem] sm:min-h-[3.5rem] flex items-center justify-center relative overflow-hidden">
+          <AnimatePresence mode="wait">
+            <motion.p
+              key={statementIndex}
+              initial={{ opacity: 0, y: 12, filter: "blur(6px)" }}
+              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              exit={{ opacity: 0, y: -12, filter: "blur(6px)" }}
+              transition={{ duration: 0.6, ease: [0.215, 0.610, 0.355, 1.000] }}
+              className="text-white/60 text-sm md:text-base leading-relaxed font-light text-center absolute w-full"
+            >
+              {MISSION_STATEMENTS[statementIndex]}
+            </motion.p>
+          </AnimatePresence>
+        </div>
 
         {/* CTAs */}
         <motion.div
