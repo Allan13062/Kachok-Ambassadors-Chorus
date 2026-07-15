@@ -1,30 +1,39 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { ChevronDown, Calendar, MessageCircle } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 
 interface HeroProps {
   onAskAI: () => void;
   webLogo?: string;
 }
 
-// Complete, rich textual variations to cycle through
-const MISSION_STATEMENTS = [
-  "Spreading the Gospel through absolute vocal harmony, youth fellowship, and passionate community mission outreach across Kenya.",
-  "Uniting hearts through the power of choral excellence, lifting up youth ministries, and sharing divine grace in every song.",
-  "Proclaiming faith through rich SATB absolute harmony, authentic fellowship, and impactful missionary service across counties."
-];
+// Staggered Container Animation Definitions
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.12, // Gap between each element appearing
+      delayChildren: 0.4,    // Initial wait time for cinematic feel
+    },
+  },
+};
+
+// Smooth, unified lifting motion for all child nodes
+const itemVariants = {
+  hidden: { opacity: 0, y: 25, filter: "blur(4px)" },
+  visible: {
+    opacity: 1,
+    y: 0,
+    filter: "blur(0px)",
+    transition: {
+      duration: 0.8,
+      ease: [0.215, 0.61, 0.355, 1], // Cinematic ease-out
+    },
+  },
+};
 
 export default function Hero({ onAskAI, webLogo }: HeroProps) {
-  const [statementIndex, setStatementIndex] = useState(0);
-
-  // Cycle statements smoothly every 4.5 seconds
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setStatementIndex((prev) => (prev + 1) % MISSION_STATEMENTS.length);
-    }, 4500);
-    return () => clearInterval(timer);
-  }, []);
-
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
     if (el) {
@@ -60,28 +69,22 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
       <div className="absolute top-1/3 left-1/4 w-[500px] h-[500px] rounded-full bg-amber-500/5 blur-[100px] pointer-events-none z-0 animate-pulse-slow" />
       <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] rounded-full bg-blue-500/4 blur-[80px] pointer-events-none z-0 animate-pulse-slow" style={{ animationDelay: "3s" }} />
 
-      {/* Content */}
-      <div className="relative z-10 w-full max-w-5xl mx-auto px-6 md:px-12 text-center flex flex-col items-center pt-20">
-
-        {/* Eyebrow */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4, duration: 0.8, ease: "easeOut" }}
-          className="flex items-center gap-3 mb-8"
-        >
+      {/* Content Orchestration Container */}
+      <motion.div
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        className="relative z-10 w-full max-w-5xl mx-auto px-6 md:px-12 text-center flex flex-col items-center pt-20"
+      >
+        {/* 1. Eyebrow */}
+        <motion.div variants={itemVariants} className="flex items-center gap-3 mb-8">
           <div className="w-8 h-px bg-amber-400/50" />
           <span className="label-caps text-amber-400/80 text-[11px]">Kachok Ambassadors Chorus</span>
           <div className="w-8 h-px bg-amber-400/50" />
         </motion.div>
 
-        {/* Main Title */}
-        <motion.h1
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.55, duration: 1, ease: "easeOut" }}
-          className="leading-[0.95] mb-4 text-center"
-        >
+        {/* 2. Main Title */}
+        <motion.h1 variants={itemVariants} className="leading-[0.95] mb-4 text-center">
           {/* KACHAMBA — Boldini chrome gradient style */}
           <span
             style={{
@@ -117,39 +120,25 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
           </span>
         </motion.h1>
 
-        {/* Subheading */}
+        {/* 3. Subheading */}
         <motion.p
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.75, duration: 0.8 }}
+          variants={itemVariants}
           className="label-caps text-white/40 text-[11px] mb-6 tracking-[0.25em]"
         >
           Sounds Of Togetherness · Since 2021
         </motion.p>
 
-        {/* Entire Block Animated Area */}
-        <div className="w-full max-w-xl mx-auto mb-12 min-h-[4.5rem] sm:min-h-[3.5rem] flex items-center justify-center relative overflow-hidden">
-          <AnimatePresence mode="wait">
-            <motion.p
-              key={statementIndex}
-              initial={{ opacity: 0, y: 12, filter: "blur(6px)" }}
-              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-              exit={{ opacity: 0, y: -12, filter: "blur(6px)" }}
-              transition={{ duration: 0.6, ease: [0.215, 0.610, 0.355, 1.000] }}
-              className="text-white/60 text-sm md:text-base leading-relaxed font-light text-center absolute w-full"
-            >
-              {MISSION_STATEMENTS[statementIndex]}
-            </motion.p>
-          </AnimatePresence>
-        </div>
-
-        {/* CTAs */}
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.1, duration: 0.7 }}
-          className="flex flex-col sm:flex-row items-center gap-4 mb-16"
+        {/* 4. Body description */}
+        <motion.p
+          variants={itemVariants}
+          className="text-white/60 text-sm md:text-base max-w-xl mx-auto leading-relaxed font-light mb-12"
         >
+          Spreading the Gospel through absolute vocal harmony, youth fellowship,
+          and passionate community mission outreach across Kenya.
+        </motion.p>
+
+        {/* 5. CTAs */}
+        <motion.div variants={itemVariants} className="flex flex-col sm:flex-row items-center gap-4 mb-16">
           <motion.button
             whileHover={{ scale: 1.03, y: -1 }}
             whileTap={{ scale: 0.97 }}
@@ -171,11 +160,9 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
           </motion.button>
         </motion.div>
 
-        {/* Stats */}
+        {/* 6. Stats */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.3, duration: 0.8 }}
+          variants={itemVariants}
           className="glass rounded-2xl px-8 py-5 max-w-2xl w-full grid grid-cols-2 sm:grid-cols-4 gap-6"
         >
           {[
@@ -191,24 +178,19 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
           ))}
         </motion.div>
 
-        {/* Scripture */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.6, duration: 1 }}
-          className="mt-10 text-center"
-        >
+        {/* 7. Scripture */}
+        <motion.div variants={itemVariants} className="mt-10 text-center">
           <p className="text-white/30 text-xs italic font-light" style={{ fontFamily: "'Cormorant Garamond', serif" }}>
             "I will sing unto the Lord as long as I live…" — Psalm 104:33
           </p>
         </motion.div>
-      </div>
+      </motion.div>
 
       {/* Scroll indicator */}
       <motion.button
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 2, duration: 1 }}
+        transition={{ delay: 1.8, duration: 1 }}
         onClick={() => scrollTo("itinerary")}
         className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 cursor-pointer group"
       >
