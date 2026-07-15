@@ -1,35 +1,36 @@
-import React, { useRef } from "react";
+import React from "react";
 import { ChevronDown, Calendar, MessageCircle } from "lucide-react";
-import { motion, useMotionValue, useSpring } from "motion/react";
+import { motion } from "motion/react";
 
 interface HeroProps {
   onAskAI: () => void;
   webLogo?: string;
 }
 
-// Layout Orchestration Sequence Settings
+// Layout Orchestration
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.15,
+      staggerChildren: 0.15, // Smooth gradual pacing between elements
       delayChildren: 0.2,
     },
   },
 };
 
-// Orchestration directional motion configurations
+// Elements sliding in from the LEFT
 const slideLeftVariants = {
   hidden: { opacity: 0, x: -40, filter: "blur(8px)" },
   visible: {
     opacity: 1,
     x: 0,
     filter: "blur(0px)",
-    transition: { duration: 1.2, ease: [0.16, 1, 0.3, 1] },
+    transition: { duration: 1.2, ease: [0.16, 1, 0.3, 1] }, // Epic cinematic ease-out
   },
 };
 
+// Elements sliding in from the RIGHT
 const slideRightVariants = {
   hidden: { opacity: 0, x: 40, filter: "blur(8px)" },
   visible: {
@@ -40,6 +41,7 @@ const slideRightVariants = {
   },
 };
 
+// Text drops down centrally
 const dropDownVariants = {
   hidden: { opacity: 0, y: -30, filter: "blur(6px)" },
   visible: {
@@ -51,30 +53,6 @@ const dropDownVariants = {
 };
 
 export default function Hero({ onAskAI, webLogo }: HeroProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  // Raw coordinate tracking channels
-  const mouseX = useMotionValue(0);
-  const mouseY = useMotionValue(0);
-
-  // Physical structural damping spring loops (prevents jittery cursor jumps)
-  const orbX = useSpring(mouseX, { stiffness: 60, damping: 25 });
-  const orbY = useSpring(mouseY, { stiffness: 60, damping: 25 });
-
-  // Secondary delayed spring channel to generate a dual trailing liquid aura look
-  const trailingOrbX = useSpring(mouseX, { stiffness: 35, damping: 20 });
-  const trailingOrbY = useSpring(mouseY, { stiffness: 35, damping: 20 });
-
-  // Capture canvas plane interaction matrices
-  const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    
-    // Project absolute positions down relative to structural container view dimensions
-    mouseX.set(event.clientX - rect.left);
-    mouseY.set(event.clientY - rect.top);
-  };
-
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
     if (el) {
@@ -86,48 +64,29 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
   return (
     <section
       id="home"
-      ref={containerRef}
-      onMouseMove={handleMouseMove}
-      className="relative min-h-screen flex flex-col justify-center items-center overflow-hidden bg-slate-950 cursor-default"
+      className="relative min-h-screen flex flex-col justify-center items-center overflow-hidden bg-slate-950"
     >
       {/* Cinematic Background — Slow Zoom Out */}
       <motion.div
         initial={{ scale: 1.25, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ duration: 3.5, ease: [0.16, 1, 0.3, 1] }}
-        className="absolute inset-0 z-0 select-none pointer-events-none"
+        className="absolute inset-0 z-0"
       >
         <img
           src="/WhatsApp Image 2026-06-11 at 11.06.18 AM.jpeg"
           alt="Kachamba Chorus Choir"
           className="w-full h-full object-cover"
         />
-        {/* Multi-layer darkening overlay setup */}
+        {/* Multi-layer darkening overlay */}
         <div className="absolute inset-0 bg-slate-950/60" />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-slate-950/40" />
         <div className="absolute inset-0 bg-gradient-to-r from-slate-950/40 via-transparent to-slate-950/40" />
       </motion.div>
 
-      {/* 
-        MOUSE INTERACTION ORB LAYERS 
-        - Centered by subtracting half dimensions (-250px) using x/y styles to keep tracking smooth
-      */}
-      <motion.div 
-        style={{
-          x: orbX,
-          y: orbY,
-          transform: "translate(-250px, -250px)",
-        }}
-        className="absolute top-0 left-0 w-[500px] h-[500px] rounded-full bg-amber-500/10 blur-[130px] pointer-events-none z-0 mix-blend-screen"
-      />
-      <motion.div 
-        style={{
-          x: trailingOrbX,
-          y: trailingOrbY,
-          transform: "translate(-200px, -200px)",
-        }}
-        className="absolute top-0 left-0 w-[400px] h-[400px] rounded-full bg-blue-500/8 blur-[110px] pointer-events-none z-0 mix-blend-screen"
-      />
+      {/* Ambient orbs */}
+      <div className="absolute top-1/3 left-1/4 w-[500px] h-[500px] rounded-full bg-amber-500/5 blur-[100px] pointer-events-none z-0 animate-pulse-slow" />
+      <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] rounded-full bg-blue-500/4 blur-[80px] pointer-events-none z-0 animate-pulse-slow" style={{ animationDelay: "3s" }} />
 
       {/* Content Master Container */}
       <motion.div
@@ -195,7 +154,7 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
           and passionate community mission outreach across Kenya.
         </motion.p>
 
-        {/* 5. CTAs */}
+        {/* 5. CTAs — Lift gracefully together */}
         <motion.div variants={dropDownVariants} className="flex flex-col sm:flex-row items-center gap-4 mb-16">
           <motion.button
             whileHover={{ scale: 1.03, y: -2 }}
@@ -218,7 +177,7 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
           </motion.button>
         </motion.div>
 
-        {/* 6. Stats Panel with Glass Variant & Metric Card Hovers */}
+        {/* 6. Stats Panel with Advanced Metric Card Hovers */}
         <motion.div
           variants={dropDownVariants}
           className="glass rounded-2xl p-2 max-w-2xl w-full grid grid-cols-2 sm:grid-cols-4 gap-2"
@@ -233,8 +192,8 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
               key={i}
               whileHover={{ 
                 scale: 1.04, 
-                backgroundColor: "rgba(255, 255, 255, 0.04)",
-                boxShadow: "0 10px 30px -10px rgba(245, 158, 11, 0.12)"
+                backgroundColor: "rgba(255, 255, 255, 0.05)",
+                boxShadow: "0 10px 30px -10px rgba(245, 158, 11, 0.15)"
               }}
               transition={{ type: "spring", stiffness: 400, damping: 25 }}
               className="text-center py-4 px-2 rounded-xl transition-colors duration-300 cursor-default"
@@ -263,3 +222,12 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
       >
         <motion.div
           animate={{ y: [0, 6, 0] }}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+          className="w-8 h-8 rounded-full glass flex items-center justify-center group-hover:border-amber-400/30 transition-colors"
+        >
+          <ChevronDown className="w-4 h-4 text-white/40 group-hover:text-amber-400 transition-colors" />
+        </motion.div>
+      </motion.button>
+    </section>
+  );
+}
