@@ -74,7 +74,7 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
               letterSpacing: "0.03em",
               lineHeight: 1,
               display: "block",
-              background: "linear-gradient(180deg, #FCD34D 0%, #F59E0B 25%, #FFFFFF 55%, #FDE68A 78%, #FFFFFF 100%)",
+              background: "linear-gradient(180deg, #FCD34D 60%, #F59E0B 25%, #FFFFFF 55%, #FDE68A 78%, #FDE68A 100%)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",
