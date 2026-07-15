@@ -1,13 +1,30 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { ChevronDown, Calendar, MessageCircle } from "lucide-react";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 
 interface HeroProps {
   onAskAI: () => void;
   webLogo?: string;
 }
 
+// Words to swap through
+const SWAPPING_PHRASES = [
+  "absolute vocal harmony",
+  "youth fellowship",
+  "passionate community mission outreach",
+];
+
 export default function Hero({ onAskAI, webLogo }: HeroProps) {
+  const [index, setIndex] = useState(0);
+
+  // Cycle through phrases every 3 seconds
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setIndex((prevIndex) => (prevIndex + 1) % SWAPPING_PHRASES.length);
+    }, 3000);
+    return () => clearInterval(timer);
+  }, []);
+
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
     if (el) {
@@ -110,16 +127,30 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
           Sounds Of Togetherness · Since 2021
         </motion.p>
 
-        {/* Body description */}
-        <motion.p
+        {/* Dynamic Swapping Body Description */}
+        <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.95, duration: 1 }}
-          className="text-white/60 text-sm md:text-base max-w-xl mx-auto leading-relaxed font-light mb-12"
+          className="text-white/60 text-sm md:text-base max-w-xl mx-auto leading-relaxed font-light mb-12 min-h-[3rem] md:min-h-[2.5rem]"
         >
-          Spreading the Gospel through absolute vocal harmony, youth fellowship,
-          and passionate community mission outreach across Kenya.
-        </motion.p>
+          <span>Spreading the Gospel through </span>
+          <span className="inline-block relative">
+            <AnimatePresence mode="wait">
+              <motion.span
+                key={index}
+                initial={{ opacity: 0, y: 8, filter: "blur(4px)" }}
+                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                exit={{ opacity: 0, y: -8, filter: "blur(4px)" }}
+                transition={{ duration: 0.4, ease: "easeInOut" }}
+                className="inline-block text-amber-400 font-medium"
+              >
+                {SWAPPING_PHRASES[index]}
+              </motion.span>
+            </AnimatePresence>
+          </span>
+          <span> across Kenya.</span>
+        </motion.div>
 
         {/* CTAs */}
         <motion.div
