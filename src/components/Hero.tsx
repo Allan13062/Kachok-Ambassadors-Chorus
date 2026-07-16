@@ -106,27 +106,35 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
       onMouseMove={handlePointerMove}
       className="relative min-h-screen flex flex-col justify-center items-center overflow-hidden bg-slate-950"
     >
-      {/* Cinematic Background — Slow Zoom Out, then a perpetual gentle Ken Burns drift */}
+      {/* Cinematic Background — one-time slow entrance zoom, then a smooth perpetual breathing drift */}
       <motion.div
         initial={{ scale: 1.35, opacity: 0 }}
-        animate={{ scale: [1.35, 1.06, 1.14], opacity: 1 }}
+        animate={{ scale: 1.08, opacity: 1 }}
         transition={{
-          scale: {
-            duration: 16,
-            times: [0, 0.28, 1],
-            ease: [0.16, 1, 0.3, 1],
-            repeat: Infinity,
-            repeatType: "mirror",
-          },
+          scale: { duration: 5, ease: EASE_PROFESSIONAL },
           opacity: { duration: 2.8, ease: "easeOut" },
         }}
         className="absolute inset-0 z-0"
       >
-        <img
-          src="/WhatsApp Image 2026-06-11 at 11.06.18 AM.jpeg"
-          alt="Kachamba Chorus Choir"
-          className="w-full h-full object-cover"
-        />
+        {/* Continuous ambient drift, decoupled from the entrance so there's no easing collision/pause at the handoff */}
+        <motion.div
+          initial={{ scale: 1 }}
+          animate={{ scale: 1.06 }}
+          transition={{
+            duration: 22,
+            delay: 5,
+            ease: "easeInOut",
+            repeat: Infinity,
+            repeatType: "mirror",
+          }}
+          className="w-full h-full"
+        >
+          <img
+            src="/WhatsApp Image 2026-06-11 at 11.06.18 AM.jpeg"
+            alt="Kachamba Chorus Choir"
+            className="w-full h-full object-cover"
+          />
+        </motion.div>
         {/* Multi-layer darkening overlay */}
         <div className="absolute inset-0 bg-slate-950/60" />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-slate-950/40" />
@@ -165,24 +173,38 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
 
         {/* 2. Main Title — Slides from the Left */}
         <motion.h1 variants={slideLeftVariants} className="leading-[0.95] mb-4 text-center">
-          <span
+          {/* KACHAMBA — now solid white, tighter tracking, faux-bolded via text-stroke, glows white on hover */}
+          <motion.span
+            initial={{ filter: "drop-shadow(0 0 22px rgba(255,255,255,0.20))" }}
+            whileHover={{
+              filter:
+                "drop-shadow(0 0 55px rgba(255,255,255,0.85)) drop-shadow(0 0 22px rgba(255,255,255,0.95))",
+            }}
+            transition={{ duration: 0.5, ease: EASE_PROFESSIONAL }}
             style={{
               fontFamily: "'Quicksand', 'Century Gothic', 'Futura', sans-serif",
               fontWeight: 700,
               fontSize: "clamp(4.5rem, 14vw, 10rem)",
-              letterSpacing: "0.03em",
+              letterSpacing: "-0.01em",
               lineHeight: 1,
               display: "block",
-              background: "linear-gradient(180deg, #FCD34D 60%, #F59E0B 25%, #FFFFFF 55%, #FDE68A 78%, #FDE68A 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-              filter: "drop-shadow(0 0 32px rgba(251,191,36,0.30))",
+              width: "fit-content",
+              margin: "0 auto",
+              color: "#FFFFFF",
+              WebkitTextStroke: "0.6px #FFFFFF",
+              cursor: "default",
             }}
           >
             KACHAMBA
-          </span>
-          <span
+          </motion.span>
+          {/* Chorus — now carries the amber/gold gradient, glows amber on hover */}
+          <motion.span
+            initial={{ filter: "drop-shadow(0 0 14px rgba(251,191,36,0.20))" }}
+            whileHover={{
+              filter:
+                "drop-shadow(0 0 42px rgba(251,191,36,0.75)) drop-shadow(0 0 16px rgba(253,230,138,0.9))",
+            }}
+            transition={{ duration: 0.5, ease: EASE_PROFESSIONAL }}
             style={{
               fontFamily: "'Cormorant Garamond', serif",
               fontStyle: "italic",
@@ -191,11 +213,17 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
               letterSpacing: "0.01em",
               lineHeight: 1,
               display: "block",
-              color: "#FFFFFF",
+              width: "fit-content",
+              margin: "0 auto",
+              background: "linear-gradient(180deg, #FCD34D 60%, #F59E0B 25%, #FFFFFF 55%, #FDE68A 78%, #FDE68A 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+              cursor: "default",
             }}
           >
             Chorus
-          </span>
+          </motion.span>
         </motion.h1>
 
         {/* 3. Subheading — Slides from the Right */}
