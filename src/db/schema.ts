@@ -72,7 +72,10 @@ export const adminConfig = pgTable("admin_config", {
   updatedAt: timestamp("updated_at").defaultNow()
 });
 
-// Uploaded files table for persistent binary/base64 storage (Neon Postgres)
+// DEPRECATED: base64-in-Postgres file storage. All media now uploads directly
+// to Cloudinary (see src/lib/mediaUpload.ts + POST /api/cloudinary-signature).
+// Table kept only so old rows aren't silently orphaned - safe to drop once you've
+// confirmed nothing references /api/uploads/:id anymore (run a migration to remove it).
 export const uploads = pgTable("uploads", {
   id: text("id").primaryKey(),
   filename: text("filename").notNull(),
@@ -81,7 +84,48 @@ export const uploads = pgTable("uploads", {
   createdAt: timestamp("created_at").defaultNow()
 });
 
-// Users table to store login credentials, roles, and profiles in Neon Postgres
+// Gallery Table - photo/video metadata; the `url` column always points at Cloudinary
+export const gallery = pgTable("gallery", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  category: text("category").default("General"),
+  description: text("description"),
+  url: text("url").notNull(),
+  mediaType: text("media_type").default("image"),
+  createdAt: timestamp("created_at").defaultNow()
+});
+
+// Newsletter subscribers
+export const subscribers = pgTable("subscribers", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull(),
+  createdAt: timestamp("created_at").defaultNow()
+});
+
+// Admin broadcast emails sent to subscribers
+export const broadcasts = pgTable("broadcasts", {
+  id: text("id").primaryKey(),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  sentCount: integer("sent_count").default(0),
+  sentTo: text("sent_to"), // JSON-stringified array of recipient emails
+  createdAt: timestamp("created_at").defaultNow()
+});
+
+// Member spotlight entries
+export const memberSpotlights = pgTable("member_spotlights", {
+  id: text("id").primaryKey(),
+  memberName: text("member_name").notNull(),
+  roleOrVoicePart: text("role_or_voice_part").default("Chorus Member"),
+  quoteOrHighlight: text("quote_or_highlight").notNull(),
+  image: text("image"),
+  createdAt: timestamp("created_at").defaultNow()
+});
+
+// DEPRECATED: login credentials and roles are now stored exclusively in Firestore
+// (the "users" collection, written via the Firebase Admin SDK - see dbStorage.ts).
+// Table kept only so old rows aren't silently orphaned; safe to drop after confirming
+// Firestore has everything (see the one-time migration that runs on server startup).
 export const users = pgTable("users", {
   uid: text("uid").primaryKey(),
   email: text("email").notNull(),
