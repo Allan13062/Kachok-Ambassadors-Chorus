@@ -30,7 +30,7 @@ const slideLeftVariants = {
     x: 0,
     scale: 1,
     filter: "blur(0px)",
-    transition: { duration: 2.5, ease: EASE_PROFESSIONAL },
+    transition: { duration: 4, ease: EASE_PROFESSIONAL },
   },
 };
 
@@ -42,7 +42,7 @@ const slideRightVariants = {
     x: 0,
     scale: 1,
     filter: "blur(0px)",
-    transition: { duration: 2.5, ease: EASE_PROFESSIONAL },
+    transition: { duration: 4, ease: EASE_PROFESSIONAL },
   },
 };
 
@@ -54,7 +54,7 @@ const dropDownVariants = {
     y: 0,
     scale: 1,
     filter: "blur(0px)",
-    transition: { duration: 2.5, ease: EASE_PROFESSIONAL },
+    transition: { duration: 4, ease: EASE_PROFESSIONAL },
   },
 };
 
@@ -167,7 +167,7 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
         <motion.h1 variants={slideLeftVariants} className="leading-[0.95] mb-4 text-center">
           <span
             style={{
-              fontFamily: "'Glacial Indifference', 'Century Gothic', 'Futura', sans-serif",
+              fontFamily: "'Quicksand', 'Century Gothic', 'Futura', sans-serif",
               fontWeight: 700,
               fontSize: "clamp(4.5rem, 14vw, 10rem)",
               letterSpacing: "0.03em",
@@ -297,7 +297,7 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
       <motion.button
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 4.4, duration: 1 }}
+        transition={{ delay: 5.8, duration: 1 }}
         onClick={() => scrollTo("itinerary")}
         className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 cursor-pointer group"
       >
