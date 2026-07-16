@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Lock, Sun, Moon, Menu, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { User as FirebaseUser } from "firebase/auth";
@@ -20,12 +20,22 @@ export default function Header({ isAdmin, onOpenAdmin, onLogout, activeSection, 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
+  const [hideNav, setHideNav] = useState(false);
+  const lastScrollY = useRef(0);
 
   useEffect(() => {
     const onScroll = () => {
-      setScrolled(window.scrollY > 60);
+      const currentY = window.scrollY;
+      setScrolled(currentY > 60);
       const docHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight;
-      setScrollProgress(docHeight > 0 ? (window.scrollY / docHeight) * 100 : 0);
+      setScrollProgress(docHeight > 0 ? (currentY / docHeight) * 100 : 0);
+
+      // Hide on scroll-down past the hero, reveal on scroll-up, always show near the top
+      const scrolledDown = currentY > lastScrollY.current;
+      const pastThreshold = currentY > 140;
+      setHideNav(scrolledDown && pastThreshold);
+      if (scrolledDown && pastThreshold) setMobileMenuOpen(false);
+      lastScrollY.current = currentY;
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
@@ -66,7 +76,11 @@ export default function Header({ isAdmin, onOpenAdmin, onLogout, activeSection, 
     : "glass-nav-transparent";
 
   return (
-    <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${navBg}`}>
+    <motion.header
+      animate={{ y: hideNav ? "-110%" : "0%" }}
+      transition={{ duration: 0.4, ease: [0.19, 1, 0.22, 1] }}
+      className={`fixed top-0 left-0 right-0 z-50 transition-colors duration-300 ${navBg}`}
+    >
       {/* Top vibrant accent border */}
       <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-amber-400/70 to-transparent" />
       {/* Scroll progress line */}
@@ -79,7 +93,7 @@ export default function Header({ isAdmin, onOpenAdmin, onLogout, activeSection, 
 
         {/* Logo */}
         <button onClick={() => scrollTo("home")} className="flex items-center gap-3 group shrink-0">
-          <div className="relative w-8 h-8 rounded-full overflow-hidden border border-white/20 shadow-lg shadow-black/30 group-hover:scale-105 transition-transform duration-300">
+          <div className="relative w-8 h-8 rounded-full overflow-hidden border border-white/20 shadow-lg shadow-black/30 transition-all duration-300 group-hover:scale-105 group-hover:shadow-amber-400/40 group-hover:border-amber-400/40">
             <img
               src={webLogo || "https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png"}
               alt="Kachamba Chorus"
@@ -104,7 +118,7 @@ export default function Header({ isAdmin, onOpenAdmin, onLogout, activeSection, 
               <button
                 key={item.id}
                 onClick={() => scrollTo(item.id)}
-                className={`relative label-caps text-[11px] px-3.5 py-2 rounded-lg cursor-pointer transition-all duration-200 ${
+                className={`group relative label-caps text-[11px] px-3.5 py-2 rounded-lg cursor-pointer transition-all duration-100 ease-out ${
                   isActive
                     ? "text-amber-400 bg-amber-400/10 border border-amber-400/20"
                     : isDark
@@ -117,8 +131,11 @@ export default function Header({ isAdmin, onOpenAdmin, onLogout, activeSection, 
                   <motion.span
                     layoutId="navPill"
                     className="absolute inset-0 rounded-lg bg-amber-400/10 border border-amber-400/20 -z-10"
-                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 32 }}
                   />
+                )}
+                {!isActive && (
+                  <span className="pointer-events-none absolute inset-x-3 bottom-1 h-px bg-amber-400/60 scale-x-0 origin-center transition-transform duration-150 ease-out group-hover:scale-x-100" />
                 )}
               </button>
             );
@@ -264,6 +281,6 @@ export default function Header({ isAdmin, onOpenAdmin, onLogout, activeSection, 
           </motion.div>
         )}
       </AnimatePresence>
-    </header>
+    </motion.header>
   );
 }
