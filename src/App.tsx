@@ -31,7 +31,7 @@ function FadeInSection({ children }: { children: React.ReactNode }) {
       initial={{ opacity: 0, y: 30 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-100px" }}
-      transition={{ duration: 1.6, ease: "easeOut" }}
+      transition={{ duration: 0.45, ease: "easeOut" }}
     >
       {children}
     </motion.div>
@@ -624,7 +624,7 @@ export default function App() {
 
       {/* Navigation Header */}
       <Header 
-        isAdmin={!!adminPasscode}
+        isAdmin={isAdmin}
         onOpenAdmin={() => setIsAdminOpen(true)}
         onLogout={handleAdminLogout}
         activeSection={activeSection}
@@ -652,7 +652,7 @@ export default function App() {
         <FadeInSection>
           <MemberSpotlight
             spotlights={dbData.memberSpotlights}
-            isAdmin={!!adminPasscode}
+            isAdmin={isAdmin}
             onLaunchAdmin={() => {
               setAdminScrollTarget("spotlight");
               setIsAdminOpen(true);
@@ -664,7 +664,7 @@ export default function App() {
         <FadeInSection>
           <Itinerary 
             items={dbData.itinerary}
-            isAdmin={!!adminPasscode}
+            isAdmin={isAdmin}
             adminPasscode={adminPasscode}
             onRefresh={fetchData}
             onAdd={() => {
@@ -690,7 +690,7 @@ export default function App() {
         <FadeInSection>
           <Activities 
             items={dbData.activities}
-            isAdmin={!!adminPasscode}
+            isAdmin={isAdmin}
             onAdd={() => {
               setActToEdit(null);
               setAdminScrollTarget("activities");
@@ -709,7 +709,7 @@ export default function App() {
         <FadeInSection>
           <Leaders 
             items={dbData.leaders}
-            isAdmin={!!adminPasscode}
+            isAdmin={isAdmin}
             onAdd={() => {
               setLdrToEdit(null);
               setAdminScrollTarget("leaders");
@@ -770,7 +770,7 @@ export default function App() {
             onGoogleLoginAdmin={handleAdminGoogleAuth}
             onResetPassword={handleAdminResetPassword}
             onLogout={handleAdminLogout}
-            isAuthenticated={!!adminPasscode}
+            isAuthenticated={isAdmin}
             adminError={adminError}
             adminToken={adminToken}
             authLoading={authLoading}
