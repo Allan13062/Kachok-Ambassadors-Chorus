@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ZoomIn, X, Play, Image as ImageIcon } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GalleryPhoto } from "../types";
@@ -9,86 +9,138 @@ interface GalleryProps {
 
 export default function Gallery({ photos = [] }: GalleryProps) {
   const [selectedItem, setSelectedItem] = useState<GalleryPhoto | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!selectedItem) return;
+
+    closeButtonRef.current?.focus();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedItem(null);
+    };
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [selectedItem]);
+
+  const isVideo = (photo: GalleryPhoto) =>
+    photo.mediaType === "video" ||
+    /\.(mp4|webm|mov)(\?.*)?$/i.test(photo.url || "");
 
   return (
-    <section id="gallery" className="relative py-28 px-6 md:px-12 bg-slate-900 overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_30%,rgba(245,158,11,0.04)_0%,transparent_60%)] pointer-events-none" />
+    <section
+      id="gallery"
+      className="relative overflow-hidden bg-slate-900 px-6 py-24 md:px-12"
+    >
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_70%_30%,rgba(245,158,11,0.04)_0%,transparent_60%)]" />
 
-      <div className="max-w-6xl mx-auto relative">
-
-        {/* Header */}
-        <div className="text-center mb-16">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="w-6 h-px bg-amber-400/50" />
-            <span className="label-caps text-amber-400/70 text-[11px]">Captured Moments</span>
-            <div className="w-6 h-px bg-amber-400/50" />
+      <div className="relative mx-auto max-w-6xl">
+        <div className="mb-12 text-center">
+          <div className="mb-4 flex items-center justify-center gap-3">
+            <div className="h-px w-6 bg-amber-400/50" />
+            <span className="label-caps text-[11px] text-amber-400/70">
+              Captured Moments
+            </span>
+            <div className="h-px w-6 bg-amber-400/50" />
           </div>
-          <h2 className="font-display font-bold text-4xl md:text-6xl text-white tracking-tight leading-none mb-3">
+
+          <h2 className="font-display text-4xl font-bold tracking-tight text-white md:text-6xl">
             Gallery
           </h2>
-          <p className="text-white/40 text-sm font-light max-w-sm mx-auto leading-relaxed">
+
+          <p className="mx-auto mt-3 max-w-sm text-sm font-light leading-relaxed text-white/40">
             Prayer, harmony, and vibrant outreach — captured in every frame.
           </p>
         </div>
 
-        {/* Empty state */}
-        {photos.length === 0 && (
+        {photos.length === 0 ? (
           <div className="glass rounded-2xl py-24 text-center">
-            <div className="p-4 glass rounded-2xl w-14 h-14 flex items-center justify-center mx-auto mb-4">
-              <ImageIcon className="w-6 h-6 text-white/25" />
+            <div className="glass mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl">
+              <ImageIcon className="h-6 w-6 text-white/25" aria-hidden="true" />
             </div>
             <p className="label-caps text-[11px] text-white/25">No media yet</p>
-            <p className="text-white/20 text-xs mt-1">Admins can upload from the dashboard</p>
+            <p className="mt-1 text-xs text-white/20">
+              Admins can upload from the dashboard
+            </p>
           </div>
-        )}
-
-        {/* Masonry-style Grid */}
-        {photos.length > 0 && (
+        ) : (
           <motion.div
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true, margin: "-60px" }}
-            variants={{ hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.07 } } }}
-            className="columns-1 sm:columns-2 lg:columns-3 gap-4 space-y-4"
+            variants={{
+              hidden: { opacity: 0 },
+              visible: {
+                opacity: 1,
+                transition: { staggerChildren: 0.05 },
+              },
+            }}
+            className="columns-1 gap-4 space-y-4 sm:columns-2 lg:columns-3"
           >
             {photos.map((photo, index) => {
-              const isVideo = photo.mediaType === "video" || photo.url?.match(/\.(mp4|webm|mov)$/i);
+              const video = isVideo(photo);
+              const label = photo.title || photo.caption || "Gallery media";
+
               return (
                 <motion.div
                   key={photo.id || index}
-                  variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5 } } }}
-                  className="break-inside-avoid glass rounded-xl overflow-hidden group cursor-pointer relative"
-                  onClick={() => setSelectedItem(photo)}
+                  variants={{
+                    hidden: { opacity: 0, y: 12 },
+                    visible: { opacity: 1, y: 0, transition: { duration: 0.35 } },
+                  }}
+                  className="break-inside-avoid"
                 >
-                  {isVideo ? (
-                    <div className="relative">
-                      <video src={photo.url} className="w-full object-cover group-hover:scale-105 transition-transform duration-700" muted />
-                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <div className="w-12 h-12 glass rounded-full flex items-center justify-center">
-                          <Play className="w-5 h-5 text-white ml-0.5" />
-                        </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedItem(photo)}
+                    aria-label={`Open ${label}`}
+                    className="glass group relative block w-full overflow-hidden rounded-xl text-left focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  >
+                    {video ? (
+                      <div className="relative">
+                        <video
+                          src={photo.url}
+                          muted
+                          playsInline
+                          preload="metadata"
+                          className="block max-h-[560px] w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        />
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/20">
+                          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/60 text-white">
+                            <Play className="h-5 w-5" aria-hidden="true" />
+                          </span>
+                        </span>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="relative overflow-hidden">
-                      <img
-                        src={photo.url}
-                        alt={photo.title || photo.caption || "Gallery"}
-                        className="w-full object-cover group-hover:scale-105 transition-transform duration-700"
-                        loading="lazy"
-                      />
-                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <div className="w-10 h-10 glass rounded-full flex items-center justify-center">
-                          <ZoomIn className="w-4 h-4 text-white" />
-                        </div>
+                    ) : (
+                      <div className="relative overflow-hidden">
+                        <img
+                          src={photo.url}
+                          alt={label}
+                          loading="lazy"
+                          decoding="async"
+                          className="block max-h-[560px] w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        />
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 transition group-hover:opacity-100">
+                          <span className="glass flex h-10 w-10 items-center justify-center rounded-full">
+                            <ZoomIn className="h-4 w-4 text-white" aria-hidden="true" />
+                          </span>
+                        </span>
                       </div>
-                    </div>
-                  )}
-                  {(photo.title || photo.caption) && (
-                    <div className="p-3 border-t border-white/5">
-                      <p className="text-white/55 text-xs leading-relaxed">{photo.title || photo.caption}</p>
-                    </div>
-                  )}
+                    )}
+
+                    {label && (
+                      <span className="block border-t border-white/5 p-3 text-xs leading-relaxed text-white/55">
+                        {label}
+                      </span>
+                    )}
+                  </button>
                 </motion.div>
               );
             })}
@@ -96,35 +148,54 @@ export default function Gallery({ photos = [] }: GalleryProps) {
         )}
       </div>
 
-      {/* Lightbox */}
       <AnimatePresence>
         {selectedItem && (
           <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/92 backdrop-blur-2xl flex items-center justify-center p-4"
-            onClick={() => setSelectedItem(null)}
+            role="dialog"
+            aria-modal="true"
+            aria-label={selectedItem.title || selectedItem.caption || "Gallery viewer"}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/92 p-4 backdrop-blur-2xl"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) setSelectedItem(null);
+            }}
           >
             <button
-              className="absolute top-5 right-5 w-9 h-9 glass rounded-full flex items-center justify-center text-white/60 hover:text-white transition-colors"
+              ref={closeButtonRef}
+              type="button"
               onClick={() => setSelectedItem(null)}
+              aria-label="Close gallery viewer"
+              title="Close"
+              className="absolute right-5 top-5 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-amber-400"
             >
-              <X className="w-4 h-4" />
+              <X className="h-5 w-5" aria-hidden="true" />
             </button>
-            <motion.div
-              initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }}
-              transition={{ duration: 0.25 }}
-              className="max-w-5xl w-full max-h-[90vh] flex flex-col items-center gap-3"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {selectedItem.mediaType === "video" || selectedItem.url?.match(/\.(mp4|webm|mov)$/i) ? (
-                <video src={selectedItem.url} controls autoPlay className="max-h-[80vh] w-full rounded-xl" />
+
+            <div className="flex max-h-[90vh] max-w-5xl flex-col items-center gap-3">
+              {isVideo(selectedItem) ? (
+                <video
+                  src={selectedItem.url}
+                  controls
+                  autoPlay
+                  playsInline
+                  className="max-h-[80vh] max-w-full rounded-xl"
+                />
               ) : (
-                <img src={selectedItem.url} alt={selectedItem.title || ""} className="max-h-[80vh] object-contain rounded-xl" />
+                <img
+                  src={selectedItem.url}
+                  alt={selectedItem.title || selectedItem.caption || "Gallery"}
+                  className="max-h-[80vh] max-w-full rounded-xl object-contain"
+                />
               )}
+
               {(selectedItem.title || selectedItem.caption) && (
-                <p className="text-white/50 text-sm text-center">{selectedItem.title || selectedItem.caption}</p>
+                <p className="text-center text-sm text-white/60">
+                  {selectedItem.title || selectedItem.caption}
+                </p>
               )}
-            </motion.div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
