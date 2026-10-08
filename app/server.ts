@@ -15,6 +15,8 @@ import { db } from "./src/db/index.ts";
 import { getLocalDb, saveLocalDb, insertItem, deleteItem, getSession, deleteSession } from "./dbStorage.ts";
 import { activities, itinerary, leaders, inquiries, musicConfig, adminConfig, uploads, users, gallery } from "./src/db/schema.ts";
 import { eq } from "drizzle-orm";
+import { getAdminAuth, getAdminFirestore } from "./src/lib/firebaseAdmin.ts";
+import { getAdminAuth, getAdminFirestore } from "./src/lib/firebaseAdmin.ts";
 
 const app = express();
 const PORT = 3000;
@@ -75,7 +77,7 @@ app.use("/uploads", (req, res, next) => {
 // Fast In-Memory Passcode Cache to prevent Database slowness
 let cachedPasscode: string | null = null;
 let passcodeCacheTime: number = 0;
-let fallbackPasscode: string = process.env.ADMIN_PASSCODE || "SDA2026";
+let fallbackPasscode: string = process.env.ADMIN_PASSCODE || "";
 
 function isDbAvailable(): boolean {
   const host = process.env.SQL_HOST;
@@ -140,48 +142,50 @@ async function getAdminPasscode(): Promise<string> {
 
 // Authentication middleware using Firestore sessions and roles as the source of truth
 async function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
-  // Admin login is disabled. Bypass authentication.
-  return next();
-  
-  const code = req.headers["x-admin-passcode"] as string;
-  const token = (req.headers["x-admin-token"] || req.headers["x-admin-passcode"]) as string;
-  const userId = req.headers["x-user-id"] as string;
+  const headerToken = typeof req.headers.authorization === "string" && req.headers.authorization.startsWith("Bearer ")
+    ? req.headers.authorization.slice(7).trim()
+    : "";
+  const tokenHeader = req.headers["x-admin-token"];
+  const passcodeHeader = req.headers["x-admin-passcode"];
+  const token = headerToken || (typeof tokenHeader === "string" ? tokenHeader : "");
+  const passcode = typeof passcodeHeader === "string" ? passcodeHeader : "";
 
   try {
-    // 1. Check secure session token from headers (Firestore-backed server-side sessions)
-    if (token) {
+    // Legacy server-side sessions are opaque tokens, not Firebase JWTs.
+    if (token && !token.startsWith("eyJ")) {
       const session = await getSession(token);
-      if (session && session.expiresAt > Date.now()) {
-        return next();
+      if (session && session.expiresAt > Date.now()) return next();
+    }
+
+    // Verify the Firebase ID token and then check the server-side admin role.
+    // A user-supplied UID or a client-side-only role claim is never trusted.
+    if (token && token.startsWith("eyJ")) {
+      const firebaseAuth = getAdminAuth();
+      const firestore = getAdminFirestore();
+      if (firebaseAuth && firestore) {
+        try {
+          const decoded = await firebaseAuth.verifyIdToken(token);
+          const adminDoc = await firestore.collection("admins").doc(decoded.uid).get();
+          const role = adminDoc.exists ? adminDoc.data()?.role : undefined;
+          if (role === "admin" || role === "super_admin") return next();
+        } catch {
+          return res.status(401).json({ error: "Unauthorized. The administrator session is invalid or expired." });
+        }
       }
     }
 
-    // 2. Fallback check for raw passcode (backwards compatible / manual CLI tools)
-    if (code) {
-      const dbPasscode = await getAdminPasscode();
-      if (code === dbPasscode) {
-        return next();
-      }
+    // Optional legacy passcode support is disabled unless explicitly configured.
+    const configuredPasscode = process.env.ADMIN_PASSCODE;
+    if (configuredPasscode && passcode && passcode.length === configuredPasscode.length) {
+      const supplied = Buffer.from(passcode);
+      const expected = Buffer.from(configuredPasscode);
+      if (supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected)) return next();
     }
 
-    // 3. User permission check - Source of truth in Firestore
-    if (userId) {
-      const localDb = await getLocalDb();
-      const dbUser = (localDb.users || []).find((u: any) => u.uid === userId);
-      // Permit leaders (role === "leader" / "admin" / isLeader === true etc)
-      if (dbUser && (
-        dbUser.role === "leader" || 
-        dbUser.role === "admin" || 
-        dbUser.isLeader === true || 
-        dbUser.voicePart === "Section Leader"
-      )) {
-        return next();
-      }
-    }
-
-    res.status(401).json({ error: "Unauthorized: Invalid credentials or insufficient permissions. Please log in as Admin/Leader." });
+    return res.status(401).json({ error: "Unauthorized. Sign in with an authorised administrator account." });
   } catch (error) {
-    res.status(500).json({ error: "Authentication check database query failed." });
+    console.error("Admin authorization check failed:", error);
+    return res.status(503).json({ error: "Admin authorization is temporarily unavailable. Please try again." });
   }
 }
 
@@ -734,8 +738,20 @@ function proxyAudioWithRedirect(targetUrl: string, req: any, res: any, redirects
   }
 
   try {
-    const parsedUrl = url.parse(targetUrl);
-    const clientReq = parsedUrl.protocol === "https:" ? https : http;
+    const parsed = new URL(targetUrl);
+    const hostname = parsed.hostname.toLowerCase();
+    const allowedAudioHosts = [
+      "dropbox.com", "dropboxusercontent.com", "drive.google.com", "docs.google.com",
+      "drive.usercontent.google.com", "googleusercontent.com", "googleapis.com",
+      "firebasestorage.googleapis.com", "storage.googleapis.com", "cloudinary.com",
+      "archive.org", "soundcloud.com", "sndcdn.com"
+    ];
+    const allowedHost = allowedAudioHosts.some((host) => hostname === host || hostname.endsWith(`.${host}`));
+    if (parsed.protocol !== "https:" || !allowedHost || parsed.username || parsed.password) {
+      return res.status(400).send("Audio source URL is not allowed. Use HTTPS from a supported media host.");
+    }
+    const parsedUrl = url.parse(parsed.toString());
+    const clientReq = https;
 
     const requestHeaders: Record<string, string> = {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -752,7 +768,7 @@ function proxyAudioWithRedirect(targetUrl: string, req: any, res: any, redirects
       path: parsedUrl.path,
       method: "GET",
       headers: requestHeaders,
-      rejectUnauthorized: false
+      rejectUnauthorized: true
     };
 
     const proxyReq = clientReq.request(options, (proxyRes) => {
@@ -843,7 +859,7 @@ app.post("/api/auth", async (req, res) => {
   const { passcode } = req.body;
   try {
     const dbPasscode = await getAdminPasscode();
-    if (passcode === dbPasscode) {
+    if (passcode && dbPasscode && passcode === dbPasscode) {
       // Create a secure session token
       const token = "adm_sess_" + Math.random().toString(36).substring(2, 11) + Math.random().toString(36).substring(2, 11);
       const expiresAt = Date.now() + 2 * 60 * 60 * 1000; // 2 hour session validity duration
@@ -1915,7 +1931,6 @@ app.post("/api/chat", async (req, res) => {
     "- Rehearsals: Sabbath (Saturday) afternoons at 2:30 PM (right after Divine Service and lunch Fellowship) and Sunday afternoons from 2:00 PM to 4:30 PM at the Kachok Church sanctuary.\n" +
     "- Joining: Open to all baptized Seventh-day Adventist youth who pass a voice audition, or any honest young truth-seeker who is willing to abide by Christian virtues and Bible study values.\n" +
     "- Booking: Available for youth rallies, evangelistic crusades, Christian weddings, funerals, community services, camp meetings, and church divine service ministry.\n" +
-    "- Admin Passcode: For demo testing, church elders/directors can unlock dynamic activity/itinerary editing by using the passcode: 'SDA2026'.\n\n" +
     "General Adventist context to maintain:\n" +
     "- The sacredness of Saturday (the Seventh-day Sabbath) as a day of worship, fellowship, rest, and holy singing, starting at Friday sunset and ending Saturday sunset.\n" +
     "- Acappella arrangements are highly appreciated inside Adventist choral gatherings as they highlight vocal chords and pristine harmonies.\n\n" +
@@ -1925,8 +1940,7 @@ app.post("/api/chat", async (req, res) => {
     "- Since you are a representative of Christ's choir, always end with a short encouraging benediction (e.g., 'Blessings in Christ', 'Singing His praises!') or a warm scripture mention.";
 
   // Support custom API key passed from header (localStorage-backed for custom deployments)
-  const customApiKey = req.headers["x-gemini-key"] as string | undefined;
-  const ai = getGeminiClient(customApiKey);
+  const ai = getGeminiClient();
 
   if (!ai) {
     console.log("GEMINI_API_KEY is not configured yet. Using fallback simulated AI responses.");
