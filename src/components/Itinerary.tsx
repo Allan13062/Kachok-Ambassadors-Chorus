@@ -124,7 +124,7 @@ export default function Itinerary({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const getGoogleCalendarURL = (item: ItineraryItem): string => {
@@ -252,6 +252,7 @@ export default function Itinerary({
       if (item.status === "Past") return false;
       try {
         const itemDate = new Date(item.date);
+        if (Number.isNaN(itemDate.getTime())) return false;
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         return itemDate >= today;
