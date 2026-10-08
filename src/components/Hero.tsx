@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { ChevronDown, Calendar, MessageCircle } from "lucide-react";
+import { ChevronDown, MessageCircle } from "lucide-react";
 import { motion, useMotionValue, useSpring } from "motion/react";
 
 interface HeroProps {
@@ -7,336 +7,151 @@ interface HeroProps {
   webLogo?: string;
 }
 
-// Layout Orchestration
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.22, // Deliberate, evenly measured pacing between elements
-      delayChildren: 0.3,
-    },
-  },
-};
+const ease = [0.19, 1, 0.22, 1] as const;
 
-// A single, refined ease used across every reveal for a cohesive, premium feel
-const EASE_PROFESSIONAL = [0.19, 1, 0.22, 1] as const;
-
-// Elements sliding in from the LEFT — travel starts at the true screen edge
-const slideLeftVariants = {
-  hidden: { opacity: 0, x: "-65vw", scale: 0.96, filter: "blur(4px)" },
-  visible: {
-    opacity: 1,
-    x: 0,
-    scale: 1,
-    filter: "blur(0px)",
-    transition: { duration: 4, ease: EASE_PROFESSIONAL },
-  },
-};
-
-// Elements sliding in from the RIGHT — travel starts at the true screen edge
-const slideRightVariants = {
-  hidden: { opacity: 0, x: "65vw", scale: 0.96, filter: "blur(4px)" },
-  visible: {
-    opacity: 1,
-    x: 0,
-    scale: 1,
-    filter: "blur(0px)",
-    transition: { duration: 4, ease: EASE_PROFESSIONAL },
-  },
-};
-
-// Text drops down centrally
-const dropDownVariants = {
-  hidden: { opacity: 0, y: -40, scale: 0.97, filter: "blur(4px)" },
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
   visible: {
     opacity: 1,
     y: 0,
-    scale: 1,
-    filter: "blur(0px)",
-    transition: { duration: 4, ease: EASE_PROFESSIONAL },
+    transition: { duration: 1.15, ease },
   },
 };
 
 export default function Hero({ onAskAI, webLogo }: HeroProps) {
   const sectionRef = useRef<HTMLElement>(null);
-
-  // Raw cursor position within the hero section
   const cursorX = useMotionValue(0);
   const cursorY = useMotionValue(0);
 
-  // Primary glow — snaps close to the actual cursor
-  const glowSpring = { stiffness: 120, damping: 22, mass: 0.6 };
-  const glow1X = useSpring(cursorX, glowSpring);
-  const glow1Y = useSpring(cursorY, glowSpring);
-
-  // Trailing glow — lags behind for a soft parallax depth effect
-  const trailSpring = { stiffness: 55, damping: 26, mass: 1 };
-  const glow2X = useSpring(cursorX, trailSpring);
-  const glow2Y = useSpring(cursorY, trailSpring);
+  const glowX = useSpring(cursorX, { stiffness: 90, damping: 24 });
+  const glowY = useSpring(cursorY, { stiffness: 90, damping: 24 });
 
   useEffect(() => {
-    // Center the orbs on mount so they don't start pinned at the top-left corner
-    if (sectionRef.current) {
-      const { width, height } = sectionRef.current.getBoundingClientRect();
-      cursorX.set(width / 2);
-      cursorY.set(height / 2);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const section = sectionRef.current;
+    if (!section) return;
 
-  const handlePointerMove = (e: React.MouseEvent<HTMLElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    cursorX.set(e.clientX - rect.left);
-    cursorY.set(e.clientY - rect.top);
+    const rect = section.getBoundingClientRect();
+    cursorX.set(rect.width / 2);
+    cursorY.set(rect.height / 2);
+  }, [cursorX, cursorY]);
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLElement>) => {
+    if (event.pointerType === "touch") return;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    cursorX.set(event.clientX - rect.left);
+    cursorY.set(event.clientY - rect.top);
   };
 
   const scrollTo = (id: string) => {
-    const el = document.getElementById(id);
-    if (el) {
-      const y = el.getBoundingClientRect().top + window.pageYOffset - 80;
-      window.scrollTo({ top: y, behavior: "smooth" });
-    }
+    document.getElementById(id)?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
   };
 
   return (
     <section
       id="home"
       ref={sectionRef}
-      onMouseMove={handlePointerMove}
-      className="relative min-h-screen flex flex-col justify-center items-center overflow-hidden bg-slate-950"
+      onPointerMove={handlePointerMove}
+      className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 px-6 pt-24"
     >
-      {/* Cinematic Background — one-time slow entrance zoom, then a smooth perpetual breathing drift */}
       <motion.div
-        initial={{ scale: 1.35, opacity: 0 }}
-        animate={{ scale: 1.08, opacity: 1 }}
-        transition={{
-          scale: { duration: 5, ease: EASE_PROFESSIONAL },
-          opacity: { duration: 2.8, ease: "easeOut" },
+        aria-hidden="true"
+        className="pointer-events-none absolute h-96 w-96 rounded-full bg-amber-500/10 blur-3xl"
+        style={{
+          left: glowX,
+          top: glowY,
+          transform: "translate(-50%, -50%)",
         }}
-        className="absolute inset-0 z-0"
-      >
-        {/* Continuous ambient drift, decoupled from the entrance so there's no easing collision/pause at the handoff */}
+      />
+
+      <motion.div
+        aria-hidden="true"
+        initial={{ opacity: 0, scale: 1.05 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 1.6, ease }}
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(245,158,11,0.09),transparent_55%)]"
+      />
+
+      <div className="relative z-10 mx-auto max-w-5xl text-center">
         <motion.div
-          initial={{ scale: 1 }}
-          animate={{ scale: 1.06 }}
-          transition={{
-            duration: 22,
-            delay: 5,
-            ease: "easeInOut",
-            repeat: Infinity,
-            repeatType: "mirror",
+          initial="hidden"
+          animate="visible"
+          variants={{
+            hidden: {},
+            visible: { transition: { staggerChildren: 0.12 } },
           }}
-          className="w-full h-full"
         >
-          <img
-            src="/WhatsApp Image 2026-06-11 at 11.06.18 AM.jpeg"
-            alt="Kachamba Chorus Choir"
-            className="w-full h-full object-cover"
-          />
-        </motion.div>
-        {/* Multi-layer darkening overlay */}
-        <div className="absolute inset-0 bg-slate-950/60" />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-slate-950/40" />
-        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/40 via-transparent to-slate-950/40" />
-      </motion.div>
+          {webLogo && (
+            <motion.img
+              variants={itemVariants}
+              src={webLogo}
+              alt="Kachamba Chorus"
+              className="mx-auto mb-8 h-20 w-20 rounded-full border border-white/15 object-cover shadow-2xl"
+              loading="eager"
+              decoding="async"
+              referrerPolicy="no-referrer"
+            />
+          )}
 
-      {/* Ambient orbs (static, slow ambient pulse) */}
-      <div className="absolute top-1/3 left-1/4 w-[500px] h-[500px] rounded-full bg-amber-500/5 blur-[100px] pointer-events-none z-0 animate-pulse-slow" />
-      <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] rounded-full bg-blue-500/4 blur-[80px] pointer-events-none z-0 animate-pulse-slow" style={{ animationDelay: "3s" }} />
-
-      {/* Cursor-tracking glow orbs */}
-      <motion.div
-        aria-hidden
-        className="pointer-events-none absolute z-[1] w-[420px] h-[420px] rounded-full bg-amber-400/20 blur-[90px] mix-blend-screen"
-        style={{ left: glow1X, top: glow1Y, translateX: "-50%", translateY: "-50%" }}
-      />
-      <motion.div
-        aria-hidden
-        className="pointer-events-none absolute z-[1] w-[260px] h-[260px] rounded-full bg-sky-400/10 blur-[70px] mix-blend-screen"
-        style={{ left: glow2X, top: glow2Y, translateX: "-50%", translateY: "-50%" }}
-      />
-
-      {/* Content Master Container */}
-      <motion.div
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-        className="relative z-10 w-full max-w-5xl mx-auto px-6 md:px-12 text-center flex flex-col items-center pt-20"
-      >
-        {/* 1. Eyebrow — Drops Down */}
-        <motion.div variants={dropDownVariants} className="flex items-center gap-3 mb-8">
-          <div className="w-8 h-px bg-amber-400/50" />
-          <span className="label-caps text-amber-400/80 text-[11px]">Kachok Ambassadors Chorus</span>
-          <div className="w-8 h-px bg-amber-400/50" />
-        </motion.div>
-
-        {/* 2. Main Title — Slides from the Left */}
-        <motion.h1 variants={slideLeftVariants} className="leading-[0.95] mb-4 text-center">
-          {/* KACHAMBA — now solid white, tighter tracking, faux-bolded via text-stroke, glows white on hover */}
-          <motion.span
-            initial={{ filter: "drop-shadow(0 0 22px rgba(255,255,255,0.20))" }}
-            whileHover={{
-              filter:
-                "drop-shadow(0 0 55px rgba(255,255,255,0.85)) drop-shadow(0 0 22px rgba(255,255,255,0.95))",
-            }}
-            transition={{ duration: 0.5, ease: EASE_PROFESSIONAL }}
-            style={{
-              fontFamily: "'Quicksand', 'Century Gothic', 'Futura', sans-serif",
-              fontWeight: 700,
-              fontSize: "clamp(4.5rem, 14vw, 10rem)",
-              letterSpacing: "-0.01em",
-              lineHeight: 1,
-              display: "block",
-              width: "fit-content",
-              margin: "0 auto",
-              color: "#FFFFFF",
-              WebkitTextStroke: "0.6px #FFFFFF",
-              cursor: "default",
-            }}
+          <motion.p
+            variants={itemVariants}
+            className="mb-4 font-mono text-[11px] uppercase tracking-[0.25em] text-amber-400"
           >
-            KACHAMBA
-          </motion.span>
-          {/* Chorus — now carries the amber/gold gradient, glows amber on hover */}
-          <motion.span
-            initial={{ filter: "drop-shadow(0 0 14px rgba(251,191,36,0.20))" }}
-            whileHover={{
-              filter:
-                "drop-shadow(0 0 42px rgba(251,191,36,0.75)) drop-shadow(0 0 16px rgba(253,230,138,0.9))",
-            }}
-            transition={{ duration: 0.5, ease: EASE_PROFESSIONAL }}
-            style={{
-              fontFamily: "'Cormorant Garamond', serif",
-              fontStyle: "italic",
-              fontWeight: 300,
-              fontSize: "clamp(2.8rem, 8.5vw, 6.2rem)",
-              letterSpacing: "0.01em",
-              lineHeight: 1,
-              display: "block",
-              width: "fit-content",
-              margin: "0 auto",
-              background: "linear-gradient(180deg, #FCD34D 60%, #F59E0B 25%, #FFFFFF 55%, #FDE68A 78%, #FDE68A 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-              cursor: "default",
-            }}
+            Kachamba Chorus
+          </motion.p>
+
+          <motion.h1
+            variants={itemVariants}
+            className="font-display text-5xl font-bold leading-[0.95] tracking-tight text-white md:text-7xl lg:text-8xl"
           >
-            Chorus
-          </motion.span>
-        </motion.h1>
+            Voices United.
+            <br />
+            <span className="font-light text-white/35">Faith in Harmony.</span>
+          </motion.h1>
 
-        {/* 3. Subheading — Slides from the Right */}
-        <motion.p
-          variants={slideRightVariants}
-          className="label-caps text-white/40 text-[11px] mb-6 tracking-[0.25em]"
-        >
-          Sounds Of Togetherness · Since 2021
-        </motion.p>
-
-        {/* 4. Body description — Drops Down */}
-        <motion.p
-          variants={dropDownVariants}
-          className="text-white/60 text-sm md:text-base max-w-xl mx-auto leading-relaxed font-light mb-12"
-        >
-          Spreading the Gospel through absolute vocal harmony, youth fellowship,
-          and passionate community mission outreach across Kenya.
-        </motion.p>
-
-        {/* 5. CTAs — Lift gracefully together */}
-        <motion.div variants={dropDownVariants} className="flex flex-col sm:flex-row items-center gap-4 mb-16">
-          <motion.button
-            whileHover={{ scale: 1.03, y: -2 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => scrollTo("itinerary")}
-            className="flex items-center gap-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-semibold label-caps text-[11px] px-8 py-3.5 rounded-full transition-all cursor-pointer shadow-lg shadow-amber-500/20"
+          <motion.p
+            variants={itemVariants}
+            className="mx-auto mt-7 max-w-2xl text-sm leading-relaxed text-white/50 md:text-base"
           >
-            <Calendar className="w-3.5 h-3.5" />
-            View Itinerary
-          </motion.button>
+            A choral ministry committed to worship, fellowship, service,
+            outreach, and sharing the gospel through music.
+          </motion.p>
 
-          <motion.button
-            whileHover={{ scale: 1.03, y: -2 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={onAskAI}
-            className="flex items-center gap-2.5 glass label-caps text-[11px] px-8 py-3.5 rounded-full text-white/70 hover:text-white transition-all cursor-pointer"
+          <motion.div
+            variants={itemVariants}
+            className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row"
           >
-            <MessageCircle className="w-3.5 h-3.5 text-amber-400/70" />
-            Ask Kachamba AI
-          </motion.button>
-        </motion.div>
-
-        {/* 6. Stats Panel with Advanced Metric Card Hover Micro-interactions */}
-        <motion.div
-          variants={dropDownVariants}
-          className="glass rounded-2xl p-2 max-w-2xl w-full grid grid-cols-2 sm:grid-cols-4 gap-2"
-        >
-          {[
-            { value: "40+", label: "Singers" },
-            { value: "SATB", label: "Voice Parts" },
-            { value: "12+", label: "Events / Year" },
-            { value: "100%", label: "Youth Ministry" },
-          ].map((stat, i) => (
-            <motion.div
-              key={i}
-              whileHover={{
-                scale: 1.06,
-                y: -6,
-                backgroundColor: "rgba(255, 255, 255, 0.06)",
-                boxShadow:
-                  "0 20px 40px -12px rgba(245, 158, 11, 0.25), 0 0 0 1px rgba(245, 158, 11, 0.18)",
-              }}
-              whileTap={{ scale: 0.98, y: -2 }}
-              transition={{ type: "spring", stiffness: 350, damping: 22 }}
-              className="group relative overflow-hidden text-center py-4 px-2 rounded-xl cursor-default"
+            <button
+              type="button"
+              onClick={() => scrollTo("itinerary")}
+              className="rounded-full bg-amber-400 px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-950 transition hover:bg-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:ring-offset-2 focus:ring-offset-slate-950"
             >
-              {/* Top accent line that sweeps in on hover */}
-              <motion.span
-                aria-hidden
-                className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-amber-400/80 to-transparent"
-                initial={{ scaleX: 0, opacity: 0 }}
-                whileHover={{ scaleX: 1, opacity: 1 }}
-                transition={{ duration: 0.35, ease: "easeOut" }}
-              />
+              Explore our journey
+            </button>
 
-              <motion.div
-                whileHover={{ scale: 1.12 }}
-                transition={{ type: "spring", stiffness: 400, damping: 15 }}
-                className="text-2xl font-bold text-amber-400 font-display tracking-tight"
-              >
-                {stat.value}
-              </motion.div>
-              <div className="label-caps text-[9px] text-white/35 mt-1 tracking-wider transition-colors duration-300 group-hover:text-white/65">
-                {stat.label}
-              </div>
-            </motion.div>
-          ))}
+            <button
+              type="button"
+              onClick={onAskAI}
+              className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-6 py-3 text-xs font-semibold text-white transition hover:border-amber-400/40 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-amber-400"
+            >
+              <MessageCircle className="h-4 w-4" aria-hidden="true" />
+              Ask Ambassador Guide
+            </button>
+          </motion.div>
         </motion.div>
+      </div>
 
-        {/* 7. Scripture Quote */}
-        <motion.div variants={dropDownVariants} className="mt-12 text-center">
-          <p className="text-white/30 text-xs italic font-light" style={{ fontFamily: "'Cormorant Garamond', serif" }}>
-            "I will sing unto the Lord as long as I live…" — Psalm 104:33
-          </p>
-        </motion.div>
-      </motion.div>
-
-      {/* Floating Scroll Indicator */}
-      <motion.button
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 5.8, duration: 1 }}
+      <button
+        type="button"
         onClick={() => scrollTo("itinerary")}
-        className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 cursor-pointer group"
+        aria-label="Scroll to itinerary"
+        className="absolute bottom-7 left-1/2 -translate-x-1/2 rounded-full p-2 text-white/40 transition hover:text-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400"
       >
-        <motion.div
-          animate={{ y: [0, 6, 0] }}
-          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-          className="w-8 h-8 rounded-full glass flex items-center justify-center group-hover:border-amber-400/30 transition-colors"
-        >
-          <ChevronDown className="w-4 h-4 text-white/40 group-hover:text-amber-400 transition-colors" />
-        </motion.div>
-      </motion.button>
+        <ChevronDown className="h-5 w-5 animate-bounce" aria-hidden="true" />
+      </button>
     </section>
   );
 }
