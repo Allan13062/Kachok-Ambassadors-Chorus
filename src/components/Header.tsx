@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Lock, Sun, Moon, Menu, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { User as FirebaseUser } from "firebase/auth";
@@ -16,269 +16,237 @@ interface HeaderProps {
   webLogo?: string;
 }
 
-export default function Header({ isAdmin, onOpenAdmin, onLogout, activeSection, theme, onToggleTheme, user, onGoogleLogin, onGoogleLogout, webLogo }: HeaderProps) {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+const navItems = [
+  ["Home", "home"],
+  ["Itinerary", "itinerary"],
+  ["Ministries", "activities"],
+  ["Leaders", "leadership"],
+  ["Music", "music"],
+  ["Gallery", "gallery"],
+  ["Join Us", "join"],
+  ["Contact", "contact"],
+] as const;
+
+export default function Header({
+  isAdmin,
+  onOpenAdmin,
+  onLogout,
+  activeSection,
+  theme,
+  onToggleTheme,
+  user,
+  onGoogleLogin,
+  onGoogleLogout,
+  webLogo,
+}: HeaderProps) {
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [scrollProgress, setScrollProgress] = useState(0);
-  const [hideNav, setHideNav] = useState(false);
-  const lastScrollY = useRef(0);
+  const [progress, setProgress] = useState(0);
+  const [hidden, setHidden] = useState(false);
+  const lastY = useRef(0);
 
   useEffect(() => {
     const onScroll = () => {
-      const currentY = window.scrollY;
-      setScrolled(currentY > 60);
-      const docHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight;
-      setScrollProgress(docHeight > 0 ? (currentY / docHeight) * 100 : 0);
+      const y = window.scrollY;
+      const max = document.documentElement.scrollHeight - window.innerHeight;
 
-      // Hide on scroll-down past the hero, reveal on scroll-up, always show near the top
-      const scrolledDown = currentY > lastScrollY.current;
-      const pastThreshold = currentY > 140;
-      setHideNav(scrolledDown && pastThreshold);
-      if (scrolledDown && pastThreshold) setMobileMenuOpen(false);
-      lastScrollY.current = currentY;
+      setScrolled(y > 50);
+      setProgress(max > 0 ? (y / max) * 100 : 0);
+
+      if (y < 100) {
+        setHidden(false);
+      } else if (y > lastY.current + 8) {
+        setHidden(true);
+      } else if (y < lastY.current - 8) {
+        setHidden(false);
+      }
+
+      lastY.current = y;
     };
+
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const scrollTo = (id: string) => {
-    const navigate = () => {
-      const el = document.getElementById(id);
-      if (el) {
-        const y = el.getBoundingClientRect().top + window.pageYOffset - 80;
-        window.scrollTo({ top: y, behavior: "smooth" });
-      }
+  useEffect(() => {
+    if (!mobileOpen) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileOpen(false);
     };
-    if (mobileMenuOpen) {
-      setMobileMenuOpen(false);
-      setTimeout(navigate, 280);
-    } else {
-      navigate();
-    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [mobileOpen]);
+
+  const scrollTo = (id: string) => {
+    setMobileOpen(false);
+
+    window.setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 120);
   };
 
-  const navItems = [
-    { label: "Home", id: "home" },
-    { label: "Itinerary", id: "itinerary" },
-    { label: "Ministries", id: "activities" },
-    { label: "Leaders", id: "leadership" },
-    { label: "Music", id: "music" },
-    { label: "Gallery", id: "gallery" },
-    { label: "Join Us", id: "join" },
-    { label: "Contact", id: "contact" },
-  ];
-
   const isDark = theme === "dark";
-  const navBg = scrolled
-    ? isDark
-      ? "glass-nav shadow-xl shadow-black/30"
-      : "glass-nav shadow-md shadow-black/5"
-    : "glass-nav-transparent";
+  const textClass = isDark ? "text-white" : "text-slate-900";
 
   return (
     <motion.header
-      animate={{ y: hideNav ? "-110%" : "0%" }}
-      transition={{ duration: 0.4, ease: [0.19, 1, 0.22, 1] }}
-      className={`fixed top-0 left-0 right-0 z-50 transition-colors duration-300 ${navBg}`}
+      animate={{ y: hidden ? "-110%" : 0 }}
+      transition={{ duration: 0.28 }}
+      className={`fixed left-0 right-0 top-0 z-50 border-b ${
+        scrolled
+          ? isDark
+            ? "border-white/10 bg-slate-950/85 backdrop-blur-xl"
+            : "border-slate-200 bg-white/85 backdrop-blur-xl"
+          : "border-transparent bg-transparent"
+      }`}
     >
-      {/* Top vibrant accent border */}
-      <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-amber-400/70 to-transparent" />
-      {/* Scroll progress line */}
-      <div
-        className="absolute bottom-0 left-0 h-[2px] bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-300 transition-all duration-150 ease-out shadow-[0_0_8px_rgba(245,158,11,0.6)]"
-        style={{ width: `${scrollProgress}%` }}
-      />
-
-      <div className="max-w-7xl mx-auto px-5 md:px-10 py-4 flex items-center justify-between gap-6">
-
-        {/* Logo */}
-        <button onClick={() => scrollTo("home")} className="flex items-center gap-3 group shrink-0">
-          <div className="relative w-8 h-8 rounded-full overflow-hidden border border-white/20 shadow-lg shadow-black/30 transition-all duration-300 group-hover:scale-105 group-hover:shadow-amber-400/40 group-hover:border-amber-400/40">
-            <img
-              src={webLogo || "https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png"}
-              alt="Kachamba Chorus"
-              className="w-full h-full object-cover"
-              referrerPolicy="no-referrer"
-            />
-          </div>
-          <span className={`label-caps font-semibold tracking-[0.18em] text-[11px] transition-colors ${
-            scrolled
-              ? isDark ? "text-white/90" : "text-slate-800"
-              : "text-white/90"
-          } group-hover:text-amber-400`}>
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 md:px-10">
+        <button
+          type="button"
+          onClick={() => scrollTo("home")}
+          className={`flex shrink-0 items-center gap-3 ${textClass} focus:outline-none focus:ring-2 focus:ring-amber-400`}
+          aria-label="Go to home"
+        >
+          <img
+            src={
+              webLogo ||
+              "https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png"
+            }
+            alt=""
+            className="h-8 w-8 rounded-full border border-white/20 object-cover"
+            loading="eager"
+            decoding="async"
+            referrerPolicy="no-referrer"
+          />
+          <span className="label-caps hidden text-[11px] font-semibold tracking-[0.18em] sm:block">
             KACHAMBA CHORUS
           </span>
         </button>
 
-        {/* Desktop Nav */}
-        <nav className="hidden md:flex items-center gap-1">
-          {navItems.map((item) => {
-            const isActive = activeSection === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => scrollTo(item.id)}
-                className={`group relative label-caps text-[11px] px-3.5 py-2 rounded-lg cursor-pointer transition-all duration-100 ease-out ${
-                  isActive
-                    ? "text-amber-400 bg-amber-400/10 border border-amber-400/20"
-                    : isDark
-                      ? "text-white/60 hover:text-white hover:bg-white/6"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-black/6"
-                }`}
-              >
-                {item.label}
-                {isActive && (
-                  <motion.span
-                    layoutId="navPill"
-                    className="absolute inset-0 rounded-lg bg-amber-400/10 border border-amber-400/20 -z-10"
-                    transition={{ type: "spring", stiffness: 500, damping: 32 }}
-                  />
-                )}
-                {!isActive && (
-                  <span className="pointer-events-none absolute inset-x-3 bottom-1 h-px bg-amber-400/60 scale-x-0 origin-center transition-transform duration-150 ease-out group-hover:scale-x-100" />
-                )}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Actions */}
-        <div className="flex items-center gap-2">
-          {/* User */}
-          {user ? (
-            <div className="hidden sm:flex items-center gap-2">
-              <img
-                src={user.photoURL || `https://api.dicebear.com/7.x/adventurer/svg?seed=Guest`}
-                alt={user.displayName || "User"}
-                className="w-7 h-7 rounded-full border border-white/20"
-                title={user.displayName || ""}
-              />
-              <button
-                onClick={onGoogleLogout}
-                className="label-caps text-[10px] text-white/50 hover:text-white/90 transition-colors"
-              >
-                Sign Out
-              </button>
-            </div>
-          ) : (
+        <nav className="hidden items-center gap-1 md:flex" aria-label="Primary navigation">
+          {navItems.map(([label, id]) => (
             <button
-              onClick={onGoogleLogin}
-              className={`hidden sm:block label-caps text-[10px] px-3 py-2 rounded-lg border transition-all ${
-                scrolled && !isDark
-                  ? "border-slate-300/60 text-slate-600 hover:text-slate-900 hover:border-slate-400"
-                  : "border-white/15 text-white/60 hover:text-white hover:border-white/30"
+              key={id}
+              type="button"
+              onClick={() => scrollTo(id)}
+              aria-current={activeSection === id ? "page" : undefined}
+              className={`rounded-lg px-3 py-2 text-[10px] font-semibold uppercase tracking-wider transition focus:outline-none focus:ring-2 focus:ring-amber-400 ${
+                activeSection === id
+                  ? "bg-amber-500/10 text-amber-400"
+                  : `${isDark ? "text-white/55 hover:text-white" : "text-slate-500 hover:text-slate-900"}`
               }`}
             >
-              Sign In
+              {label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="hidden items-center gap-2 md:flex">
+          <button
+            type="button"
+            onClick={onToggleTheme}
+            aria-label={`Switch to ${isDark ? "light" : "dark"} theme`}
+            title={`Switch to ${isDark ? "light" : "dark"} theme`}
+            className={`rounded-lg p-2 transition focus:outline-none focus:ring-2 focus:ring-amber-400 ${
+              isDark ? "text-white/60 hover:bg-white/10 hover:text-white" : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
+
+          {isAdmin ? (
+            <button
+              type="button"
+              onClick={onLogout}
+              className="flex items-center gap-2 rounded-full border border-amber-400/20 px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-amber-400 transition hover:bg-amber-400/10 focus:outline-none focus:ring-2 focus:ring-amber-400"
+            >
+              <Lock className="h-3.5 w-3.5" />
+              Logout
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onOpenAdmin}
+              className="flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-white/60 transition hover:border-amber-400/30 hover:text-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400"
+            >
+              <Lock className="h-3.5 w-3.5" />
+              Admin
             </button>
           )}
-
-          {/* Theme */}
-          <button
-            onClick={onToggleTheme}
-            className={`p-2 rounded-lg border transition-all hover:scale-105 active:scale-95 ${
-              scrolled && !isDark
-                ? "border-slate-200 text-slate-500 hover:text-amber-600 bg-white/60"
-                : "border-white/10 text-white/50 hover:text-amber-400 bg-white/5"
-            }`}
-            title={isDark ? "Light mode" : "Dark mode"}
-          >
-            {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
-          </button>
-
-          {/* Admin / Leader Portal */}
-          <button
-            onClick={onOpenAdmin}
-            className={`hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-lg border label-caps text-[10px] transition-all cursor-pointer ${
-              isAdmin
-                ? "border-amber-500/40 text-amber-400 bg-amber-500/8 hover:bg-amber-500/15"
-                : scrolled && !isDark
-                ? "border-slate-300 text-slate-600 hover:bg-amber-500 hover:text-white hover:border-amber-500 bg-white/70"
-                : "border-white/15 text-white/70 hover:text-amber-400 hover:border-amber-400/40 bg-white/5"
-            }`}
-          >
-            <Lock className="w-3 h-3" />
-            {isAdmin ? "Dashboard" : "Leader Portal"}
-          </button>
-
-          {/* Mobile hamburger */}
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className={`md:hidden p-2 rounded-lg border transition-all ${
-              scrolled && !isDark
-                ? "border-slate-200 text-slate-600 bg-white/60"
-                : "border-white/10 text-white/70 bg-white/5"
-            }`}
-            aria-label="Menu"
-          >
-            {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-          </button>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setMobileOpen((value) => !value)}
+          aria-label={mobileOpen ? "Close navigation menu" : "Open navigation menu"}
+          aria-expanded={mobileOpen}
+          aria-controls="mobile-navigation"
+          className={`rounded-lg p-2 md:hidden ${
+            isDark ? "text-white" : "text-slate-900"
+          } focus:outline-none focus:ring-2 focus:ring-amber-400`}
+        >
+          {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </button>
       </div>
 
-      {/* Mobile Drawer */}
+      <div className="absolute bottom-0 left-0 h-0.5 bg-amber-400 transition-all" style={{ width: `${progress}%` }} />
+
       <AnimatePresence>
-        {mobileMenuOpen && (
-          <motion.div
+        {mobileOpen && (
+          <motion.nav
+            id="mobile-navigation"
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.22, ease: "easeInOut" }}
-            className={`md:hidden overflow-hidden border-t ${
-              isDark
-                ? "border-white/5 bg-slate-950/95 backdrop-blur-2xl"
-                : "border-slate-200/60 bg-white/92 backdrop-blur-2xl"
+            className={`overflow-hidden border-t px-5 pb-5 md:hidden ${
+              isDark ? "border-white/10 bg-slate-950/95" : "border-slate-200 bg-white/95"
             }`}
+            aria-label="Mobile navigation"
           >
-            <div className="px-5 py-4 flex flex-col gap-1">
-              {/* Mobile user row */}
-              <div className={`flex items-center justify-between pb-3 mb-2 border-b ${isDark ? "border-white/5" : "border-slate-100"}`}>
-                {user ? (
-                  <div className="flex items-center gap-2.5">
-                    <img src={user.photoURL || ""} alt="" className="w-7 h-7 rounded-full border border-white/20" />
-                    <span className="text-xs font-medium">{user.displayName}</span>
-                  </div>
-                ) : (
-                  <span className="label-caps text-[10px] text-white/40">Ambassador Portal</span>
-                )}
-                {user ? (
-                  <button onClick={onGoogleLogout} className="label-caps text-[10px] text-red-400/80 hover:text-red-400">Sign Out</button>
-                ) : (
-                  <button onClick={() => { setMobileMenuOpen(false); onGoogleLogin?.(); }} className="label-caps text-[10px] text-amber-400">Sign In</button>
-                )}
-              </div>
-
-              {navItems.map((item) => (
+            <div className="grid gap-1 pt-3">
+              {navItems.map(([label, id]) => (
                 <button
-                  key={item.id}
-                  onClick={() => scrollTo(item.id)}
-                  className={`w-full text-left label-caps text-[11px] py-2.5 px-3 rounded-lg transition-colors ${
-                    activeSection === item.id
-                      ? "text-amber-400 bg-amber-500/8"
+                  key={id}
+                  type="button"
+                  onClick={() => scrollTo(id)}
+                  className={`rounded-xl px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${
+                    activeSection === id
+                      ? "bg-amber-500/10 text-amber-400"
                       : isDark
-                        ? "text-white/60 hover:text-white hover:bg-white/5"
-                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                        ? "text-white/70"
+                        : "text-slate-700"
                   }`}
                 >
-                  {item.label}
+                  {label}
                 </button>
               ))}
 
-              <button
-                onClick={() => { setMobileMenuOpen(false); onOpenAdmin(); }}
-                className={`mt-2 flex items-center gap-2 label-caps text-[10px] py-2.5 px-3 rounded-lg border transition-all ${
-                  isAdmin
-                    ? "border-amber-500/30 text-amber-400 bg-amber-500/8"
-                    : isDark
-                      ? "border-white/10 text-white/50 hover:text-amber-400"
-                      : "border-slate-200 text-slate-500 hover:text-amber-600"
-                }`}
-              >
-                <Lock className="w-3 h-3" />
-                {isAdmin ? "Admin Dashboard" : "Leader Portal"}
-              </button>
+              <div className="mt-2 flex gap-2 border-t border-white/10 pt-3">
+                <button
+                  type="button"
+                  onClick={onToggleTheme}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-xs"
+                >
+                  {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                  Theme
+                </button>
+
+                <button
+                  type="button"
+                  onClick={isAdmin ? onLogout : onOpenAdmin}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-amber-400/20 px-4 py-3 text-xs text-amber-400"
+                >
+                  <Lock className="h-4 w-4" />
+                  {isAdmin ? "Logout" : "Admin"}
+                </button>
+              </div>
             </div>
-          </motion.div>
+          </motion.nav>
         )}
       </AnimatePresence>
     </motion.header>
