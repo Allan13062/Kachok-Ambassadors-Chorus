@@ -1,9 +1,7 @@
-import React, { useEffect, useRef, useState } from "react";
-import {
-  MessageSquare, X, Send, Bot, User, Minimize2, ArrowUpRight,
-  CalendarDays, Music2, Users, LoaderCircle
-} from "lucide-react";
+import React, { useState, useRef, useEffect } from "react";
+import { MessageSquare, X, Send, Bot, User, Minimize2, ArrowUpRight, Search, MapPin, Zap, Settings, Key } from "lucide-react";
 import { ChatMessage } from "../types";
+import { motion, useDragControls } from "motion/react";
 
 interface ChatBotProps {
   isOpen: boolean;
@@ -11,215 +9,414 @@ interface ChatBotProps {
   onOpen: () => void;
 }
 
-const quickPrompts = [
-  { label: "Book the choir", icon: CalendarDays, prompt: "How can we book the choir?" },
-  { label: "Rehearsal times", icon: Music2, prompt: "When are rehearsals?" },
-  { label: "Join the chorus", icon: Users, prompt: "How can I join the chorus?" },
-  { label: "Our music", icon: Sparkles, prompt: "What kind of music do you sing?" },
-];
-
-const logo = "https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png";
-
 export default function ChatBot({ isOpen, onClose, onOpen }: ChatBotProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([{
-    id: "welcome",
-    role: "assistant",
-    text: "Hello and welcome! I’m **Ambassador Guide**, the Kachamba Chorus assistant. Ask me about bookings, rehearsals, joining the choir, or our ministry.",
-    timestamp: new Date(),
-  }]);
+  const [isMobile, setIsMobile] = useState(false);
+  const [dragConstraints, setDragConstraints] = useState({ left: -600, right: 0, top: -400, bottom: 0 });
+  const dragControls = useDragControls();
+
+  useEffect(() => {
+    const handleResize = () => {
+      const mobileStatus = window.innerWidth < 640;
+      setIsMobile(mobileStatus);
+      setDragConstraints({
+        left: mobileStatus ? 0 : -(window.innerWidth - 440),
+        right: mobileStatus ? 0 : 20,
+        top: mobileStatus ? 0 : -(window.innerHeight - 600),
+        bottom: mobileStatus ? 0 : 20
+      });
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: "welcome",
+      role: "assistant",
+      text: "Greetings in Christ! I am **Ambassador Guide**, the choral companion of Kachamba Chorus.\n\nAsk me about upcoming tour bookings, practice times, voice auditions, or Adventist beliefs. How can I minister to you today?",
+      timestamp: new Date()
+    }
+  ]);
   const [inputText, setInputText] = useState("");
   const [loading, setLoading] = useState(false);
   const [aiMode, setAiMode] = useState<"lite" | "search" | "maps">("lite");
-  const [dismissed, setDismissed] = useState(() =>
-    localStorage.getItem("kachamba_inquiry_helper_dismissed") === "true"
-  );
-  const endRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [isDismissed, setIsDismissed] = useState(() => {
+    return localStorage.getItem("kachamba_inquiry_helper_dismissed") === "true";
+  });
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [customKey, setCustomKey] = useState(() => {
+    return localStorage.getItem("kachamba_custom_gemini_key") || "";
+  });
+  const [saveStatus, setSaveStatus] = useState("");
 
+  // Suggested quick prompts trigger beautiful answers instantly
+  const quickPrompts = [
+    "How can we book the choir?",
+    "What are your practice times?",
+    "How can I join the chorus?",
+    "Do you sing acappella only?"
+  ];
+
+  // Auto scroll messages to bottom on new message
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, isOpen]);
+
+  // Automatically undismiss if chat is explicitly opened (e.g. from Hero button)
   useEffect(() => {
     if (isOpen) {
-      setDismissed(false);
+      setIsDismissed(false);
       localStorage.removeItem("kachamba_inquiry_helper_dismissed");
-      const timer = window.setTimeout(() => inputRef.current?.focus(), 250);
-      return () => window.clearTimeout(timer);
     }
   }, [isOpen]);
 
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages, loading]);
+  const handleSendMessage = async (text: string) => {
+    if (!text.trim() || loading) return;
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [isOpen, onClose]);
-
-  const sendMessage = async (raw: string) => {
-    const text = raw.trim();
-    if (!text || loading) return;
     const userMsg: ChatMessage = {
-      id: `user-${Date.now()}`, role: "user", text, timestamp: new Date(),
+      id: "msg-" + Date.now(),
+      role: "user",
+      text: text,
+      timestamp: new Date()
     };
-    const history = [...messages, userMsg];
-    setMessages(history);
+
+    setMessages(prev => [...prev, userMsg]);
     setInputText("");
     setLoading(true);
+
     try {
-      const response = await fetch("/api/chat", {
+      // Gather dialogue history for server-side Gemini
+      // Map structures to format the endpoint expects
+      const payloadMessages = [...messages, userMsg].map(m => ({
+        role: m.role,
+        text: m.text
+      }));
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json"
+      };
+      const storedKey = localStorage.getItem("kachamba_custom_gemini_key");
+      if (storedKey) {
+        headers["x-gemini-key"] = storedKey;
+      }
+
+      const res = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: history.map(({ role, text }) => ({ role, text })),
-          feature: aiMode,
-        }),
+        headers: headers,
+        body: JSON.stringify({ messages: payloadMessages, feature: aiMode })
       });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data?.error || "The assistant is temporarily unavailable.");
-      setMessages(prev => [...prev, {
-        id: `assistant-${Date.now()}`, role: "assistant",
-        text: typeof data.text === "string" && data.text.trim()
-          ? data.text
-          : "I’m sorry, I couldn’t prepare a response just now. Please use the contact form and our team will help.",
-        timestamp: new Date(),
-      }]);
+      const data = await res.json();
+
+      if (res.ok) {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: "reply-" + Date.now(),
+            role: "assistant",
+            text: data.text,
+            timestamp: new Date()
+          }
+        ]);
+      } else {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: "error-" + Date.now(),
+            role: "assistant",
+            text: "My apologies. I had trouble connecting to the Ambassador helper system. No worries though, you can always contact our Coordinator directly at `kachambachorus@gmail.com` or '0797450206'!",
+            timestamp: new Date()
+          }
+        ]);
+      }
     } catch {
-      setMessages(prev => [...prev, {
-        id: `error-${Date.now()}`, role: "assistant",
-        text: "I can’t reach the assistant service right now. Please use the contact form or email **kachambachorus@gmail.com** for help.",
-        timestamp: new Date(),
-      }]);
+      setMessages(prev => [
+        ...prev,
+        {
+          id: "error-" + Date.now(),
+          role: "assistant",
+          text: "I couldn't reach the choral server. Is the application starting? Please check your connection or send a booking inquiry downstairs!",
+          timestamp: new Date()
+        }
+      ]);
     } finally {
       setLoading(false);
     }
   };
 
-  const renderMessage = (text: string) => text.split("\n\n").map((paragraph, i) => (
-    <p key={i} className={i ? "kach-chat-paragraph" : undefined}>
-      {paragraph.split("**").map((part, index) =>
-        index % 2 ? <strong key={index}>{part}</strong> : part
-      )}
-    </p>
-  ));
-
-  if (!isOpen && dismissed) return null;
+  if (isDismissed && !isOpen) return null;
 
   return (
-    <div className={`kach-chat-root ${isOpen ? "is-open" : "is-closed"}`}>
+    <div className={`fixed z-50 transition-all duration-300 ${isOpen ? "bottom-0 right-0 w-full sm:w-auto sm:bottom-6 sm:right-6" : "bottom-6 right-6"}`}>
+      
+      {/* Floating Toggle Icon */}
       {!isOpen && (
-        <div className="kach-chat-launch-wrap">
-          <button className="kach-chat-launch" onClick={onOpen} aria-label="Open Ambassador Guide chat">
-            <span className="kach-chat-launch-icon"><MessageSquare size={21} /></span>
-            <span><strong>Ambassador Guide</strong><small>Ask the chorus assistant</small></span>
-            <ArrowUpRight size={17} className="kach-chat-launch-arrow" />
+        <div className="relative flex items-center group">
+          <button
+            onClick={onOpen}
+            className="flex items-center gap-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 p-4 rounded-full shadow-2xl hover:shadow-amber-500/20 hover:-translate-y-1 transition-all cursor-pointer group/btn border border-amber-400/20"
+          >
+            <MessageSquare className="w-6 h-6 animate-pulse group-hover/btn:scale-105 transition-transform" />
+            <span className="font-sans font-bold text-sm pr-1">Inquiry Helper</span>
           </button>
           <button
-            className="kach-chat-dismiss"
-            onClick={() => { setDismissed(true); localStorage.setItem("kachamba_inquiry_helper_dismissed", "true"); }}
-            aria-label="Hide chat launcher"
-          ><X size={16} /></button>
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsDismissed(true);
+              localStorage.setItem("kachamba_inquiry_helper_dismissed", "true");
+            }}
+            className="absolute -top-1.5 -right-1.5 bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white p-1 rounded-full border border-slate-700 shadow-lg hover:scale-110 transition-all cursor-pointer"
+            title="Hide inquiry helper"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 
+      {/* Main Chat Interface */}
       {isOpen && (
-        <section className="kach-chat-panel" role="dialog" aria-modal="false" aria-labelledby="kach-chat-title">
-          <header className="kach-chat-header">
-            <div className="kach-chat-brand-mark">
-              <img src={logo} alt="" />
-              <span className="kach-chat-online-dot" />
+        <motion.div 
+          drag={isMobile ? false : true}
+          dragControls={dragControls}
+          dragListener={false}
+          dragMomentum={false}
+          dragElastic={0.05}
+          dragConstraints={dragConstraints}
+          className="bg-slate-900 border border-slate-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:w-[400px] h-[85vh] sm:h-[550px] flex flex-col overflow-hidden text-white transition-all scale-100 opacity-100"
+        >
+          
+          {/* Header Banner */}
+          <div 
+            onPointerDown={(e) => !isMobile && dragControls.start(e)}
+            className="bg-slate-950 px-5 py-4 border-b border-slate-805 flex justify-between items-center cursor-grab active:cursor-grabbing select-none"
+          >
+            <div className="flex items-center gap-3">
+              <div className="relative w-8 h-8 rounded-full overflow-hidden border border-amber-550/35 bg-[#050B14] flex items-center justify-center shadow-md">
+                <img 
+                  src="https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png" 
+                  alt="Kachamba Chorus Logo" 
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+              <div>
+                <h3 className="font-sans font-bold text-sm tracking-wide text-amber-400">Ambassador Guide</h3>
+                <span className="text-[10px] uppercase font-mono tracking-widest text-emerald-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full inline-block animate-ping" />
+                  <span>Kachamba Chorus Assistant</span>
+                </span>
+              </div>
             </div>
-            <div className="kach-chat-brand-copy">
-              <span className="kach-chat-eyebrow">KACHAMBA CHORUS</span>
-              <h2 id="kach-chat-title">Ambassador Guide</h2>
-              <p><span className="kach-chat-status-dot" /> Your chorus assistant</p>
-            </div>
-            <button className="kach-chat-icon-btn" onClick={onClose} aria-label="Minimize chat">
-              <Minimize2 size={19} />
-            </button>
-            <button className="kach-chat-icon-btn kach-chat-close" onClick={onClose} aria-label="Close chat">
-              <X size={20} />
-            </button>
-          </header>
-
-          <div className="kach-chat-welcome">
-            <div className="kach-chat-welcome-icon"><Sparkles size={17} /></div>
-            <div>
-              <span className="kach-chat-section-label">HERE TO HELP</span>
-              <p>Ask a question or choose a quick topic below.</p>
+            <div className="flex items-center gap-1.5" onPointerDown={(e) => e.stopPropagation()}>
+              <button 
+                onClick={() => setShowSettings(!showSettings)}
+                className={`p-1.5 rounded-lg cursor-pointer transition-colors ${
+                  showSettings ? "text-amber-400 bg-slate-800" : "text-slate-400 hover:text-white hover:bg-slate-800"
+                }`}
+                title="API Key Configuration"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={onClose}
+                className="text-slate-400 hover:text-white hover:bg-slate-800 p-1.5 rounded-lg cursor-pointer transition-colors"
+                title="Minimize chat"
+              >
+                <Minimize2 className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
-          <div className="kach-chat-messages" aria-live="polite" aria-relevant="additions text">
-            {messages.map(message => (
-              <div key={message.id} className={`kach-chat-message ${message.role === "user" ? "from-user" : "from-assistant"}`}>
-                <div className="kach-chat-avatar">
-                  {message.role === "user" ? <User size={16} /> : <img src={logo} alt="" />}
+          {/* Settings Panel */}
+          {showSettings && (
+            <div className="bg-slate-950 border-b border-slate-800 px-5 py-4 flex flex-col gap-2.5 font-sans text-xs text-slate-300">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-amber-400 font-bold uppercase tracking-wider text-[11px]">
+                  <Key className="w-3.5 h-3.5" />
+                  <span>Custom Gemini API Key</span>
                 </div>
-                <div className="kach-chat-message-content">
-                  <div className="kach-chat-bubble">{renderMessage(message.text)}</div>
-                  <time>{message.timestamp instanceof Date
-                    ? message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                    : ""}</time>
+                {saveStatus && (
+                  <span className="text-[11px] text-emerald-400 font-medium animate-pulse">
+                    {saveStatus}
+                  </span>
+                )}
+              </div>
+              <p className="text-slate-400 leading-normal text-[11px]">
+                If your live deployment has no server-side key configured, paste your key below. It is stored securely in your browser's local storage and proxied to the secure server API.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  placeholder="Paste AI Studio Key"
+                  value={customKey}
+                  onChange={(e) => setCustomKey(e.target.value)}
+                  className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500/50"
+                />
+                <button
+                  onClick={() => {
+                    if (customKey.trim()) {
+                      localStorage.setItem("kachamba_custom_gemini_key", customKey.trim());
+                      setSaveStatus("Saved successfully!");
+                      setTimeout(() => setSaveStatus(""), 3000);
+                    } else {
+                      localStorage.removeItem("kachamba_custom_gemini_key");
+                      setSaveStatus("Key cleared.");
+                      setTimeout(() => setSaveStatus(""), 3000);
+                    }
+                  }}
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 px-3 py-1.5 rounded-lg font-bold transition-colors cursor-pointer"
+                >
+                  Save
+                </button>
+                {localStorage.getItem("kachamba_custom_gemini_key") && (
+                  <button
+                    onClick={() => {
+                      localStorage.removeItem("kachamba_custom_gemini_key");
+                      setCustomKey("");
+                      setSaveStatus("Cleared successfully!");
+                      setTimeout(() => setSaveStatus(""), 3000);
+                    }}
+                    className="bg-rose-600 hover:bg-rose-500 text-white px-2.5 py-1.5 rounded-lg font-bold transition-colors cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Messages Loop Container */}
+          <div className="flex-1 overflow-y-auto px-5 py-6 flex flex-col gap-4 font-sans text-sm bg-slate-900/60 custom-scrollbar">
+            {messages.map((m) => (
+              <div 
+                key={m.id}
+                className={`flex gap-3 max-w-[85%] ${
+                  m.role === "user" ? "self-end flex-row-reverse" : "self-start"
+                }`}
+              >
+                {/* Avatar Icon */}
+                {m.role === "user" ? (
+                  <div className="p-1.5 rounded-lg h-fit shrink-0 bg-amber-600 text-slate-950">
+                    <User className="w-4 h-4" />
+                  </div>
+                ) : (
+                  <div className="relative w-7 h-7 rounded-full overflow-hidden border border-amber-550/30 bg-[#050B14] flex items-center justify-center shrink-0 shadow">
+                    <img 
+                      src="https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png" 
+                      alt="Kachamba Chorus Logo" 
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                )}
+
+                {/* Bubble Context */}
+                <div className={`p-3.5 rounded-2xl leading-relaxed whitespace-pre-wrap ${
+                  m.role === "user" 
+                    ? "bg-amber-500 text-slate-950 rounded-tr-none font-medium" 
+                    : "bg-slate-950 border border-slate-805 text-slate-200 rounded-tl-none font-sans"
+                }`}>
+                  {/* Clean Markdown Bold Render Simulation */}
+                  {m.text.split("\n\n").map((para, i) => {
+                    // Quick bold format simulation
+                    const parts = para.split("**");
+                    return (
+                      <p key={i} className={i > 0 ? "mt-2.5" : ""}>
+                        {parts.map((p, idx) => idx % 2 === 1 ? <strong key={idx} className={m.role === "user" ? "font-bold text-slate-950" : "font-bold text-amber-300"}>{p}</strong> : p)}
+                      </p>
+                    );
+                  })}
                 </div>
               </div>
             ))}
-            {messages.length === 1 && (
-              <div className="kach-chat-suggestions">
-                {quickPrompts.map(({ label, icon: Icon, prompt }) => (
-                  <button key={label} onClick={() => sendMessage(prompt)} disabled={loading}>
-                    <span className="kach-chat-suggestion-icon"><Icon size={17} /></span>
-                    <span>{label}</span>
-                    <ArrowUpRight size={15} className="kach-chat-suggestion-arrow" />
-                  </button>
-                ))}
-              </div>
-            )}
+
+            {/* AI Processing Bubble */}
             {loading && (
-              <div className="kach-chat-message from-assistant">
-                <div className="kach-chat-avatar"><img src={logo} alt="" /></div>
-                <div className="kach-chat-bubble kach-chat-typing" aria-label="Assistant is typing">
-                  <span /><span /><span />
+              <div className="flex gap-3 max-w-[85%] self-start">
+                <div className="relative w-7 h-7 rounded-full overflow-hidden border border-amber-550/30 bg-[#050B14] flex items-center justify-center shrink-0 shadow">
+                  <img 
+                    src="https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png" 
+                    alt="Kachamba Chorus Logo" 
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+                <div className="bg-slate-950 border border-slate-850 p-4 rounded-2xl rounded-tl-none flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce" />
+                  <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce delay-100" />
+                  <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce delay-200" />
                 </div>
               </div>
             )}
-            <div ref={endRef} />
+
+            <div ref={messagesEndRef} />
           </div>
 
-          <footer className="kach-chat-footer">
-            <div className="kach-chat-mode-row" aria-label="Response mode">
-              {([
-                ["lite", "Quick answer"],
-                ["search", "Web search"],
-                ["maps", "Places"],
-              ] as const).map(([mode, label]) => (
-                <button
-                  key={mode}
-                  className={aiMode === mode ? "active" : ""}
-                  onClick={() => setAiMode(mode)}
-                  aria-pressed={aiMode === mode}
-                >{label}</button>
-              ))}
+          {/* Quick recommendations panel */}
+          {messages.length === 1 && (
+            <div className="px-5 py-2.5 border-t border-slate-800/60 bg-slate-950/40">
+              <span className="text-[10px] font-mono uppercase text-slate-500 tracking-wider">Suggested Questions</span>
+              <div className="flex flex-col gap-1.5 mt-2">
+                {quickPrompts.map((q, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleSendMessage(q)}
+                    className="flex justify-between items-center text-left bg-slate-950 hover:bg-slate-850 border border-slate-805 hover:border-amber-400/20 text-slate-300 hover:text-amber-300 text-xs py-2 px-3 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <span>{q}</span>
+                    <ArrowUpRight className="w-3.5 h-3.5 text-slate-500" />
+                  </button>
+                ))}
+              </div>
             </div>
-            <form className="kach-chat-composer" onSubmit={e => { e.preventDefault(); void sendMessage(inputText); }}>
-              <input
-                ref={inputRef}
-                value={inputText}
-                onChange={e => setInputText(e.target.value)}
-                placeholder="Ask us anything…"
-                aria-label="Your message"
-                disabled={loading}
-                autoComplete="off"
-              />
-              <button type="submit" disabled={!inputText.trim() || loading} aria-label="Send message">
-                {loading ? <LoaderCircle size={19} className="kach-chat-spinner" /> : <Send size={18} />}
+          )}
+
+          {/* Inputs Panel */}
+          <div className="bg-slate-950 border-t border-slate-805 flex flex-col">
+            <div className="px-4 py-2 border-b border-slate-800/50 flex gap-2 overflow-x-auto scrollbar-none">
+              <button
+                onClick={() => setAiMode("lite")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wider uppercase transition-colors shrink-0 ${aiMode === 'lite' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200'}`}
+              >
+                <Zap className="w-3 h-3" /> Fast Responses
               </button>
-            </form>
-            <p className="kach-chat-note">For bookings or urgent enquiries, please use the <a href="#contact" onClick={onClose}>contact form</a>.</p>
-          </footer>
-        </section>
+              <button
+                onClick={() => setAiMode("search")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wider uppercase transition-colors shrink-0 ${aiMode === 'search' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200'}`}
+              >
+                <Search className="w-3 h-3" /> Web Grounded
+              </button>
+              <button
+                onClick={() => setAiMode("maps")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wider uppercase transition-colors shrink-0 ${aiMode === 'maps' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200'}`}
+              >
+                <MapPin className="w-3 h-3" /> Maps Grounded
+              </button>
+            </div>
+            <div className="p-4 flex gap-2">
+              <input 
+                type="text"
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSendMessage(inputText)}
+                placeholder="Ask an Ambassador elder..."
+                disabled={loading}
+                className="flex-1 bg-slate-900 border border-slate-800 hover:border-slate-700 focus:border-amber-500 outline-none rounded-xl p-2.5 text-xs focus:ring-1 focus:ring-amber-500/10 placeholder-slate-500 transition-all text-white"
+              />
+              <button
+                onClick={() => handleSendMessage(inputText)}
+                disabled={!inputText.trim() || loading}
+                className="bg-amber-500 hover:bg-amber-400 text-slate-950 disabled:bg-slate-800 disabled:text-slate-500 p-2.5 rounded-xl transition-all font-sans font-bold cursor-pointer shrink-0"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+        </motion.div>
       )}
     </div>
   );
