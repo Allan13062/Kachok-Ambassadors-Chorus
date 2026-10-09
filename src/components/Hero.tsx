@@ -125,7 +125,7 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
           >
             <button
               type="button"
-              onClick={() => scrollTo("itinerary")}
+              onClick={() => scrollTo("Ministries & Activities")}
               className="rounded-full bg-amber-400 px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-950 transition hover:bg-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:ring-offset-2 focus:ring-offset-slate-950"
             >
               Explore our journey
@@ -145,8 +145,8 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
 
       <button
         type="button"
-        onClick={() => scrollTo("itinerary")}
-        aria-label="Scroll to itinerary"
+        onClick={() => scrollTo("Ministries & Activities")}
+        aria-label="Scroll to Ministries & Activities"
         className="absolute bottom-7 left-1/2 -translate-x-1/2 rounded-full p-2 text-white/40 transition hover:text-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400"
       >
         <ChevronDown className="h-5 w-5 animate-bounce" aria-hidden="true" />
