@@ -109,8 +109,6 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
           >
             Sounds Of Togetherness
             <br />
-            <span className="font-light text-white/35">Faith in Harmony.
-            </span>
           </motion.h1>
 
           <motion.p
