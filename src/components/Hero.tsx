@@ -107,16 +107,17 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
             variants={itemVariants}
             className="font-display text-5xl font-bold leading-[0.95] tracking-tight text-white md:text-7xl lg:text-8xl"
           >
-            Voices United.
+            Sounds Of Togetherness
             <br />
-            <span className="font-light text-white/35">Faith in Harmony.</span>
+            <span className="font-light text-white/35">Faith in Harmony.
+            </span>
           </motion.h1>
 
           <motion.p
             variants={itemVariants}
             className="mx-auto mt-7 max-w-2xl text-sm leading-relaxed text-white/50 md:text-base"
           >
-            A choral ministry committed to worship, fellowship, service,
+            An adventist youth ministry committed to worship, service,
             outreach, and sharing the gospel through music.
           </motion.p>
 
@@ -138,7 +139,7 @@ export default function Hero({ onAskAI, webLogo }: HeroProps) {
               className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-6 py-3 text-xs font-semibold text-white transition hover:border-amber-400/40 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-amber-400"
             >
               <MessageCircle className="h-4 w-4" aria-hidden="true" />
-              Ask Ambassador Guide
+              Ask Kachamba Guide
             </button>
           </motion.div>
         </motion.div>
