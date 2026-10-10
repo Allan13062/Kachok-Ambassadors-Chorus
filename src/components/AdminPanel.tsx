@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { auth } from "../lib/firebase";
 import { UserPlus, X, Lock, Eye, Check, ShieldCheck, Mail, Calendar, AlertCircle, Trash2, Plus, EyeOff, Music, Users, CreditCard, Smartphone, CheckCircle, Send, Barcode, Copy, RefreshCw, Key, HelpCircle, Sliders, ChevronUp, ChevronDown, DollarSign, MessageSquare as MessageSquareIcon, Layout, UploadCloud, Film, FileText, CloudLightning, ShieldAlert } from "lucide-react";
-import { Inquiry, Activity, ItineraryItem, MusicData, Leader, Subscriber, Broadcast, MemberSpotlight as MemberSpotlightType } from "../types";
+import { Inquiry, Activity, ItineraryItem, MusicData, Leader, Subscriber, Broadcast, MemberSpotlight as MemberSpotlightType, GalleryPhoto } from "../types";
 import ImageEditor from "./ImageEditor";
 import { motion, AnimatePresence } from "motion/react";
 import { uploadMedia } from "../lib/mediaUpload";
@@ -41,6 +41,9 @@ interface AdminPanelProps {
   subscribers: Subscriber[];
   broadcasts: Broadcast[];
   memberSpotlights: MemberSpotlightType[];
+  galleryPhotos?: GalleryPhoto[];
+  onSaveGalleryPhoto?: (data: any) => Promise<boolean | void>;
+  onDeleteGalleryPhoto?: (id: string) => Promise<boolean | void>;
   onRefresh: () => void;
   scrollToSection?: string | null;
 }
@@ -707,7 +710,10 @@ export default function AdminPanel({
     role: "",
     image: "",
     bio: "",
-    phone: ""
+    phone: "",
+    facebook: "",
+    whatsapp: "",
+    linkedin: ""
   });
   const [ldrSaving, setLdrSaving] = useState(false);
 
@@ -952,7 +958,10 @@ export default function AdminPanel({
         role: leaderToEdit.role || "",
         image: leaderToEdit.image || "",
         bio: leaderToEdit.bio || "",
-        phone: leaderToEdit.phone || ""
+        phone: leaderToEdit.phone || "",
+        facebook: leaderToEdit.facebook || "",
+        whatsapp: leaderToEdit.whatsapp || "",
+        linkedin: leaderToEdit.linkedin || ""
       });
     } else {
       setLdrForm({
@@ -960,7 +969,10 @@ export default function AdminPanel({
         role: "",
         image: "",
         bio: "",
-        phone: ""
+        phone: "",
+        facebook: "",
+        whatsapp: "",
+        linkedin: ""
       });
     }
   }, [leaderToEdit]);
@@ -2955,17 +2967,50 @@ export default function AdminPanel({
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Phone / Booking Contacts</label>
+                    <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Phone / WhatsApp Number</label>
                     <input 
                       type="text"
                       value={ldrForm.phone || ""}
-                      onChange={(e) => setLdrForm({ ...ldrForm, phone: e.target.value })}
+                      onChange={(e) => setLdrForm({ ...ldrForm, phone: e.target.value, whatsapp: ldrForm.whatsapp || e.target.value })}
                       className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400"
                       placeholder="e.g. +254 712 345 678"
                     />
                   </div>
 
                   <div>
+                    <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">WhatsApp Link or Direct Number</label>
+                    <input 
+                      type="text"
+                      value={ldrForm.whatsapp || ""}
+                      onChange={(e) => setLdrForm({ ...ldrForm, whatsapp: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400"
+                      placeholder="e.g. +254712345678 or https://wa.me/254..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Facebook Profile / Page URL</label>
+                    <input 
+                      type="text"
+                      value={ldrForm.facebook || ""}
+                      onChange={(e) => setLdrForm({ ...ldrForm, facebook: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400"
+                      placeholder="e.g. https://facebook.com/username"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">LinkedIn Profile URL</label>
+                    <input 
+                      type="text"
+                      value={ldrForm.linkedin || ""}
+                      onChange={(e) => setLdrForm({ ...ldrForm, linkedin: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none focus:border-amber-400"
+                      placeholder="e.g. https://linkedin.com/in/username"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
                     <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-1">Brief Bio Quote</label>
                     <input 
                       type="text"

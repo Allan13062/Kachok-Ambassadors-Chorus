@@ -36,6 +36,9 @@ export const leaders = pgTable("leaders", {
   image: text("image"),
   bio: text("bio"),
   phone: text("phone"),
+  facebook: text("facebook"),
+  whatsapp: text("whatsapp"),
+  linkedin: text("linkedin"),
   createdAt: timestamp("created_at").defaultNow()
 });
 

@@ -62,6 +62,9 @@ export interface Leader {
   image: string;
   bio?: string;
   phone?: string;
+  facebook?: string;
+  whatsapp?: string;
+  linkedin?: string;
 }
 
 export interface Subscriber {
@@ -86,4 +89,15 @@ export interface MemberSpotlight {
   quoteOrHighlight: string;
   image?: string;
   createdAt: string;
+}
+
+export interface GalleryPhoto {
+  id: string;
+  title: string;
+  caption?: string;
+  category?: string;
+  description?: string;
+  url: string;
+  mediaType?: "image" | "video" | string;
+  createdAt?: string;
 }

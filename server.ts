@@ -318,7 +318,10 @@ async function seedCloudSqlFromLocalDb() {
               role: ldr.role,
               image: ldr.image || "",
               bio: ldr.bio || "",
-              phone: ldr.phone || ""
+              phone: ldr.phone || "",
+              facebook: ldr.facebook || "",
+              whatsapp: ldr.whatsapp || "",
+              linkedin: ldr.linkedin || ""
             }).onConflictDoNothing();
           }
         }
@@ -454,8 +457,19 @@ app.get("/api/db", async (req, res) => {
     };
 
     let inquiriesList: any[] = [];
-    // Admin login is disabled. Bypass authentication so everyone can view it.
-    inquiriesList = await db.select().from(inquiries);
+    if (isDbAvailable()) {
+      try {
+        inquiriesList = await db.select().from(inquiries);
+      } catch (inqErr: any) {
+        console.warn("[Cloud SQL] Failed to load inquiries from DB:", inqErr.message);
+      }
+    }
+    if (inquiriesList.length === 0) {
+      try {
+        const localData = await getLocalDb();
+        inquiriesList = localData.inquiries || [];
+      } catch (_) {}
+    }
     inquiriesList.sort((a, b) => (b.id || "").localeCompare(a.id || ""));
 
     let subscribersList: any[] = [];
@@ -2060,7 +2074,7 @@ app.post("/api/chat", async (req, res) => {
 
 // 13. Create leader (Admin)
 app.post("/api/leaders", requireAdmin, async (req, res) => {
-  const { name, role, image, bio, phone } = req.body;
+  const { name, role, image, bio, phone, facebook, whatsapp, linkedin } = req.body;
   if (!name || !role) {
     return res.status(400).json({ error: "Name and Position/Role are required." });
   }
@@ -2070,9 +2084,12 @@ app.post("/api/leaders", requireAdmin, async (req, res) => {
     id,
     name,
     role,
-    image: image || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300",
+    image: image || "",
     bio: bio || "",
-    phone: phone || ""
+    phone: phone || "",
+    facebook: facebook || "",
+    whatsapp: whatsapp || "",
+    linkedin: linkedin || ""
   };
 
   try {
@@ -2098,7 +2115,7 @@ app.post("/api/leaders", requireAdmin, async (req, res) => {
 // 14. Update leader (Admin)
 app.put("/api/leaders/:id", requireAdmin, async (req, res) => {
   const { id } = req.params;
-  const { name, role, image, bio, phone } = req.body;
+  const { name, role, image, bio, phone, facebook, whatsapp, linkedin } = req.body;
 
   try {
     let existing: any = null;
@@ -2127,7 +2144,10 @@ app.put("/api/leaders/:id", requireAdmin, async (req, res) => {
       role: role ?? existing.role,
       image: image ?? existing.image,
       bio: bio ?? existing.bio,
-      phone: phone ?? existing.phone
+      phone: phone ?? existing.phone,
+      facebook: facebook ?? existing.facebook,
+      whatsapp: whatsapp ?? existing.whatsapp,
+      linkedin: linkedin ?? existing.linkedin
     };
 
     await syncLocalFile("leaders", "update", updated);
@@ -2139,7 +2159,10 @@ app.put("/api/leaders/:id", requireAdmin, async (req, res) => {
           role: role ?? existing.role,
           image: image ?? existing.image,
           bio: bio ?? existing.bio,
-          phone: phone ?? existing.phone
+          phone: phone ?? existing.phone,
+          facebook: facebook ?? existing.facebook,
+          whatsapp: whatsapp ?? existing.whatsapp,
+          linkedin: linkedin ?? existing.linkedin
         }).where(eq(leaders.id, id));
       }
     } catch (pgErr: any) {
@@ -2540,75 +2563,6 @@ app.post("/api/workspace/drive/poster", requireAdmin, async (req, res) => {
   }
 });
 
-
-// -------------- VITE & PRODUCTION HANDLER --------------
-
-async function startServer() {
-  // Fire off database seeding/migration in the background to avoid blocking container boot
-  (async () => {
-    try {
-      await seedCloudSqlFromLocalDb();
-    } catch (err: any) {
-      console.log("[Kachamba Cloud SQL] Notice: Background seeding was deferred.");
-    }
-  })();
-
-  if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
-    // Dev Mode uses Vite middleware mode (dynamic import so Vite stays a devDependency)
-    const { createServer: createViteServer } = await import("vite");
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else if (!process.env.VERCEL) {
-    // Production Mode serves static files from dist (Skipped on Vercel as it serves static files naturally)
-    const distPath = path.join(process.cwd(), "dist");
-    
-    // Serve static files with targeted caching headers to prevent HTML or unhashed asset caching
-    app.use(express.static(distPath, {
-      setHeaders: (res, filepath) => {
-        const lowerPath = filepath.toLowerCase();
-        if (lowerPath.endsWith(".html")) {
-          // Never cache the index.html file so page refreshes always fetch the latest bundle hashes
-          res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
-          res.setHeader("Pragma", "no-cache");
-          res.setHeader("Expires", "0");
-        } else if (lowerPath.includes("/assets/")) {
-          // Vite hashed bundles are safe to cache aggressively for high-performance delivery
-          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-        } else {
-          // Keep other assets (logos, images, etc.) revalidating with no-cache so changes propagate immediately
-          res.setHeader("Cache-Control", "no-cache");
-        }
-      }
-    }));
-
-    app.get("*", (req, res) => {
-      // Force no-cache on catch-all HTML fallback as well
-      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
-      res.setHeader("Pragma", "no-cache");
-      res.setHeader("Expires", "0");
-      res.sendFile(path.join(distPath, "index.html"));
-    });
-  }
-  
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[Kachamba Server] Standalone running on http://localhost:${PORT}`);
-    
-    // WARM UP DATABASE CACHE in the background
-    (async () => {
-      try {
-        console.log("[Kachamba Server] Warming up Database connection and Passcode Cache...");
-        await getAdminPasscode();
-        console.log("[Kachamba Server] Cache warm up complete. Lightning fast Mode Active.");
-      } catch (err: any) {
-        console.log("[Kachamba Server] Notice: Cache warm up skipped as database appears offline.");
-      }
-    })();
-  });
-}
-
 // ---- GALLERY CRUD ROUTES ----
 
 // Get all gallery photos (public)
@@ -2724,6 +2678,74 @@ app.delete("/api/gallery/:id", requireAdmin, async (req, res) => {
     res.status(500).json({ error: "Failed to delete gallery photo: " + err.message });
   }
 });
+
+// -------------- VITE & PRODUCTION HANDLER --------------
+
+async function startServer() {
+  // Fire off database seeding/migration in the background to avoid blocking container boot
+  (async () => {
+    try {
+      await seedCloudSqlFromLocalDb();
+    } catch (err: any) {
+      console.log("[Kachamba Cloud SQL] Notice: Background seeding was deferred.");
+    }
+  })();
+
+  if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+    // Dev Mode uses Vite middleware mode (dynamic import so Vite stays a devDependency)
+    const { createServer: createViteServer } = await import("vite");
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
+  } else if (!process.env.VERCEL) {
+    // Production Mode serves static files from dist (Skipped on Vercel as it serves static files naturally)
+    const distPath = path.join(process.cwd(), "dist");
+    
+    // Serve static files with targeted caching headers to prevent HTML or unhashed asset caching
+    app.use(express.static(distPath, {
+      setHeaders: (res, filepath) => {
+        const lowerPath = filepath.toLowerCase();
+        if (lowerPath.endsWith(".html")) {
+          // Never cache the index.html file so page refreshes always fetch the latest bundle hashes
+          res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+          res.setHeader("Pragma", "no-cache");
+          res.setHeader("Expires", "0");
+        } else if (lowerPath.includes("/assets/")) {
+          // Vite hashed bundles are safe to cache aggressively for high-performance delivery
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        } else {
+          // Keep other assets (logos, images, etc.) revalidating with no-cache so changes propagate immediately
+          res.setHeader("Cache-Control", "no-cache");
+        }
+      }
+    }));
+
+    app.get("*", (req, res) => {
+      // Force no-cache on catch-all HTML fallback as well
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+      res.sendFile(path.join(distPath, "index.html"));
+    });
+  }
+  
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`[Kachamba Server] Standalone running on http://localhost:${PORT}`);
+    
+    // WARM UP DATABASE CACHE in the background
+    (async () => {
+      try {
+        console.log("[Kachamba Server] Warming up Database connection and Passcode Cache...");
+        await getAdminPasscode();
+        console.log("[Kachamba Server] Cache warm up complete. Lightning fast Mode Active.");
+      } catch (err: any) {
+        console.log("[Kachamba Server] Notice: Cache warm up skipped as database appears offline.");
+      }
+    })();
+  });
+}
 
 // Only start the standalone server if we're not running in a Serverless environment (like Vercel)
 if (!process.env.VERCEL && process.env.NODE_ENV !== "test") {

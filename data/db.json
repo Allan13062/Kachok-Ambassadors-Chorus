@@ -91,10 +91,24 @@
     {
       "id": "ldr-1783758768846",
       "name": "Allan George",
-      "role": "Social Media ",
+      "role": "Social Media & Media Outreach",
       "image": "https://res.cloudinary.com/epd4yag0/image/upload/v1783758768/kachamba_sync/qdg4t6fpwgaokiv6mj5o.jpg",
-      "bio": "Social media management ",
-      "phone": "+254797450206"
+      "bio": "Guiding choral media production, digital communications, and gospel outreach for Kachok Ambassadors Chorus.",
+      "phone": "+254797450206",
+      "facebook": "https://facebook.com/kachambachorus",
+      "whatsapp": "+254797450206",
+      "linkedin": "https://linkedin.com/in/allangeorge"
+    },
+    {
+      "id": "ldr-1791654580698",
+      "name": "Job Adams",
+      "role": "Choir Director & Vocal Coach",
+      "image": "/JobAdams.png",
+      "bio": "Dedicated choral musician shaping vocal harmonics, praise arrangements, and youth ministry rehearsals.",
+      "phone": "+254700123456",
+      "facebook": "https://facebook.com/kachambachorus",
+      "whatsapp": "+254700123456",
+      "linkedin": "https://linkedin.com/company/kachamba-chorus"
     }
   ],
   "users": [
