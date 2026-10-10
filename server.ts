@@ -10,6 +10,7 @@ import url from "url";
 import crypto from "crypto";
 import { GoogleGenAI } from "@google/genai";
 import { Readable } from "stream";
+import { v2 as cloudinary } from "cloudinary";
 
 import { db } from "./src/db/index.ts";
 import { getLocalDb, saveLocalDb, insertItem, deleteItem, getSession, deleteSession } from "./dbStorage.ts";
@@ -83,6 +84,19 @@ function isDbAvailable(): boolean {
     return false;
   }
   return true;
+}
+
+if (!process.env.CLOUDINARY_URL && process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+    secure: true,
+  });
+}
+function isCloudinaryAvailable(): boolean {
+  const c = cloudinary.config();
+  return Boolean(c.cloud_name && c.api_key && c.api_secret);
 }
 
 async function getAdminPasscode(): Promise<string> {
@@ -2198,8 +2212,24 @@ app.delete("/api/leaders/:id", requireAdmin, async (req, res) => {
   }
 });
 
-// 16. Persistent File Upload Route (Admin)
-// Stores uploaded files persistently in Postgres/Neon, falling back to Firestore/local memory.
+// 16a. Cloudinary signature route — client uploads directly to Cloudinary using this token.
+app.post("/api/cloudinary-signature", requireAdmin, async (req, res) => {
+  if (!isCloudinaryAvailable()) {
+    return res.status(503).json({ success: false, error: "Cloudinary is not configured on this server." });
+  }
+  try {
+    const folder = (req.body && req.body.folder) || "kachamba_uploads";
+    const timestamp = Math.round(Date.now() / 1000);
+    const config = cloudinary.config();
+    const signature = cloudinary.utils.api_sign_request({ timestamp, folder }, config.api_secret as string);
+    return res.json({ success: true, signature, timestamp, apiKey: config.api_key, cloudName: config.cloud_name, folder });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: "Failed to generate upload signature: " + err.message });
+  }
+});
+
+// 16b. Persistent File Upload Route (Admin) — server-side fallback.
+// Order: Cloudinary -> Postgres/Neon -> Firestore -> inline base64.
 app.post("/api/upload", requireAdmin, async (req, res) => {
   const { filename, base64 } = req.body;
   if (!base64) {
@@ -2214,6 +2244,15 @@ app.post("/api/upload", requireAdmin, async (req, res) => {
   const matches = base64.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-+.]+);base64,/);
   if (matches) {
     mimeType = matches[1];
+  }
+
+  if (isCloudinaryAvailable()) {
+    try {
+      const result = await cloudinary.uploader.upload(base64, { folder: "kachamba_uploads", resource_type: "auto", public_id: fileId });
+      return res.json({ success: true, url: result.secure_url, filename, mimeType });
+    } catch (cloudErr: any) {
+      console.warn("[Uploads] Cloudinary upload failed, falling back:", cloudErr.message);
+    }
   }
 
   try {
