@@ -1,5 +1,5 @@
 {
-  "passcode": "CHANGE_ME_SET_ADMIN_PASSCODE_ENV_VAR",
+  "passcode": "SDA2026",
   "activities": [
     {
       "id": "act-1783158774741",
@@ -89,28 +89,12 @@
   },
   "leaders": [
     {
-      "id": "ldr-1",
-      "name": "Director Brighton",
-      "role": "Music Director & Chief Conductor",
-      "image": "/WhatsApp Image 2026-06-11 at 11.06.18 AM.jpeg",
-      "bio": "Guiding our pristine acappella harmonies and leading choral arrangements with deep spiritual devotion.",
-      "phone": "+254 712 345 678"
-    },
-    {
-      "id": "ldr-2",
-      "name": "Sister Sarah Odhiambo",
-      "role": "Choir Secretary & Coordinator",
-      "image": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400",
-      "bio": "Coordinating external invitations and wedding bookings, and managing our prayer groups and rehearsal schedules.",
-      "phone": "+254 723 456 789"
-    },
-    {
-      "id": "ldr-3",
-      "name": "Elder Samuel Omwamba",
-      "role": "Ministry Patron & Treasurer",
-      "image": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400",
-      "bio": "Spiritual advisor delegated by the Local Church Board, overseeing our outreach logistics and uniform supplies.",
-      "phone": "+254 734 567 890"
+      "id": "ldr-1783758768846",
+      "name": "Allan George",
+      "role": "Social Media ",
+      "image": "https://res.cloudinary.com/epd4yag0/image/upload/v1783758768/kachamba_sync/qdg4t6fpwgaokiv6mj5o.jpg",
+      "bio": "Social media management ",
+      "phone": "+254797450206"
     }
   ],
   "users": [
@@ -134,6 +118,14 @@
       ]
     },
     {
+      "id": "E4HTwIzUkka3FBHjefLCAg4acet2",
+      "uid": "E4HTwIzUkka3FBHjefLCAg4acet2",
+      "email": "allengior566@gmail.com",
+      "name": "Allen Gior",
+      "voicePart": "Listener",
+      "createdAt": "2026-07-05T11:03:03.892Z"
+    },
+    {
       "id": "ESvsTWBHK3gkrNTSBSfO31cZbEB3",
       "uid": "ESvsTWBHK3gkrNTSBSfO31cZbEB3",
       "email": "sdakachokambassadors@gmail.com",
@@ -150,6 +142,17 @@
       "createdAt": "2026-06-28T08:47:35.363Z"
     },
     {
+      "id": "cmx3m63UnVTyr6kb7unoxiuYBFX2",
+      "uid": "cmx3m63UnVTyr6kb7unoxiuYBFX2",
+      "email": "allangeorge888@gmail.com",
+      "displayName": "Allan George",
+      "photoURL": "https://lh3.googleusercontent.com/a/ACg8ocIR_u_lQJSgBpjJa-gxCAtFCZUW0EYnyURvyqmZ73CijNDzO0Jj=s96-c",
+      "voicePart": "Listener",
+      "providerId": "email",
+      "createdAt": "2026-07-05T11:07:21.606Z",
+      "role": "member"
+    },
+    {
       "id": "usr_sh8a5vbjq",
       "uid": "usr_sh8a5vbjq",
       "email": "dukeofsagam@gmail.com",
@@ -158,7 +161,7 @@
       "voicePart": "Listener",
       "providerId": "email",
       "createdAt": "2026-06-22T06:47:47.109Z",
-      "password": "CHANGE_ME"
+      "password": "SDA2026"
     }
   ],
   "sessions": [
@@ -176,5 +179,6 @@
       "role": "admin",
       "createdAt": "2026-06-22T07:02:27.137Z"
     }
-  ]
+  ],
+  "adminEmail": "allangeorge566@gmail.com"
 }
