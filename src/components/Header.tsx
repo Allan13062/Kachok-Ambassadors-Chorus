@@ -16,16 +16,16 @@ interface HeaderProps {
   webLogo?: string;
 }
 
-// [label, section id, colour]. Each section has its own colour (see index.css).
+// [label, section id]
 const navItems = [
-  ["Home", "home", "cobalt"],
-  ["Itinerary", "itinerary", "coral"],
-  ["Ministries", "activities", "teal"],
-  ["Leaders", "leadership", "violet"],
-  ["Music", "music", "pink"],
-  ["Gallery", "gallery", "sky"],
-  ["Join", "join", "green"],
-  ["Contact", "contact", "violet"],
+  ["Home", "home"],
+  ["Itinerary", "itinerary"],
+  ["Ministries", "activities"],
+  ["Leaders", "leadership"],
+  ["Music", "music"],
+  ["Gallery", "gallery"],
+  ["Join", "join"],
+  ["Contact", "contact"],
 ] as const;
 
 const FALLBACK_LOGO =
@@ -89,8 +89,7 @@ export default function Header({
         scrolled || mobileOpen ? "glass-nav" : "glass-nav-transparent"
       }`}
     >
-      <div className="voices-bar" aria-hidden="true">
-        <i />
+      <div className="brand-bar" aria-hidden="true">
         <i />
         <i />
         <i />
@@ -119,7 +118,7 @@ export default function Header({
 
         {/* Desktop navigation */}
         <nav className="hidden items-center gap-0.5 lg:flex" aria-label="Primary navigation">
-          {navItems.map(([label, id, hue]) => {
+          {navItems.map(([label, id]) => {
             const active = activeSection === id;
             return (
               <button
@@ -127,9 +126,8 @@ export default function Header({
                 type="button"
                 onClick={() => scrollTo(id)}
                 aria-current={active ? "page" : undefined}
-                style={active ? { color: `var(--hue-${hue})` } : undefined}
                 className={`relative rounded-full px-3.5 py-2 text-[13px] font-semibold transition-colors ${
-                  active ? "bg-white/5" : "text-white/60 hover:text-white"
+                  active ? "text-[color:var(--hue-primary)]" : "text-white/60 hover:text-white"
                 }`}
               >
                 {label}
@@ -137,7 +135,7 @@ export default function Header({
                   <motion.span
                     layoutId="nav-dot"
                     className="absolute -bottom-[3px] left-1/2 h-1 w-5 -translate-x-1/2 rounded-full"
-                    style={{ background: `var(--hue-${hue})` }}
+                    style={{ background: "var(--fill-primary)" }}
                     transition={{ type: "spring", stiffness: 420, damping: 34 }}
                   />
                 )}
@@ -160,7 +158,7 @@ export default function Header({
           <button
             type="button"
             onClick={() => scrollTo("contact")}
-            className="btn-solid fill-cobalt !px-4 !py-2.5 !text-[13px]"
+            className="btn-solid fill-accent !px-4 !py-2.5 !text-[13px]"
           >
             Book us
             <ArrowUpRight className="h-4 w-4" />
@@ -194,7 +192,7 @@ export default function Header({
         className="absolute bottom-0 left-0 h-[2px]"
         style={{
           width: `${progress}%`,
-          background: `var(--hue-${navItems.find((n) => n[1] === activeSection)?.[2] ?? "cobalt"})`,
+          background: "var(--fill-primary)",
         }}
       />
 
@@ -211,7 +209,7 @@ export default function Header({
             className="fixed inset-x-0 bottom-0 top-[68px] overflow-y-auto bg-slate-950 px-6 pb-10 pt-4 lg:hidden"
           >
             <ul className="divide-y divide-white/10">
-              {navItems.map(([label, id, hue], i) => (
+              {navItems.map(([label, id], i) => (
                 <motion.li
                   key={id}
                   initial={{ opacity: 0, x: -12 }}
@@ -225,11 +223,12 @@ export default function Header({
                   >
                     <span
                       className="h-3 w-3 shrink-0 rounded-full"
-                      style={{ background: `var(--hue-${hue})` }}
+                      style={{ background: ["var(--fill-primary)", "var(--fill-secondary)", "var(--fill-accent)"][i % 3] }}
                     />
                     <span
-                      className="font-display text-3xl font-bold tracking-tight"
-                      style={activeSection === id ? { color: `var(--hue-${hue})` } : undefined}
+                      className={`font-display text-3xl font-bold tracking-tight ${
+                        activeSection === id ? "text-[color:var(--hue-primary)]" : ""
+                      }`}
                     >
                       {label}
                     </span>
@@ -255,7 +254,7 @@ export default function Header({
             <button
               type="button"
               onClick={() => scrollTo("contact")}
-              className="btn-solid fill-cobalt mt-3 w-full !py-4"
+              className="btn-solid fill-accent mt-3 w-full !py-4"
             >
               Book the chorus
             </button>
