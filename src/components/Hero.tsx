@@ -42,18 +42,22 @@ export default function Hero({ onAskAI, webLogo, photos = [], events = [] }: Her
             variants={rise}
             className="inline-flex items-center gap-2.5 rounded-full border border-white/15 px-3.5 py-1.5 text-xs font-semibold text-white/70"
           >
-            
+            <span className="h-2 w-2 rounded-full" style={{ background: "var(--fill-secondary)" }} />
+            Adventist Youth Ministry · A cappella · Kisumu, Kenya
+          </motion.p>
+
           <motion.h1
             variants={rise}
             className="mt-7 font-display text-[3.1rem] font-bold leading-[0.95] tracking-[-0.05em] sm:text-7xl lg:text-[5.75rem]"
           >
-            Sounds Of
+            Sounds of
             <br />
             <span style={{ color: "var(--hue-primary)" }}>Togetherness.</span>
           </motion.h1>
 
           <motion.p variants={rise} className="mt-7 max-w-xl text-lg leading-relaxed text-white/65">
-            Kachamba Chorus is a choral youth ministry of SDA Kachok Church.
+            Kachamba Chorus is the voice-only gospel ministry of Kachok SDA Church — worship,
+            service and outreach, carried by harmony alone.
           </motion.p>
 
           <motion.div variants={rise} className="mt-9 flex flex-col gap-3 sm:flex-row">
