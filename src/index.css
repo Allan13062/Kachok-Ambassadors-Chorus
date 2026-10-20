@@ -1,177 +1,558 @@
-@import url('https://fonts.cdnfonts.com/css/glacial-indifference-2');
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700;800&family=Quicksand:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
+/* =====================================================================
+   KACHAMBA CHORUS — DESIGN SYSTEM
+   Idea: four voices (soprano · alto · tenor · bass) = four colours.
+   • Flat, high-contrast surfaces. No glow, no gold, no glass.
+   • The existing `slate-*` and `amber-*` utilities are remapped, so every
+     component picks the new look up without being edited:
+       slate-*  → cool neutral ink (dark mode) / paper (light mode)
+       amber-*  → the ACCENT of whichever section it sits in
+   • Light mode works by flipping these same variables, so every section
+     (and the admin panel, chatbot, modals) follows the theme automatically.
+   ===================================================================== */
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Space Grotesk", sans-serif;
-  --font-serif: "Cormorant Garamond", Georgia, serif;
-  --font-mono: "Inter", ui-sans-serif, system-ui, sans-serif;
-
-  --color-slate-350: #a1b0cb;
-  --color-slate-450: #64748b;
-  --color-slate-550: #475569;
-  --color-slate-705: #334155;
-  --color-slate-750: #1e293b;
-  --color-slate-805: #111a2e;
-  --color-slate-850: #0f172a;
-  --color-slate-905: #090d16;
-  --color-slate-1050: #020617;
-  --color-amber-405: #fbbf24;
-  --color-amber-450: #f59e0b;
-  --color-amber-550: #d97706;
-  --color-amber-605: #b45309;
+  --font-sans: "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque", "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Bricolage Grotesque", "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-html {
-  scroll-behavior: smooth;
+/* Neutral scale — dark mode defaults */
+:root {
+  --color-slate-50: #f6f7f9;
+  --color-slate-100: #eceef2;
+  --color-slate-200: #d9dde4;
+  --color-slate-300: #b8bfcb;
+  --color-slate-350: #a0a8b6;
+  --color-slate-400: #8891a1;
+  --color-slate-450: #767f8f;
+  --color-slate-500: #646d7d;
+  --color-slate-550: #545c6b;
+  --color-slate-600: #464e5c;
+  --color-slate-700: #343b47;
+  --color-slate-705: #343b47;
+  --color-slate-750: #2a303b;
+  --color-slate-800: #222831;
+  --color-slate-805: #1e232b;
+  --color-slate-850: #191e25;
+  --color-slate-900: #14181f;
+  --color-slate-905: #11151b;
+  --color-slate-950: #0d1015;
+  --color-slate-1050: #080a0d;
+  --color-white: #ffffff;
 }
 
-/* =========================================
-   GLASS MORPHISM UTILITIES
-   ========================================= */
-.glass {
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+html { scroll-behavior: smooth; scroll-padding-top: 5rem; -webkit-text-size-adjust: 100%; color-scheme: dark; }
+html.light { color-scheme: light; }
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  background: var(--color-slate-950);
+  color: var(--color-white);
+}
+::selection { background: var(--color-amber-400); color: var(--color-slate-950); }
+:focus-visible { outline: 2px solid var(--color-amber-400); outline-offset: 3px; }
+
+/* ===== GENERATED PALETTE ===== */
+:root {
+  --color-amber-50: #ecf0fd;
+  --color-amber-100: #dae0fb;
+  --color-amber-200: #b6c4fc;
+  --color-amber-300: #8ea4fa;
+  --color-amber-400: #6280f8;
+  --color-amber-405: #6280f8;
+  --color-amber-450: #4a6df7;
+  --color-amber-500: #4a6df7;
+  --color-amber-550: #1441f5;
+  --color-amber-600: #1441f5;
+  --color-amber-605: #1441f5;
+  --color-amber-700: #082fc9;
+  --color-amber-800: #07259d;
+  --color-amber-900: #051a71;
+  --color-amber-950: #061241;
+}
+html.light {
+  --color-white: #0d1015;
+  --color-slate-50: #0d1015;
+  --color-slate-100: #171b24;
+  --color-slate-200: #222833;
+  --color-slate-300: #2f3644;
+  --color-slate-350: #3d4454;
+  --color-slate-400: #4a5263;
+  --color-slate-450: #586172;
+  --color-slate-500: #667082;
+  --color-slate-550: #7c8595;
+  --color-slate-600: #9aa3b2;
+  --color-slate-700: #c3cad5;
+  --color-slate-705: #c3cad5;
+  --color-slate-750: #d6dbe3;
+  --color-slate-800: #e2e6ec;
+  --color-slate-805: #e8ebf0;
+  --color-slate-850: #eef0f4;
+  --color-slate-900: #ffffff;
+  --color-slate-905: #ffffff;
+  --color-slate-950: #f6f7f9;
+  --color-slate-1050: #ffffff;
+  --color-amber-50: #061241;
+  --color-amber-100: #051a71;
+  --color-amber-200: #07259d;
+  --color-amber-300: #082fc9;
+  --color-amber-400: #1441f5;
+  --color-amber-405: #1441f5;
+  --color-amber-450: #3b61f6;
+  --color-amber-500: #3b61f6;
+  --color-amber-550: #234df5;
+  --color-amber-600: #234df5;
+  --color-amber-605: #234df5;
+  --color-amber-700: #8ea4fa;
+  --color-amber-800: #b6c4fc;
+  --color-amber-900: #dae0fb;
+  --color-amber-950: #ecf0fd;
+}
+#itinerary {
+  --color-amber-50: #fdf0ed;
+  --color-amber-100: #fae0db;
+  --color-amber-200: #fac3b8;
+  --color-amber-300: #f7a392;
+  --color-amber-400: #f47f67;
+  --color-amber-405: #f47f67;
+  --color-amber-450: #f26b50;
+  --color-amber-500: #f26b50;
+  --color-amber-550: #ee3e1b;
+  --color-amber-600: #ee3e1b;
+  --color-amber-605: #ee3e1b;
+  --color-amber-700: #c22d0f;
+  --color-amber-800: #98230b;
+  --color-amber-900: #6d1908;
+  --color-amber-950: #3f1108;
+}
+html.light #itinerary {
+  --color-amber-50: #3f1108;
+  --color-amber-100: #6d1908;
+  --color-amber-200: #98230b;
+  --color-amber-300: #c22d0f;
+  --color-amber-400: #d13010;
+  --color-amber-405: #d13010;
+  --color-amber-450: #d23010;
+  --color-amber-500: #d23010;
+  --color-amber-550: #be2c0e;
+  --color-amber-600: #be2c0e;
+  --color-amber-605: #be2c0e;
+  --color-amber-700: #f7a392;
+  --color-amber-800: #fac3b8;
+  --color-amber-900: #fae0db;
+  --color-amber-950: #fdf0ed;
+}
+#activities {
+  --color-amber-50: #edfcfa;
+  --color-amber-100: #dcf9f5;
+  --color-amber-200: #baf7ef;
+  --color-amber-300: #95f3e7;
+  --color-amber-400: #6cefdd;
+  --color-amber-405: #6cefdd;
+  --color-amber-450: #55ecd8;
+  --color-amber-500: #55ecd8;
+  --color-amber-550: #23e7cc;
+  --color-amber-600: #23e7cc;
+  --color-amber-605: #23e7cc;
+  --color-amber-700: #15bca6;
+  --color-amber-800: #109381;
+  --color-amber-900: #0c6a5d;
+  --color-amber-950: #0a3d37;
+}
+html.light #activities {
+  --color-amber-50: #0a3d37;
+  --color-amber-100: #0c6a5d;
+  --color-amber-200: #109381;
+  --color-amber-300: #0e7c6d;
+  --color-amber-400: #0e7d6e;
+  --color-amber-405: #0e7d6e;
+  --color-amber-450: #0e7c6d;
+  --color-amber-500: #0e7c6d;
+  --color-amber-550: #0c6f61;
+  --color-amber-600: #0c6f61;
+  --color-amber-605: #0c6f61;
+  --color-amber-700: #95f3e7;
+  --color-amber-800: #baf7ef;
+  --color-amber-900: #dcf9f5;
+  --color-amber-950: #edfcfa;
+}
+#leadership {
+  --color-amber-50: #f3edfc;
+  --color-amber-100: #e7dcfa;
+  --color-amber-200: #d0b9f8;
+  --color-amber-300: #b894f4;
+  --color-amber-400: #9c6af0;
+  --color-amber-405: #9c6af0;
+  --color-amber-450: #8c53ee;
+  --color-amber-500: #8c53ee;
+  --color-amber-550: #6a20e9;
+  --color-amber-600: #6a20e9;
+  --color-amber-605: #6a20e9;
+  --color-amber-700: #5213be;
+  --color-amber-800: #400f95;
+  --color-amber-900: #2e0b6b;
+  --color-amber-950: #1d093e;
+}
+html.light #leadership {
+  --color-amber-50: #1d093e;
+  --color-amber-100: #2e0b6b;
+  --color-amber-200: #400f95;
+  --color-amber-300: #5213be;
+  --color-amber-400: #6a20e9;
+  --color-amber-405: #6a20e9;
+  --color-amber-450: #864aed;
+  --color-amber-500: #864aed;
+  --color-amber-550: #7732ea;
+  --color-amber-600: #7732ea;
+  --color-amber-605: #7732ea;
+  --color-amber-700: #b894f4;
+  --color-amber-800: #d0b9f8;
+  --color-amber-900: #e7dcfa;
+  --color-amber-950: #f3edfc;
+}
+#music {
+  --color-amber-50: #fcedf4;
+  --color-amber-100: #fadce9;
+  --color-amber-200: #f8b9d5;
+  --color-amber-300: #f494be;
+  --color-amber-400: #f06aa4;
+  --color-amber-405: #f06aa4;
+  --color-amber-450: #ee5396;
+  --color-amber-500: #ee5396;
+  --color-amber-550: #e92077;
+  --color-amber-600: #e92077;
+  --color-amber-605: #e92077;
+  --color-amber-700: #be135d;
+  --color-amber-800: #950f49;
+  --color-amber-900: #6b0b34;
+  --color-amber-950: #3e0920;
+}
+html.light #music {
+  --color-amber-50: #3e0920;
+  --color-amber-100: #6b0b34;
+  --color-amber-200: #950f49;
+  --color-amber-300: #be135d;
+  --color-amber-400: #d51568;
+  --color-amber-405: #d51568;
+  --color-amber-450: #d51568;
+  --color-amber-500: #d51568;
+  --color-amber-550: #c2145f;
+  --color-amber-600: #c2145f;
+  --color-amber-605: #c2145f;
+  --color-amber-700: #f494be;
+  --color-amber-800: #f8b9d5;
+  --color-amber-900: #fadce9;
+  --color-amber-950: #fcedf4;
+}
+#gallery {
+  --color-amber-50: #edf7fd;
+  --color-amber-100: #daeefb;
+  --color-amber-200: #b6e1fb;
+  --color-amber-300: #90d1f9;
+  --color-amber-400: #64bff7;
+  --color-amber-405: #64bff7;
+  --color-amber-450: #4cb4f6;
+  --color-amber-500: #4cb4f6;
+  --color-amber-550: #169ef3;
+  --color-amber-600: #169ef3;
+  --color-amber-605: #169ef3;
+  --color-amber-700: #0a7fc7;
+  --color-amber-800: #08639b;
+  --color-amber-900: #06476f;
+  --color-amber-950: #072a41;
+}
+html.light #gallery {
+  --color-amber-50: #072a41;
+  --color-amber-100: #06476f;
+  --color-amber-200: #08639b;
+  --color-amber-300: #0973b4;
+  --color-amber-400: #0975b8;
+  --color-amber-405: #0975b8;
+  --color-amber-450: #0975b9;
+  --color-amber-500: #0975b9;
+  --color-amber-550: #0866a0;
+  --color-amber-600: #0866a0;
+  --color-amber-605: #0866a0;
+  --color-amber-700: #90d1f9;
+  --color-amber-800: #b6e1fb;
+  --color-amber-900: #daeefb;
+  --color-amber-950: #edf7fd;
+}
+#join {
+  --color-amber-50: #effaf3;
+  --color-amber-100: #dff6e7;
+  --color-amber-200: #c1f0d1;
+  --color-amber-300: #a0e9b8;
+  --color-amber-400: #7be09d;
+  --color-amber-405: #7be09d;
+  --color-amber-450: #66db8d;
+  --color-amber-500: #66db8d;
+  --color-amber-550: #39d06b;
+  --color-amber-600: #39d06b;
+  --color-amber-605: #39d06b;
+  --color-amber-700: #28a953;
+  --color-amber-800: #1f8441;
+  --color-amber-900: #165f2f;
+  --color-amber-950: #10381d;
+}
+html.light #join {
+  --color-amber-50: #10381d;
+  --color-amber-100: #165f2f;
+  --color-amber-200: #1f8441;
+  --color-amber-300: #1e803f;
+  --color-amber-400: #1e803f;
+  --color-amber-405: #1e803f;
+  --color-amber-450: #1e803f;
+  --color-amber-500: #1e803f;
+  --color-amber-550: #1a7037;
+  --color-amber-600: #1a7037;
+  --color-amber-605: #1a7037;
+  --color-amber-700: #a0e9b8;
+  --color-amber-800: #c1f0d1;
+  --color-amber-900: #dff6e7;
+  --color-amber-950: #effaf3;
+}
+#support {
+  --color-amber-50: #fdf0ed;
+  --color-amber-100: #fae0db;
+  --color-amber-200: #fac3b8;
+  --color-amber-300: #f7a392;
+  --color-amber-400: #f47f67;
+  --color-amber-405: #f47f67;
+  --color-amber-450: #f26b50;
+  --color-amber-500: #f26b50;
+  --color-amber-550: #ee3e1b;
+  --color-amber-600: #ee3e1b;
+  --color-amber-605: #ee3e1b;
+  --color-amber-700: #c22d0f;
+  --color-amber-800: #98230b;
+  --color-amber-900: #6d1908;
+  --color-amber-950: #3f1108;
+}
+html.light #support {
+  --color-amber-50: #3f1108;
+  --color-amber-100: #6d1908;
+  --color-amber-200: #98230b;
+  --color-amber-300: #c22d0f;
+  --color-amber-400: #d13010;
+  --color-amber-405: #d13010;
+  --color-amber-450: #d23010;
+  --color-amber-500: #d23010;
+  --color-amber-550: #be2c0e;
+  --color-amber-600: #be2c0e;
+  --color-amber-605: #be2c0e;
+  --color-amber-700: #f7a392;
+  --color-amber-800: #fac3b8;
+  --color-amber-900: #fae0db;
+  --color-amber-950: #fdf0ed;
+}
+#contact {
+  --color-amber-50: #f3edfc;
+  --color-amber-100: #e7dcfa;
+  --color-amber-200: #d0b9f8;
+  --color-amber-300: #b894f4;
+  --color-amber-400: #9c6af0;
+  --color-amber-405: #9c6af0;
+  --color-amber-450: #8c53ee;
+  --color-amber-500: #8c53ee;
+  --color-amber-550: #6a20e9;
+  --color-amber-600: #6a20e9;
+  --color-amber-605: #6a20e9;
+  --color-amber-700: #5213be;
+  --color-amber-800: #400f95;
+  --color-amber-900: #2e0b6b;
+  --color-amber-950: #1d093e;
+}
+html.light #contact {
+  --color-amber-50: #1d093e;
+  --color-amber-100: #2e0b6b;
+  --color-amber-200: #400f95;
+  --color-amber-300: #5213be;
+  --color-amber-400: #6a20e9;
+  --color-amber-405: #6a20e9;
+  --color-amber-450: #864aed;
+  --color-amber-500: #864aed;
+  --color-amber-550: #7732ea;
+  --color-amber-600: #7732ea;
+  --color-amber-605: #7732ea;
+  --color-amber-700: #b894f4;
+  --color-amber-800: #d0b9f8;
+  --color-amber-900: #e7dcfa;
+  --color-amber-950: #f3edfc;
+}
+:root {
+  --fill-cobalt: #3a58f5;
+  --fill-coral: #e5472b;
+  --fill-teal: #0b8f83;
+  --fill-violet: #7545f0;
+  --fill-pink: #d6226d;
+  --fill-sky: #0b84c8;
+  --fill-green: #2e9a43;
+  --hue-cobalt: #6280f8;
+  --hue-coral: #f47f67;
+  --hue-teal: #6cefdd;
+  --hue-violet: #9c6af0;
+  --hue-pink: #f06aa4;
+  --hue-sky: #64bff7;
+  --hue-green: #7be09d;
+}
+html.light {
+  --hue-cobalt: #1441f5;
+  --hue-coral: #d13010;
+  --hue-teal: #0e7d6e;
+  --hue-violet: #6a20e9;
+  --hue-pink: #d51568;
+  --hue-sky: #0975b8;
+  --hue-green: #1e803f;
 }
 
-.glass-light {
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+
+/* =====================================================================
+   LIGHT MODE — restore true white / true colours where a component sits
+   on a saturated or photographic background (so text-white stays white)
+   ===================================================================== */
+html.light :is(
+  [class*="bg-black"], [class*="bg-[#"],
+  .bg-emerald-500, .bg-emerald-600, .bg-emerald-700,
+  .bg-rose-500, .bg-rose-600, .bg-rose-700,
+  .bg-red-500, .bg-red-600, .bg-red-700,
+  .bg-indigo-500, .bg-indigo-600, .bg-indigo-700,
+  .bg-purple-500, .bg-purple-600, .bg-purple-700,
+  .bg-sky-500, .bg-sky-600, .bg-blue-500, .bg-blue-600, .bg-blue-700,
+  .bg-green-500, .bg-green-600, .bg-green-700, .bg-orange-500, .bg-orange-600,
+  [data-keep-white]
+) { --color-white: #ffffff; }
+
+/* Printed M-Pesa receipts must stay paper-white in both modes */
+html.light :is(#mpesa-receipt, #mpesa-receipt-preview, #mpesa-receipt-container) {
+  --color-white: #ffffff;
+  --color-slate-50: #f6f7f9; --color-slate-100: #eceef2; --color-slate-200: #d9dde4; --color-slate-300: #b8bfcb;
+  --color-slate-400: #8891a1; --color-slate-500: #646d7d; --color-slate-600: #464e5c; --color-slate-700: #343b47;
+  --color-slate-800: #222831; --color-slate-900: #14181f; --color-slate-950: #0d1015;
+  color: #14181f;
 }
 
-.glass-dark {
-  background: rgba(0, 0, 0, 0.25);
-  backdrop-filter: blur(20px) saturate(150%);
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+/* Status colours need deeper shades on a light surface */
+html.light .text-emerald-300, html.light .text-emerald-400 { color: var(--color-emerald-700); }
+html.light .text-rose-300, html.light .text-rose-400 { color: var(--color-rose-700); }
+html.light .text-red-300, html.light .text-red-400 { color: var(--color-red-700); }
+html.light .text-sky-300, html.light .text-sky-400 { color: var(--color-sky-700); }
+html.light .text-indigo-300, html.light .text-indigo-400 { color: var(--color-indigo-700); }
+html.light .text-purple-300, html.light .text-purple-400 { color: var(--color-purple-700); }
+html.light .text-green-300, html.light .text-green-400 { color: var(--color-green-700); }
+html.light .text-yellow-300, html.light .text-yellow-400 { color: var(--color-yellow-700); }
+html.light .text-orange-300, html.light .text-orange-400 { color: var(--color-orange-700); }
+
+/* =====================================================================
+   HEADINGS & SECTION STRUCTURE (unlayered → wins over utility classes)
+   ===================================================================== */
+main h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: -0.035em;
+  line-height: 1.02;
+}
+main h3 { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.02em; }
+
+main > div > section {
+  position: relative;
+  background-color: var(--color-slate-950);
+  border-top: 1px solid color-mix(in srgb, var(--color-white) 8%, transparent);
+}
+main > div:nth-child(even) > section { background-color: var(--color-slate-900); }
+
+/* Each section gets a short bar in its own colour */
+main > div > section::before {
+  content: "";
+  position: absolute; z-index: 2;
+  top: -1px; left: max(1.5rem, calc((100% - 72rem) / 2));
+  width: 88px; height: 6px;
+  border-radius: 0 0 6px 6px;
+  background: var(--color-amber-400);
 }
 
+/* Remove decorative glows / radial blobs from the old design — flat is cleaner */
+main section [class*="bg-[radial-gradient"],
+main section [class*="blur-["][class*="rounded-full"],
+main section .blur-3xl.pointer-events-none { display: none !important; }
+
+/* =====================================================================
+   SURFACES — solid, bordered, no blur
+   ===================================================================== */
+.glass, .glass-light, .glass-dark {
+  background: color-mix(in srgb, var(--color-white) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-white) 10%, transparent);
+}
+.glass-light { background: color-mix(in srgb, var(--color-white) 7%, transparent); }
 .glass-nav {
-  background: rgba(7, 14, 27, 0.72);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  background: color-mix(in srgb, var(--color-slate-950) 94%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-white) 10%, transparent);
 }
+.glass-nav-transparent { background: transparent; border-bottom: 1px solid transparent; }
 
-.glass-nav-transparent {
-  background: transparent;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  border-bottom: 1px solid transparent;
+/* Buttons */
+.btn-solid, .btn-outline {
+  display: inline-flex; align-items: center; justify-content: center; gap: .55rem;
+  padding: .85rem 1.5rem; border-radius: 999px;
+  font-size: .9rem; font-weight: 700; letter-spacing: -.005em; line-height: 1;
+  transition: transform .2s var(--ease-out-expo), background-color .2s, color .2s, border-color .2s;
 }
+.btn-solid { background: var(--fill, var(--fill-cobalt)); color: #fff; border: 2px solid var(--fill, var(--fill-cobalt)); }
+.btn-solid:hover { transform: translateY(-2px); filter: brightness(1.08); }
+.btn-outline { color: var(--color-white); border: 2px solid color-mix(in srgb, var(--color-white) 28%, transparent); }
+.btn-outline:hover { border-color: var(--color-white); transform: translateY(-2px); }
 
-/* =========================================
+/* Four-voice strip (S · A · T · B) */
+.voices-bar { display: grid; grid-template-columns: repeat(4, 1fr); height: 4px; }
+.voices-bar > i:nth-child(1) { background: var(--fill-coral); }
+.voices-bar > i:nth-child(2) { background: var(--fill-teal); }
+.voices-bar > i:nth-child(3) { background: var(--fill-violet); }
+.voices-bar > i:nth-child(4) { background: var(--fill-cobalt); }
+
+/* =====================================================================
    SCROLLBAR
-   ========================================= */
-::-webkit-scrollbar {
-  width: 4px;
-}
-::-webkit-scrollbar-track {
-  background: #070e1b;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(245, 158, 11, 0.2);
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(245, 158, 11, 0.45);
+   ===================================================================== */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--color-slate-900); }
+::-webkit-scrollbar-thumb { background: var(--color-slate-600); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-slate-500); }
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: var(--color-slate-600); border-radius: 4px; }
+
+/* =====================================================================
+   TYPE UTILITIES (names kept — existing components use them)
+   ===================================================================== */
+.label-caps { font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; font-weight: 700; }
+.display-serif { font-family: var(--font-display); font-weight: 600; letter-spacing: -.03em; }
+.section-divider { width: 40px; height: 4px; border-radius: 4px; background: var(--color-amber-400); margin: 0 auto 1.5rem; }
+
+@keyframes pulse-slow { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
+.animate-pulse-slow { animation: pulse-slow 5s ease-in-out infinite; }
+@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .animate-pulse-slow { animation: none; }
 }
 
-.custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.6);
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(245, 158, 11, 0.2);
-  border-radius: 4px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(245, 158, 11, 0.4);
-}
-
-/* =========================================
-   LIGHT THEME
-   ========================================= */
-html.light, .light {
-  color-scheme: light;
-  background-color: #f1f5f9 !important;
-  color: #0f172a !important;
-}
-
-html.light .glass {
-  background: rgba(255, 255, 255, 0.55);
-  border: 1px solid rgba(15, 23, 42, 0.08);
-}
-html.light .glass-light {
-  background: rgba(255, 255, 255, 0.75);
-  border: 1px solid rgba(15, 23, 42, 0.1);
-}
-html.light .glass-nav {
-  background: rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(24px) saturate(200%);
-  -webkit-backdrop-filter: blur(24px) saturate(200%);
-  border-bottom: 1px solid rgba(15, 23, 42, 0.09);
-}
-
-/* =========================================
-   TYPOGRAPHY UTILITIES
-   ========================================= */
-.label-caps {
-  font-size: 0.65rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  font-weight: 500;
-}
-
-.display-serif {
-  font-family: 'Cormorant Garamond', Georgia, serif;
-  font-weight: 300;
-  letter-spacing: -0.01em;
-}
-
-/* =========================================
-   SECTION DIVIDER — hair-thin amber line
-   ========================================= */
-.section-divider {
-  width: 40px;
-  height: 1px;
-  background: rgba(245, 158, 11, 0.5);
-  margin: 0 auto 1.5rem;
-}
-
-/* =========================================
-   ANIMATIONS
-   ========================================= */
-@keyframes pulse-slow {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.7; }
-}
-.animate-pulse-slow {
-  animation: pulse-slow 6s ease-in-out infinite;
-}
-
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
 
 /* Ambassador Guide chatbot — component-scoped responsive UI */
 .kach-chat-root, .kach-chat-root * { box-sizing: border-box; }
 .kach-chat-root {
-  --kach-ink: #f7f7fb;
-  --kach-muted: #a5aec2;
-  --kach-gold: #efbd58;
-  --kach-gold-strong: #dca33a;
-  --kach-panel: #101827;
-  --kach-panel-deep: #0b1220;
-  --kach-border: rgba(255,255,255,.10);
+  --kach-ink: var(--color-white);
+  --kach-muted: var(--color-slate-400);
+  --kach-gold: var(--color-amber-400);
+  --kach-gold-strong: var(--color-amber-500);
+  --kach-panel: var(--color-slate-900);
+  --kach-panel-deep: var(--color-slate-950);
+  --kach-border: color-mix(in srgb, var(--color-white) 10%, transparent);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--kach-ink);
 }
@@ -181,84 +562,84 @@ html.light .glass-nav {
 .kach-chat-launch-wrap { position: relative; }
 .kach-chat-launch {
   display:flex; align-items:center; gap:12px; min-height:66px; padding:12px 17px 12px 12px;
-  border:1px solid rgba(255,255,255,.16); border-radius:18px; cursor:pointer;
-  color:#17130b; background:linear-gradient(135deg,#f6d58a,#e8b64f 62%,#dca33a);
-  box-shadow:0 16px 45px rgba(0,0,0,.3), 0 4px 15px rgba(230,177,72,.2); text-align:left;
+  border:1px solid color-mix(in srgb, var(--color-white) 16%, transparent); border-radius:18px; cursor:pointer;
+  color:var(--color-slate-950); background:linear-gradient(135deg,var(--color-amber-300),var(--color-amber-500) 62%,var(--color-amber-500));
+  box-shadow:0 16px 45px rgba(0,0,0,.3), 0 4px 15px color-mix(in srgb, var(--color-amber-400) 20%, transparent); text-align:left;
   transition:transform .18s ease, box-shadow .18s ease;
 }
 .kach-chat-launch:hover { transform:translateY(-2px); box-shadow:0 20px 50px rgba(0,0,0,.34); }
-.kach-chat-launch-icon { display:grid; place-items:center; width:42px; height:42px; border-radius:13px; background:rgba(255,255,255,.42); }
+.kach-chat-launch-icon { display:grid; place-items:center; width:42px; height:42px; border-radius:13px; background:color-mix(in srgb, var(--color-white) 42%, transparent); }
 .kach-chat-launch strong,.kach-chat-launch small { display:block; }
 .kach-chat-launch strong { font-size:14px; font-weight:800; }
 .kach-chat-launch small { margin-top:3px; font-size:11px; opacity:.72; }
 .kach-chat-launch-arrow { margin-left:8px; }
-.kach-chat-dismiss { position:absolute; right:-7px; top:-8px; display:grid; place-items:center; width:25px; height:25px; border:1px solid #334155; border-radius:50%; background:#182235; color:#e5e7eb; cursor:pointer; }
+.kach-chat-dismiss { position:absolute; right:-7px; top:-8px; display:grid; place-items:center; width:25px; height:25px; border:1px solid var(--color-slate-700); border-radius:50%; background:var(--color-slate-800); color:var(--color-white); cursor:pointer; }
 .kach-chat-root.is-open { position:fixed; z-index:1000; right:24px; bottom:24px; width:min(420px,calc(100vw - 32px)); }
 .kach-chat-panel {
   display:flex; flex-direction:column; width:100%; height:min(700px, min(82dvh, 760px)); min-height:440px;
-  overflow:hidden; border:1px solid rgba(255,255,255,.13); border-radius:24px;
+  overflow:hidden; border:1px solid color-mix(in srgb, var(--color-white) 13%, transparent); border-radius:24px;
   background:var(--kach-panel); box-shadow:0 28px 90px rgba(0,0,0,.48), 0 4px 20px rgba(0,0,0,.18);
   isolation:isolate;
 }
-.kach-chat-header { flex:0 0 auto; display:flex; align-items:center; gap:12px; padding:17px 16px; background:linear-gradient(115deg,#172235,#101827 70%); border-bottom:1px solid var(--kach-border); }
-.kach-chat-brand-mark { position:relative; flex:0 0 46px; width:46px; height:46px; padding:3px; border:1px solid rgba(239,189,88,.4); border-radius:15px; background:#080e19; }
+.kach-chat-header { flex:0 0 auto; display:flex; align-items:center; gap:12px; padding:17px 16px; background:var(--color-slate-850); border-bottom:1px solid var(--kach-border); }
+.kach-chat-brand-mark { position:relative; flex:0 0 46px; width:46px; height:46px; padding:3px; border:1px solid color-mix(in srgb, var(--color-amber-400) 40%, transparent); border-radius:15px; background:var(--color-slate-950); }
 .kach-chat-brand-mark img { width:100%; height:100%; object-fit:contain; border-radius:11px; }
-.kach-chat-online-dot { position:absolute; right:-2px; bottom:-2px; width:12px; height:12px; border:2px solid #101827; border-radius:50%; background:#55cf98; }
+.kach-chat-online-dot { position:absolute; right:-2px; bottom:-2px; width:12px; height:12px; border:2px solid var(--color-slate-900); border-radius:50%; background:#55cf98; }
 .kach-chat-brand-copy { flex:1; min-width:0; }
 .kach-chat-eyebrow { color:var(--kach-gold); font-size:9px; font-weight:800; letter-spacing:.16em; }
-.kach-chat-brand-copy h2 { margin:3px 0 2px; color:#fff; font-size:16px; line-height:1.2; font-weight:750; letter-spacing:-.02em; }
-.kach-chat-brand-copy p { display:flex; align-items:center; gap:6px; margin:0; color:#aeb8ca; font-size:11px; }
+.kach-chat-brand-copy h2 { margin:3px 0 2px; color:var(--color-white); font-size:16px; line-height:1.2; font-weight:750; letter-spacing:-.02em; }
+.kach-chat-brand-copy p { display:flex; align-items:center; gap:6px; margin:0; color:var(--color-slate-400); font-size:11px; }
 .kach-chat-status-dot { width:6px; height:6px; border-radius:50%; background:#55cf98; }
-.kach-chat-icon-btn { display:grid; place-items:center; flex:0 0 34px; width:34px; height:34px; border:1px solid transparent; border-radius:10px; color:#b6c0d1; background:transparent; cursor:pointer; }
-.kach-chat-icon-btn:hover { color:#fff; background:rgba(255,255,255,.08); border-color:var(--kach-border); }
+.kach-chat-icon-btn { display:grid; place-items:center; flex:0 0 34px; width:34px; height:34px; border:1px solid transparent; border-radius:10px; color:var(--color-slate-400); background:transparent; cursor:pointer; }
+.kach-chat-icon-btn:hover { color:var(--color-white); background:color-mix(in srgb, var(--color-white) 8%, transparent); border-color:var(--kach-border); }
 .kach-chat-close { display:none; }
-.kach-chat-welcome { display:flex; flex:0 0 auto; gap:11px; padding:15px 17px 13px; border-bottom:1px solid rgba(255,255,255,.055); }
-.kach-chat-welcome-icon { display:grid; place-items:center; flex:0 0 33px; width:33px; height:33px; border:1px solid rgba(239,189,88,.18); border-radius:11px; color:var(--kach-gold); background:rgba(239,189,88,.08); }
+.kach-chat-welcome { display:flex; flex:0 0 auto; gap:11px; padding:15px 17px 13px; border-bottom:1px solid color-mix(in srgb, var(--color-white) 6%, transparent); }
+.kach-chat-welcome-icon { display:grid; place-items:center; flex:0 0 33px; width:33px; height:33px; border:1px solid color-mix(in srgb, var(--color-amber-400) 18%, transparent); border-radius:11px; color:var(--kach-gold); background:color-mix(in srgb, var(--color-amber-400) 8%, transparent); }
 .kach-chat-section-label { color:var(--kach-gold); font-size:10px; font-weight:800; letter-spacing:.12em; }
-.kach-chat-welcome p { margin:4px 0 0; color:#aeb8ca; font-size:12px; line-height:1.45; }
-.kach-chat-messages { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:17px 15px 15px; display:flex; flex-direction:column; gap:15px; background:radial-gradient(ellipse at 0 0,rgba(239,189,88,.035),transparent 48%),#0d1523; scrollbar-width:thin; scrollbar-color:#354157 transparent; }
+.kach-chat-welcome p { margin:4px 0 0; color:var(--color-slate-400); font-size:12px; line-height:1.45; }
+.kach-chat-messages { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:17px 15px 15px; display:flex; flex-direction:column; gap:15px; background:radial-gradient(ellipse at 0 0,color-mix(in srgb, var(--color-amber-400) 3%, transparent),transparent 48%),var(--color-slate-950); scrollbar-width:thin; scrollbar-color:var(--color-slate-600) transparent; }
 .kach-chat-message { display:flex; align-items:flex-start; gap:9px; width:100%; }
 .kach-chat-message.from-user { flex-direction:row-reverse; }
-.kach-chat-avatar { display:grid; place-items:center; flex:0 0 30px; width:30px; height:30px; margin-top:2px; overflow:hidden; border:1px solid rgba(239,189,88,.2); border-radius:10px; color:#20202a; background:#edbd60; }
-.kach-chat-avatar img { width:100%; height:100%; object-fit:contain; padding:2px; background:#0a101c; }
+.kach-chat-avatar { display:grid; place-items:center; flex:0 0 30px; width:30px; height:30px; margin-top:2px; overflow:hidden; border:1px solid color-mix(in srgb, var(--color-amber-400) 20%, transparent); border-radius:10px; color:var(--color-slate-950); background:var(--color-amber-400); }
+.kach-chat-avatar img { width:100%; height:100%; object-fit:contain; padding:2px; background:var(--color-slate-950); }
 .kach-chat-message-content { min-width:0; max-width:calc(100% - 40px); }
-.kach-chat-bubble { padding:11px 13px; border:1px solid rgba(255,255,255,.08); border-radius:4px 16px 16px 16px; color:#e6eaf2; background:#172235; font-size:13px; line-height:1.6; overflow-wrap:anywhere; }
+.kach-chat-bubble { padding:11px 13px; border:1px solid color-mix(in srgb, var(--color-white) 8%, transparent); border-radius:4px 16px 16px 16px; color:var(--color-white); background:var(--color-slate-800); font-size:13px; line-height:1.6; overflow-wrap:anywhere; }
 .kach-chat-bubble p { margin:0; }
 .kach-chat-bubble .kach-chat-paragraph { margin-top:9px; }
-.kach-chat-bubble strong { color:#f5cf7c; font-weight:750; }
-.kach-chat-message.from-user .kach-chat-bubble { border-color:rgba(239,189,88,.4); border-radius:16px 4px 16px 16px; color:#211a0c; background:#efc56f; }
-.kach-chat-message.from-user .kach-chat-bubble strong { color:#211a0c; }
-.kach-chat-message time { display:block; margin:5px 3px 0; color:#7f8ba1; font-size:9px; }
+.kach-chat-bubble strong { color:var(--color-amber-300); font-weight:750; }
+.kach-chat-message.from-user .kach-chat-bubble { border-color:color-mix(in srgb, var(--color-amber-400) 40%, transparent); border-radius:16px 4px 16px 16px; color:var(--color-slate-950); background:var(--color-amber-400); }
+.kach-chat-message.from-user .kach-chat-bubble strong { color:var(--color-slate-950); }
+.kach-chat-message time { display:block; margin:5px 3px 0; color:var(--color-slate-450); font-size:9px; }
 .kach-chat-message.from-user time { text-align:right; }
 .kach-chat-suggestions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin:1px 0 2px 39px; }
-.kach-chat-suggestions button { display:flex; align-items:center; gap:8px; min-width:0; min-height:54px; padding:10px; border:1px solid rgba(255,255,255,.10); border-radius:13px; color:#e5eaf4; background:rgba(255,255,255,.035); text-align:left; font-size:11px; font-weight:650; cursor:pointer; transition:background .16s ease,border-color .16s ease,transform .16s ease; }
-.kach-chat-suggestions button:hover { border-color:rgba(239,189,88,.5); background:rgba(239,189,88,.08); transform:translateY(-1px); }
-.kach-chat-suggestion-icon { display:grid; place-items:center; flex:0 0 30px; width:30px; height:30px; border-radius:9px; color:var(--kach-gold); background:rgba(239,189,88,.10); }
+.kach-chat-suggestions button { display:flex; align-items:center; gap:8px; min-width:0; min-height:54px; padding:10px; border:1px solid color-mix(in srgb, var(--color-white) 10%, transparent); border-radius:13px; color:var(--color-white); background:color-mix(in srgb, var(--color-white) 4%, transparent); text-align:left; font-size:11px; font-weight:650; cursor:pointer; transition:background .16s ease,border-color .16s ease,transform .16s ease; }
+.kach-chat-suggestions button:hover { border-color:color-mix(in srgb, var(--color-amber-400) 50%, transparent); background:color-mix(in srgb, var(--color-amber-400) 8%, transparent); transform:translateY(-1px); }
+.kach-chat-suggestion-icon { display:grid; place-items:center; flex:0 0 30px; width:30px; height:30px; border-radius:9px; color:var(--kach-gold); background:color-mix(in srgb, var(--color-amber-400) 10%, transparent); }
 .kach-chat-suggestions button>span:nth-child(2) { flex:1; }
-.kach-chat-suggestion-arrow { flex:0 0 auto; color:#8792a5; }
+.kach-chat-suggestion-arrow { flex:0 0 auto; color:var(--color-slate-450); }
 .kach-chat-typing { display:flex; gap:5px; align-items:center; padding:15px 16px; }
 .kach-chat-typing span { width:6px; height:6px; border-radius:50%; background:var(--kach-gold); animation:kach-chat-bounce 1s infinite ease-in-out; }
 .kach-chat-typing span:nth-child(2) { animation-delay:.12s; }
 .kach-chat-typing span:nth-child(3) { animation-delay:.24s; }
 @keyframes kach-chat-bounce { 0%,60%,100% { transform:translateY(0); opacity:.55; } 30% { transform:translateY(-4px); opacity:1; } }
-.kach-chat-footer { flex:0 0 auto; padding:10px 13px max(12px,env(safe-area-inset-bottom)); border-top:1px solid var(--kach-border); background:#101827; }
+.kach-chat-footer { flex:0 0 auto; padding:10px 13px max(12px,env(safe-area-inset-bottom)); border-top:1px solid var(--kach-border); background:var(--color-slate-900); }
 .kach-chat-mode-row { display:flex; gap:6px; overflow-x:auto; padding:0 0 10px; scrollbar-width:none; }
 .kach-chat-mode-row::-webkit-scrollbar { display:none; }
-.kach-chat-mode-row button { flex:0 0 auto; padding:6px 10px; border:1px solid rgba(255,255,255,.09); border-radius:999px; color:#aeb8ca; background:#131e30; font-size:10px; font-weight:650; cursor:pointer; }
-.kach-chat-mode-row button.active { border-color:rgba(239,189,88,.38); color:#f5cf7c; background:rgba(239,189,88,.09); }
-.kach-chat-composer { display:flex; align-items:center; gap:8px; padding:5px; border:1px solid rgba(255,255,255,.12); border-radius:15px; background:#0b1220; transition:border-color .15s ease,box-shadow .15s ease; }
-.kach-chat-composer:focus-within { border-color:rgba(239,189,88,.65); box-shadow:0 0 0 3px rgba(239,189,88,.08); }
-.kach-chat-composer input { flex:1; width:0; min-width:0; height:40px; padding:0 10px; outline:none; border:0; color:#f7f7fb; background:transparent; font-size:13px; }
-.kach-chat-composer input::placeholder { color:#7e899e; }
+.kach-chat-mode-row button { flex:0 0 auto; padding:6px 10px; border:1px solid color-mix(in srgb, var(--color-white) 9%, transparent); border-radius:999px; color:var(--color-slate-400); background:var(--color-slate-850); font-size:10px; font-weight:650; cursor:pointer; }
+.kach-chat-mode-row button.active { border-color:color-mix(in srgb, var(--color-amber-400) 38%, transparent); color:var(--color-amber-300); background:color-mix(in srgb, var(--color-amber-400) 9%, transparent); }
+.kach-chat-composer { display:flex; align-items:center; gap:8px; padding:5px; border:1px solid color-mix(in srgb, var(--color-white) 12%, transparent); border-radius:15px; background:var(--color-slate-950); transition:border-color .15s ease,box-shadow .15s ease; }
+.kach-chat-composer:focus-within { border-color:color-mix(in srgb, var(--color-amber-400) 65%, transparent); box-shadow:0 0 0 3px color-mix(in srgb, var(--color-amber-400) 8%, transparent); }
+.kach-chat-composer input { flex:1; width:0; min-width:0; height:40px; padding:0 10px; outline:none; border:0; color:var(--color-white); background:transparent; font-size:13px; }
+.kach-chat-composer input::placeholder { color:var(--color-slate-450); }
 .kach-chat-composer input:disabled { opacity:.65; }
-.kach-chat-composer>button { display:grid; place-items:center; flex:0 0 40px; width:40px; height:40px; border:0; border-radius:11px; color:#1b160b; background:linear-gradient(135deg,#f4d28a,#e8b34c); cursor:pointer; transition:transform .15s ease,opacity .15s ease; }
+.kach-chat-composer>button { display:grid; place-items:center; flex:0 0 40px; width:40px; height:40px; border:0; border-radius:11px; color:var(--color-slate-950); background:linear-gradient(135deg,var(--color-amber-300),var(--color-amber-500)); cursor:pointer; transition:transform .15s ease,opacity .15s ease; }
 .kach-chat-composer>button:hover:not(:disabled) { transform:scale(1.04); }
 .kach-chat-composer>button:disabled { opacity:.38; cursor:not-allowed; }
-.kach-chat-note { margin:9px 3px 0; color:#8d98ab; font-size:10px; line-height:1.45; text-align:center; }
-.kach-chat-note a { color:#efc56f; text-decoration:underline; text-underline-offset:2px; }
+.kach-chat-note { margin:9px 3px 0; color:var(--color-slate-450); font-size:10px; line-height:1.45; text-align:center; }
+.kach-chat-note a { color:var(--color-amber-400); text-decoration:underline; text-underline-offset:2px; }
 .kach-chat-spinner { animation:kach-chat-spin .9s linear infinite; }
 @keyframes kach-chat-spin { to { transform:rotate(360deg); } }
-.kach-chat-root button:focus-visible, .kach-chat-root a:focus-visible { outline:2px solid #f4ce78; outline-offset:3px; }
+.kach-chat-root button:focus-visible, .kach-chat-root a:focus-visible { outline:2px solid var(--color-amber-300); outline-offset:3px; }
 @media (max-width:640px) {
   .kach-chat-root.is-closed { right:14px; bottom:max(14px,env(safe-area-inset-bottom)); }
   .kach-chat-launch { min-height:58px; padding:9px 13px 9px 9px; border-radius:16px; gap:9px; }
@@ -291,3 +672,12 @@ html.light .glass-nav {
   .kach-chat-root *, .kach-chat-root *::before, .kach-chat-root *::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; scroll-behavior:auto !important; transition-duration:.01ms !important; }
 }
 
+
+/* Colour helpers for buttons: <button className="btn-solid fill-coral"> */
+.fill-cobalt { --fill: var(--fill-cobalt); }
+.fill-coral  { --fill: var(--fill-coral); }
+.fill-teal   { --fill: var(--fill-teal); }
+.fill-violet { --fill: var(--fill-violet); }
+.fill-pink   { --fill: var(--fill-pink); }
+.fill-sky    { --fill: var(--fill-sky); }
+.fill-green  { --fill: var(--fill-green); }
