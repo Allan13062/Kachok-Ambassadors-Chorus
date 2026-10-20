@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Lock, Sun, Moon, Menu, X } from "lucide-react";
+import { Lock, Sun, Moon, Menu, X, ArrowUpRight } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { User as FirebaseUser } from "firebase/auth";
 
@@ -16,16 +16,20 @@ interface HeaderProps {
   webLogo?: string;
 }
 
+// [label, section id, colour]. Each section has its own colour (see index.css).
 const navItems = [
-  ["Home", "home"],
-  ["Itinerary", "itinerary"],
-  ["Ministries", "activities"],
-  ["Leaders", "leadership"],
-  ["Music", "music"],
-  ["Gallery", "gallery"],
-  ["Join Us", "join"],
-  ["Contact", "contact"],
+  ["Home", "home", "cobalt"],
+  ["Itinerary", "itinerary", "coral"],
+  ["Ministries", "activities", "teal"],
+  ["Leaders", "leadership", "violet"],
+  ["Music", "music", "pink"],
+  ["Gallery", "gallery", "sky"],
+  ["Join", "join", "green"],
+  ["Contact", "contact", "violet"],
 ] as const;
+
+const FALLBACK_LOGO =
+  "https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png";
 
 export default function Header({
   isAdmin,
@@ -34,9 +38,6 @@ export default function Header({
   activeSection,
   theme,
   onToggleTheme,
-  user,
-  onGoogleLogin,
-  onGoogleLogout,
   webLogo,
 }: HeaderProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -49,203 +50,215 @@ export default function Header({
     const onScroll = () => {
       const y = window.scrollY;
       const max = document.documentElement.scrollHeight - window.innerHeight;
-
-      setScrolled(y > 50);
+      setScrolled(y > 24);
       setProgress(max > 0 ? (y / max) * 100 : 0);
-
-      if (y < 100) {
-        setHidden(false);
-      } else if (y > lastY.current + 8) {
-        setHidden(true);
-      } else if (y < lastY.current - 8) {
-        setHidden(false);
-      }
-
+      if (y < 100) setHidden(false);
+      else if (y > lastY.current + 8) setHidden(true);
+      else if (y < lastY.current - 8) setHidden(false);
       lastY.current = y;
     };
-
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   useEffect(() => {
     if (!mobileOpen) return;
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMobileOpen(false);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMobileOpen(false);
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
     };
-
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
   }, [mobileOpen]);
 
   const scrollTo = (id: string) => {
     setMobileOpen(false);
-
     window.setTimeout(() => {
-      document.getElementById(id)?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 120);
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 150);
   };
 
   const isDark = theme === "dark";
-  const textClass = isDark ? "text-white" : "text-slate-900";
 
   return (
     <motion.header
-      animate={{ y: hidden ? "-110%" : 0 }}
-      transition={{ duration: 0.28 }}
-      className={`fixed left-0 right-0 top-0 z-50 border-b ${
-        scrolled
-          ? isDark
-            ? "border-white/10 bg-slate-950/85 backdrop-blur-xl"
-            : "border-slate-200 bg-white/85 backdrop-blur-xl"
-          : "border-transparent bg-transparent"
+      animate={{ y: hidden && !mobileOpen ? "-110%" : 0 }}
+      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+      className={`fixed inset-x-0 top-0 z-50 text-white transition-colors duration-300 ${
+        scrolled || mobileOpen ? "glass-nav" : "glass-nav-transparent"
       }`}
     >
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 md:px-10">
+      <div className="voices-bar" aria-hidden="true">
+        <i />
+        <i />
+        <i />
+        <i />
+      </div>
+
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-6 px-5 md:px-10">
+        {/* Wordmark */}
         <button
           type="button"
           onClick={() => scrollTo("home")}
-          className={`flex shrink-0 items-center gap-3 ${textClass} focus:outline-none focus:ring-2 focus:ring-amber-400`}
           aria-label="Go to home"
+          className="flex shrink-0 items-center gap-3"
         >
           <img
-            src={
-              webLogo ||
-              "https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png"
-            }
+            src={webLogo || FALLBACK_LOGO}
             alt=""
-            className="h-8 w-8 rounded-full border border-white/20 object-cover"
+            className="h-9 w-9 rounded-full border-2 border-white/20 object-cover"
             loading="eager"
             decoding="async"
             referrerPolicy="no-referrer"
           />
-          <span className="label-caps hidden text-[11px] font-semibold tracking-[0.18em] sm:block">
-            KACHAMBA CHORUS
+          <span className="font-display text-lg font-bold tracking-tight">
+            Kachamba<span className="text-white/50"> Chorus</span>
           </span>
         </button>
 
-        <nav className="hidden items-center gap-1 md:flex" aria-label="Primary navigation">
-          {navItems.map(([label, id]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => scrollTo(id)}
-              aria-current={activeSection === id ? "page" : undefined}
-              className={`rounded-lg px-3 py-2 text-[10px] font-semibold uppercase tracking-wider transition focus:outline-none focus:ring-2 focus:ring-amber-400 ${
-                activeSection === id
-                  ? "bg-amber-500/10 text-amber-400"
-                  : `${isDark ? "text-white/55 hover:text-white" : "text-slate-500 hover:text-slate-900"}`
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+        {/* Desktop navigation */}
+        <nav className="hidden items-center gap-0.5 lg:flex" aria-label="Primary navigation">
+          {navItems.map(([label, id, hue]) => {
+            const active = activeSection === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => scrollTo(id)}
+                aria-current={active ? "page" : undefined}
+                style={active ? { color: `var(--hue-${hue})` } : undefined}
+                className={`relative rounded-full px-3.5 py-2 text-[13px] font-semibold transition-colors ${
+                  active ? "bg-white/5" : "text-white/60 hover:text-white"
+                }`}
+              >
+                {label}
+                {active && (
+                  <motion.span
+                    layoutId="nav-dot"
+                    className="absolute -bottom-[3px] left-1/2 h-1 w-5 -translate-x-1/2 rounded-full"
+                    style={{ background: `var(--hue-${hue})` }}
+                    transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                  />
+                )}
+              </button>
+            );
+          })}
         </nav>
 
-        <div className="hidden items-center gap-2 md:flex">
+        {/* Desktop actions */}
+        <div className="hidden items-center gap-2 lg:flex">
           <button
             type="button"
             onClick={onToggleTheme}
             aria-label={`Switch to ${isDark ? "light" : "dark"} theme`}
-            title={`Switch to ${isDark ? "light" : "dark"} theme`}
-            className={`rounded-lg p-2 transition focus:outline-none focus:ring-2 focus:ring-amber-400 ${
-              isDark ? "text-white/60 hover:bg-white/10 hover:text-white" : "text-slate-600 hover:bg-slate-100"
-            }`}
+            className="grid h-10 w-10 place-items-center rounded-full border border-white/15 text-white/70 transition hover:border-white/40 hover:text-white"
           >
             {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
 
-          {isAdmin ? (
-            <button
-              type="button"
-              onClick={onLogout}
-              className="flex items-center gap-2 rounded-full border border-amber-400/20 px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-amber-400 transition hover:bg-amber-400/10 focus:outline-none focus:ring-2 focus:ring-amber-400"
-            >
-              <Lock className="h-3.5 w-3.5" />
-              Logout
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={onOpenAdmin}
-              className="flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-white/60 transition hover:border-amber-400/30 hover:text-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400"
-            >
-              <Lock className="h-3.5 w-3.5" />
-              Admin
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => scrollTo("contact")}
+            className="btn-solid fill-cobalt !px-4 !py-2.5 !text-[13px]"
+          >
+            Book us
+            <ArrowUpRight className="h-4 w-4" />
+          </button>
+
+          <button
+            type="button"
+            onClick={isAdmin ? onLogout : onOpenAdmin}
+            className="flex items-center gap-1.5 rounded-full px-3 py-2 text-[13px] font-semibold text-white/50 transition hover:text-white"
+          >
+            <Lock className="h-3.5 w-3.5" />
+            {isAdmin ? "Logout" : "Admin"}
+          </button>
         </div>
 
+        {/* Mobile toggle */}
         <button
           type="button"
-          onClick={() => setMobileOpen((value) => !value)}
+          onClick={() => setMobileOpen((v) => !v)}
           aria-label={mobileOpen ? "Close navigation menu" : "Open navigation menu"}
           aria-expanded={mobileOpen}
           aria-controls="mobile-navigation"
-          className={`rounded-lg p-2 md:hidden ${
-            isDark ? "text-white" : "text-slate-900"
-          } focus:outline-none focus:ring-2 focus:ring-amber-400`}
+          className="grid h-10 w-10 place-items-center rounded-full border border-white/20 lg:hidden"
         >
           {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
       </div>
 
-      <div className="absolute bottom-0 left-0 h-0.5 bg-amber-400 transition-all" style={{ width: `${progress}%` }} />
+      {/* Scroll progress */}
+      <div
+        className="absolute bottom-0 left-0 h-[2px]"
+        style={{
+          width: `${progress}%`,
+          background: `var(--hue-${navItems.find((n) => n[1] === activeSection)?.[2] ?? "cobalt"})`,
+        }}
+      />
 
+      {/* Mobile full-screen sheet */}
       <AnimatePresence>
         {mobileOpen && (
           <motion.nav
             id="mobile-navigation"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className={`overflow-hidden border-t px-5 pb-5 md:hidden ${
-              isDark ? "border-white/10 bg-slate-950/95" : "border-slate-200 bg-white/95"
-            }`}
             aria-label="Mobile navigation"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-x-0 bottom-0 top-[68px] overflow-y-auto bg-slate-950 px-6 pb-10 pt-4 lg:hidden"
           >
-            <div className="grid gap-1 pt-3">
-              {navItems.map(([label, id]) => (
-                <button
+            <ul className="divide-y divide-white/10">
+              {navItems.map(([label, id, hue], i) => (
+                <motion.li
                   key={id}
-                  type="button"
-                  onClick={() => scrollTo(id)}
-                  className={`rounded-xl px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${
-                    activeSection === id
-                      ? "bg-amber-500/10 text-amber-400"
-                      : isDark
-                        ? "text-white/70"
-                        : "text-slate-700"
-                  }`}
+                  initial={{ opacity: 0, x: -12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.035 * i, duration: 0.35 }}
                 >
-                  {label}
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => scrollTo(id)}
+                    className="flex w-full items-center gap-4 py-4 text-left"
+                  >
+                    <span
+                      className="h-3 w-3 shrink-0 rounded-full"
+                      style={{ background: `var(--hue-${hue})` }}
+                    />
+                    <span
+                      className="font-display text-3xl font-bold tracking-tight"
+                      style={activeSection === id ? { color: `var(--hue-${hue})` } : undefined}
+                    >
+                      {label}
+                    </span>
+                  </button>
+                </motion.li>
               ))}
+            </ul>
 
-              <div className="mt-2 flex gap-2 border-t border-white/10 pt-3">
-                <button
-                  type="button"
-                  onClick={onToggleTheme}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-xs"
-                >
-                  {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                  Theme
-                </button>
-
-                <button
-                  type="button"
-                  onClick={isAdmin ? onLogout : onOpenAdmin}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-amber-400/20 px-4 py-3 text-xs text-amber-400"
-                >
-                  <Lock className="h-4 w-4" />
-                  {isAdmin ? "Logout" : "Admin"}
-                </button>
-              </div>
+            <div className="mt-8 grid grid-cols-2 gap-3">
+              <button type="button" onClick={onToggleTheme} className="btn-outline !py-3 !text-[13px]">
+                {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                {isDark ? "Light mode" : "Dark mode"}
+              </button>
+              <button
+                type="button"
+                onClick={isAdmin ? onLogout : onOpenAdmin}
+                className="btn-outline !py-3 !text-[13px]"
+              >
+                <Lock className="h-4 w-4" />
+                {isAdmin ? "Logout" : "Admin"}
+              </button>
             </div>
+            <button
+              type="button"
+              onClick={() => scrollTo("contact")}
+              className="btn-solid fill-cobalt mt-3 w-full !py-4"
+            >
+              Book the chorus
+            </button>
           </motion.nav>
         )}
       </AnimatePresence>
