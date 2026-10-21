@@ -2088,5 +2088,262 @@ export default function Itinerary({
                           </div>
                           <button 
                             type="button"
+                            onClick={closeMediaUploader} 
+                          <button 
+                            type="button"
                             onClick={closeMediaUploader}
-       
+                            className="bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white p-2 rounded-xl border border-slate-850 cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Drag and Drop/Media Options Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-4">
+                          
+                          {/* File Uploader Pane */}
+                          <div className="bg-slate-900/60 border border-dashed border-slate-800 hover:border-amber-500/40 rounded-2xl p-4 flex flex-col items-center justify-center text-center transition-all min-h-[120px] relative">
+                            <input 
+                              type="file" 
+                              id={`local-file-picker-${item.id}`}
+                              accept="image/*,video/*"
+                              onClick={(e) => { (e.target as HTMLInputElement).value = ''; }}
+                              onChange={handleLocalFileSelection}
+                              className="hidden" 
+                            />
+                            
+                            {localFileBase64 ? (
+                              <div className="flex flex-col items-center gap-2 w-full">
+                                <div className="w-16 h-10 rounded overflow-hidden border border-slate-800">
+                                  {localFileType === 'video' ? (
+                                    <div className="bg-slate-950 w-full h-full flex items-center justify-center">
+                                      <Film className="w-4 h-4 text-amber-400" />
+                                    </div>
+                                  ) : (
+                                    <img src={localFileBase64} alt="" className="w-full h-full object-cover" />
+                                  )}
+                                </div>
+                                <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1.5 bg-emerald-900/10 border border-emerald-950 px-2 py-0.5 rounded">
+                                  <Check className="w-3 h-3 stroke-[3]" />
+                                  <span>Local File Encoded</span>
+                                </span>
+                                <label 
+                                  htmlFor={`local-file-picker-${item.id}`}
+                                  className="text-[9px] text-slate-455 hover:text-amber-400 font-mono underline uppercase cursor-pointer"
+                                >
+                                  Choose Different File
+                                </label>
+                              </div>
+                            ) : (
+                              <label 
+                                htmlFor={`local-file-picker-${item.id}`}
+                                className="cursor-pointer flex flex-col items-center gap-2 group/u"
+                              >
+                                <div className="w-9 h-9 rounded-full bg-slate-950 border border-slate-850 flex items-center justify-center text-amber-500 group-hover/u:bg-amber-500 group-hover/u:text-slate-950 duration-200">
+                                  <Upload className="w-4 h-4 stroke-[2]" />
+                                </div>
+                                <div>
+                                  <p className="text-xs font-sans font-bold text-slate-205">Browse Local Image/Video</p>
+                                  <p className="text-[9px] font-mono text-slate-500 mt-1 uppercase">Supports file uploads under 12MB</p>
+                                </div>
+                              </label>
+                            )}
+                          </div>
+
+                          {/* Fallback Paste URL Options */}
+                          <div className="space-y-3 flex flex-col justify-center">
+                            <div>
+                              <label className="block text-[9px] font-mono text-slate-400 uppercase font-bold tracking-wider mb-1">Or Paste Cloud Media Url</label>
+                              <input 
+                                type="text"
+                                value={mediaUrlInput || ""}
+                                onChange={(e) => {
+                                  setMediaUrlInput(e.target.value);
+                                  setLocalFileBase64(null);
+                                }}
+                                disabled={!!localFileBase64}
+                                className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-amber-400 font-mono disabled:opacity-40"
+                                placeholder="https://external-site.com/image.jpg"
+                              />
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                              <span className="text-[9px] font-mono text-slate-455 uppercase font-bold">Media Type:</span>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setMediaTypeInput('image')}
+                                  disabled={!!localFileBase64}
+                                  className={`px-3 py-1 rounded text-[9px] font-mono uppercase font-bold border transition-colors ${
+                                    mediaTypeInput === 'image' 
+                                      ? "bg-amber-500 border-amber-500 text-slate-950" 
+                                      : "bg-slate-900 border-slate-800 text-slate-400"
+                                  }`}
+                                >
+                                  Photo
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setMediaTypeInput('video')}
+                                  disabled={!!localFileBase64}
+                                  className={`px-3 py-1 rounded text-[9px] font-mono uppercase font-bold border transition-colors ${
+                                    mediaTypeInput === 'video' 
+                                      ? "bg-amber-500 border-amber-500 text-slate-950" 
+                                      : "bg-slate-900 border-slate-800 text-slate-400"
+                                  }`}
+                                >
+                                  Video Clip
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                        </div>
+
+                        {/* Interactive live preview of the current change */}
+                        {(localFileBase64 || mediaUrlInput) && (
+                          <div className="mt-4 p-3 bg-slate-900/40 rounded-xl border border-slate-800/60 max-w-sm mx-auto w-full">
+                            <p className="text-[10px] font-mono text-slate-550 uppercase tracking-widest mb-1.5 text-left">Live Composition Preview</p>
+                            <div className="aspect-[16/9] w-full rounded-xl overflow-hidden border border-slate-800 bg-slate-900 flex items-center justify-center relative">
+                              {localFileBase64 ? (
+                                localFileType === 'video' ? (
+                                  <video src={localFileBase64} controls className="w-full h-full object-cover" />
+                                ) : (
+                                  <img src={localFileBase64} alt="Preloaded base64" className="w-full h-full object-cover" />
+                                )
+                              ) : (
+                                mediaTypeInput === 'video' ? (
+                                  <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 text-slate-450 gap-1 p-2">
+                                    <Film className="w-6 h-6 text-amber-500 animate-pulse" />
+                                    <span className="text-[10px] font-mono text-center truncate max-w-full">{mediaUrlInput}</span>
+                                  </div>
+                                ) : (
+                                  <img src={mediaUrlInput} alt="External link" className="w-full h-full object-cover" onError={(e) => {
+                                    (e.target as HTMLImageElement).src = defaultBanner;
+                                  }} />
+                                )
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {fileError && (
+                          <div className="mt-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl p-2.5 text-xs flex items-center gap-1.5 max-w-xl font-sans">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            <span>{fileError}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Footer save managers */}
+                      <div className="flex flex-wrap items-center justify-end gap-3 pt-3 border-t border-slate-900 mt-4">
+                        {(localFileBase64 || mediaUrlInput) && (
+                          <button 
+                            type="button" 
+                            onClick={() => {
+                              setLocalFileBase64(null);
+                              setLocalFileType(null);
+                              setMediaUrlInput("");
+                              setMediaTypeInput("image");
+                            }}
+                            className="mr-auto px-3.5 py-2.5 rounded-xl text-[10px] font-sans font-bold uppercase tracking-wider text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors border border-red-500/20 cursor-pointer"
+                          >
+                            Remove Photo
+                          </button>
+                        )}
+                        <button 
+                          type="button" 
+                          onClick={closeMediaUploader}
+                          className="px-3.5 py-2 rounded-xl text-[10px] font-sans font-bold uppercase tracking-wider text-slate-400 hover:text-white transition-colors cursor-pointer"
+                        >
+                          Dismiss
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={handleSaveMediaChange}
+                          disabled={savingId === item.id}
+                          className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-405 text-slate-950 text-[10px] font-sans font-bold uppercase tracking-wider transition-all shadow-md shadow-amber-500/10 cursor-pointer flex items-center gap-1.5"
+                        >
+                          {savingId === item.id ? (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              <span>Uploading...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              <span>Save Media Setup</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                    </div>
+                  )}
+
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+      </div>
+
+      {/* Media Lightbox Viewer Overlay */}
+      {activeMedia && (
+        <div 
+          id="itinerary-lightbox"
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/98 p-4 md:p-8 backdrop-blur-md"
+          onClick={() => setActiveMedia(null)}
+        >
+          <div 
+            className="relative max-w-4xl w-full flex flex-col items-center text-white space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header info */}
+            <div className="w-full flex items-center justify-between border-b border-slate-900 pb-3">
+              <div className="flex flex-col text-left">
+                <span className="text-[10px] font-mono uppercase text-amber-500 tracking-widest font-extrabold">Media Attachment Viewer</span>
+                <h3 className="font-sans font-extrabold text-sm md:text-md text-white line-clamp-1">{activeMedia.eventTitle}</h3>
+              </div>
+              <button 
+                id="btn-close-lightbox-overlay"
+                className="bg-slate-900 hover:bg-slate-800 text-slate-300 p-2.5 rounded-full border border-slate-800 cursor-pointer transition-colors"
+                onClick={() => setActiveMedia(null)}
+                title="Dismiss Media Viewer"
+              >
+                <Minimize2 className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Render Canvas Image/Video */}
+            <div className="w-full bg-slate-950 border border-slate-900 rounded-3xl overflow-hidden aspect-video flex items-center justify-center relative shadow-3xl">
+              {activeMedia.type === "video" ? (
+                <video 
+                  src={activeMedia.url} 
+                  controls 
+                  autoPlay 
+                  className="w-full h-full max-h-[70vh] object-contain"
+                />
+              ) : (
+                <img 
+                  src={activeMedia.url} 
+                  alt={activeMedia.eventTitle} 
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full max-h-[70vh] object-contain"
+                />
+              )}
+            </div>
+
+            <div className="w-full text-center">
+              <span className="text-[9px] text-slate-500 font-mono uppercase tracking-widest">
+                Press anywhere outside or hit close button to dismiss view
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </section>
+  );
+}
