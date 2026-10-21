@@ -403,3 +403,13 @@ main section .blur-3xl.pointer-events-none { display: none !important; }
 .fill-primary { --fill: var(--fill-primary); }
 .fill-secondary { --fill: var(--fill-secondary); }
 .fill-accent { --fill: var(--fill-accent); }
+
+/* =====================================================================
+   ITINERARY — calm the legacy "newspaper" styling that remains inside
+   action rows, the inline editor and the media uploader (all still work)
+   ===================================================================== */
+#itinerary .font-mono { font-family: var(--font-sans); }
+#itinerary h3, #itinerary h4 { text-transform: none; }
+#itinerary .uppercase { text-transform: none; letter-spacing: 0; }
+#itinerary .font-black, #itinerary .font-extrabold { font-weight: 700; }
+#itinerary [class*="bg-gradient-to-r"][class*="from-amber"] { background: var(--fill-accent); color: #fff; }
