@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { Mic, CheckCircle, Smartphone, Eye, X, Info, Barcode, Copy, Check, Loader2, AlertCircle, ArrowRight, ShieldCheck, Lock } from "lucide-react";
+import { Mic, CheckCircle, Smartphone, Eye, X, Info, Copy, Check, Loader2, AlertCircle, ArrowRight, ShieldCheck, Lock } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { jsPDF } from "jspdf";
-const sdaLogo = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Seventh-day_Adventist_Church_logo_svg.svg/320px-Seventh-day_Adventist_Church_logo_svg.svg.png";
+import ReceiptView from "./ReceiptView";
+import { buildReceiptData } from "../lib/receipt";
 
 export default function JoinUs() {
   const [activeTab, setActiveTab] = useState<"audition" | "mpesa">("audition");
@@ -18,6 +18,7 @@ export default function JoinUs() {
   const [auditionLoading, setAuditionLoading] = useState(false);
   const [auditionError, setAuditionError] = useState("");
   const [tillCopied, setTillCopied] = useState(false);
+  const [receiptWhen, setReceiptWhen] = useState<Date>(() => new Date());
 
   // M-Pesa contribution states
   const [mpesaConfig, setMpesaConfig] = useState<any>({
@@ -144,6 +145,7 @@ export default function JoinUs() {
       }
 
       if (res.ok && data.success && data.realApi) {
+        setReceiptWhen(new Date());
         setPushStatus({
           type: "success",
           message: data.message,
@@ -163,187 +165,6 @@ export default function JoinUs() {
       setPushStatus({ type: "error", message: err?.message || "Connection failed. Please check your internet and try again." });
     } finally {
       setIsPushing(false);
-    }
-  };
-
-  const loadImageData = async (url: string): Promise<{ dataUrl: string, width: number, height: number } | null> => {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.crossOrigin = "Anonymous";
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0);
-          try {
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-            resolve({ dataUrl, width: img.width, height: img.height });
-          } catch (e) {
-            resolve(null);
-          }
-        } else {
-          resolve(null);
-        }
-      };
-      img.onerror = () => resolve(null);
-      img.src = url;
-    });
-  };
-
-  const downloadPdfReceipt = async () => {
-    try {
-      const doc = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4",
-      });
-
-      const finalAmount = amount === "custom" ? customAmount : amount;
-      const refNumber = pushStatus.refNumber || `TXN-${Date.now().toString().slice(6)}`;
-      const paymentTime = new Date().toLocaleString("en-US", { 
-        month: "short", 
-        day: "numeric", 
-        year: "numeric", 
-        hour: "numeric", 
-        minute: "2-digit", 
-        hour12: true 
-      });
-
-      // Load brand and extra companion logos asynchronously
-      const logoUrl = mpesaConfig.receiptLogo || "https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png";
-      const extraLogoUrl = mpesaConfig.receiptExtraLogo || "https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png";
-      const logoData = await loadImageData(logoUrl);
-      const extraLogoData = await loadImageData(extraLogoUrl);
-
-      // 1. Sleek Top Header
-      doc.setFillColor(111, 60, 212);
-      doc.rect(0, 0, 210, 45, "F");
-
-      // Draw loaded logos in top corners
-      if (logoData && logoData.dataUrl) {
-        doc.addImage(logoData.dataUrl, 'JPEG', 15, 12, 18, 18);
-      }
-      if (extraLogoData && extraLogoData.dataUrl) {
-        doc.addImage(extraLogoData.dataUrl, 'JPEG', 177, 12, 18, 18);
-      }
-
-      // Header Text
-      const pdfTitle = mpesaConfig.receiptTitle || mpesaConfig.tillName || "KACHAMBA CHORUS MINISTRY";
-      doc.setTextColor(255, 255, 255);
-      doc.setFont("helvetica", "bold");
-      // Adjust font size based on text length to avoid overflow
-      doc.setFontSize(pdfTitle.length > 25 ? 14 : 20);
-      doc.text(pdfTitle.toUpperCase(), 105, 18, { align: "center" });
-      
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9.5);
-      doc.text("Seventh-day Adventist Youth Ministry | Kisumu, Kenya", 105, 26, { align: "center" });
-      doc.setFontSize(8.5);
-      doc.text("Email: kachambachorus@gmail.com | Phone: +254 797 450 206", 105, 32, { align: "center" });
-
-      // 2. Receipt Container Frame
-      doc.setDrawColor(226, 232, 240); // Slate 200
-      doc.setFillColor(255, 255, 255);
-      doc.roundedRect(25, 55, 160, 125, 6, 6, "FD");
-
-      // Success Indicator Icon (Circle with tick mark)
-      doc.setFillColor(240, 253, 250); // Mint 50
-      doc.ellipse(105, 75, 14, 14, "F");
-      
-      // Draw tick symbol
-      doc.setDrawColor(16, 185, 129); // Emerald 505
-      doc.setLineWidth(1.5);
-      doc.line(100, 75, 103, 78);
-      doc.line(103, 78, 111, 71);
-
-      // Status Title
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(18);
-      doc.setTextColor(30, 41, 59); // Slate 800
-      doc.text("Payment Successful", 105, 98, { align: "center" });
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      doc.setTextColor(100, 116, 139); // Slate 500
-      doc.text("Your transaction has been processed and verified.", 105, 104, { align: "center" });
-
-      // Transaction Amount Design Box
-      doc.setFillColor(248, 250, 252); // Slate 50
-      doc.roundedRect(40, 112, 130, 18, 3, 3, "F");
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(24);
-      doc.setTextColor(15, 23, 42); // Slate 900
-      doc.text(`KES ${Number(finalAmount).toLocaleString()}`, 105, 124, { align: "center" });
-
-      // Receipt Details Table
-      doc.setLineWidth(0.2);
-      doc.setDrawColor(241, 245, 249); // Slate 100
-
-      // Row 1: Reference Number
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      doc.setTextColor(100, 116, 139);
-      doc.text("Ref Number", 35, 144);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(30, 41, 59);
-      doc.text(refNumber, 175, 144, { align: "right" });
-      doc.line(35, 148, 175, 148);
-
-      // Row 2: Payment Time
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(100, 116, 139);
-      doc.text("Payment Time", 35, 156);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(30, 41, 59);
-      doc.text(paymentTime, 175, 156, { align: "right" });
-      doc.line(35, 160, 175, 160);
-
-      // Row 3: Payment Method
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(100, 116, 139);
-      doc.text("Payment Method", 35, 168);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(30, 41, 59);
-      doc.text(`M-Pesa (+254 ***${phone.slice(-4)})`, 175, 168, { align: "right" });
-
-      // 3. Heartfelt Closing blessing
-      doc.setFont("helvetica", "medium");
-      doc.setFontSize(10);
-      doc.setTextColor(71, 85, 105); // Slate 600
-      
-      let messageLines = ["Thank you for your generous contribution!"];
-      if (mpesaConfig.receiptMessage) {
-        messageLines = doc.splitTextToSize(mpesaConfig.receiptMessage, 160);
-      }
-      
-      let yOffset = 195;
-      for (const line of messageLines) {
-         doc.text(line, 105, yOffset, { align: "center" });
-         yOffset += 6;
-      }
-      
-      doc.setFont("helvetica", "italic");
-      doc.setFontSize(9);
-      doc.setTextColor(148, 163, 184); // Slate 400
-      doc.text('"Every man according as he purposeth in his heart, so let him give" -- 2 Corinthians 9:7', 105, yOffset + 3, { align: "center" });
-
-      // 4. Secure barcode or footer graphic lines
-      doc.setDrawColor(226, 232, 240);
-      doc.setLineWidth(0.5);
-      doc.line(20, 265, 190, 265);
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.setTextColor(148, 163, 184);
-      doc.text("This receipt certifies support for the missionary works of the Kachamba Chorus.", 105, 272, { align: "center" });
-      doc.text(`Verification Key: ${refNumber}-${Date.now().toString().slice(-4)}`, 105, 277, { align: "center" });
-
-      // Trigger download
-      doc.save(`Kachamba_Donation_Receipt_${refNumber}.pdf`);
-    } catch (err: any) {
-      console.error("PDF generation failed:", err);
     }
   };
 
@@ -498,164 +319,19 @@ export default function JoinUs() {
                 <motion.div key="mpesa-tab" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
                   <span id="support" className="block -translate-y-24" aria-hidden="true" />
                   {pushStatus.type === "success" ? (
-                    <div id="mpesa-receipt-container" className="flex flex-col items-center justify-center font-sans print:fixed print:inset-0 print:bg-slate-50 print:z-[9999] print:w-screen print:h-screen print:flex print:flex-col print:items-center print:justify-center">
-                      <div id="mpesa-receipt" className={`bg-white rounded-[24px] p-8 pt-10 max-w-sm w-full mx-auto shadow-2xl relative print:shadow-none print:max-w-md print:border border-slate-100 ${mpesaConfig.receiptLayout === 'classic' ? 'border print:border-none' : ''} ${mpesaConfig.receiptFontFamily || 'font-sans'} ${mpesaConfig.receiptTextAlign || 'text-center'} overflow-visible`}>
-                        {/* Premium SDA Identity Header */}
-                        <div className="flex items-center justify-center gap-2 mb-6 pb-4 border-b border-slate-100 print:border-slate-200">
-                          <img 
-                            src={sdaLogo} 
-                            alt="SDA Logo" 
-                            className="w-9 h-9 object-contain shrink-0" 
-                            referrerPolicy="no-referrer"
-                          />
-                          <div className="text-left leading-none">
-                            <span className="text-[11px] font-bold text-slate-800 tracking-tight block uppercase text-receipt-sda-header">Seventh-day Adventist</span>
-                            <span className="text-[8px] text-slate-450 font-medium block uppercase tracking-wider mt-0.5">Ambassador Youth Ministry</span>
-                          </div>
-                        </div>
-
-                        {/* Receipt Logo */}
-                        {mpesaConfig.receiptLogo && (
-                          <div className={`absolute top-6 left-6 ${mpesaConfig.receiptLayout === 'classic' ? 'relative top-0 left-0 mb-4 flex justify-center w-full' : ''}`}>
-                            <img 
-                              src={mpesaConfig.receiptLogo} 
-                              alt="Organization Logo" 
-                              className={`w-12 h-12 rounded-full object-cover border border-slate-100 shadow-sm ${mpesaConfig.receiptLayout === 'classic' ? 'mx-auto' : ''}`}
-                              referrerPolicy="no-referrer"
-                            />
-                          </div>
-                        )}
-
-                        {mpesaConfig.receiptExtraLogo && (
-                          <div className={`absolute top-6 right-6 ${mpesaConfig.receiptLayout === 'classic' ? 'hidden' : ''}`}>
-                            <img 
-                              src={mpesaConfig.receiptExtraLogo} 
-                              alt="Official Symbol" 
-                              className={`w-12 h-12 object-contain drop-shadow-sm`}
-                              referrerPolicy="no-referrer"
-                            />
-                          </div>
-                        )}
-                        
-                        {(mpesaConfig.receiptOrder ? JSON.parse(mpesaConfig.receiptOrder) : ["successIcon", "header", "amount", "message", "details", "barcode"]).map((block: string) => {
-                          let content = null;
-                          switch (block) {
-                            case "successIcon":
-                              content = mpesaConfig.receiptLayout === 'modern' ? (
-                                <div className={`mb-5 mt-2 flex ${mpesaConfig.receiptTextAlign === 'text-left' ? 'justify-start' : mpesaConfig.receiptTextAlign === 'text-right' ? 'justify-end' : 'justify-center'}`}>
-                                  <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center">
-                                    <div className="w-14 h-14 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/30">
-                                      <CheckCircle className="w-8 h-8 text-white" />
-                                    </div>
-                                  </div>
-                                </div>
-                              ) : null;
-                              break;
-                            case "header":
-                              content = (
-                                <div className="mb-6 mt-4">
-                                  {mpesaConfig.receiptLayout === 'classic' && (
-                                    <div className={`mb-3 ${mpesaConfig.receiptTextAlign === 'text-left' ? '' : mpesaConfig.receiptTextAlign === 'text-right' ? 'flex justify-end' : 'flex justify-center'}`}>
-                                      <CheckCircle className="w-10 h-10 text-emerald-500" />
-                                    </div>
-                                  )}
-                                  <h4 className={`${mpesaConfig.receiptHeaderSize || 'text-2xl'} font-bold ${mpesaConfig.receiptHeaderColor || 'text-slate-800'} mb-1`}>
-                                    {mpesaConfig.receiptTitle || mpesaConfig.tillName || "Kachamba Chorus"}
-                                  </h4>
-                                  <p className={`${mpesaConfig.receiptBodySize || 'text-sm'} ${mpesaConfig.receiptBodyColor || 'text-slate-500'}`}>Contribution request sent</p>
-                                  <p className="text-[10px] text-emerald-600 font-bold mt-1 print:hidden">Please enter M-Pesa PIN on your phone to complete.</p>
-                                </div>
-                              );
-                              break;
-                            case "amount":
-                              content = (
-                                <div className="mb-8 mt-2">
-                                  <span className={`${mpesaConfig.receiptLayout === 'classic' ? 'text-3xl' : 'text-4xl'} font-extrabold text-slate-900 tracking-tight block`}>
-                                    KES {amount === "custom" ? customAmount : amount}
-                                  </span>
-                                </div>
-                              );
-                              break;
-                            case "message":
-                              content = mpesaConfig.receiptMessage ? (
-                                <div className="mb-6 px-2">
-                                  <p className={`${mpesaConfig.receiptBodySize || 'text-xs'} ${mpesaConfig.receiptBodyColor || 'text-slate-600'} leading-relaxed font-medium italic`}>
-                                    "{mpesaConfig.receiptMessage}"
-                                  </p>
-                                </div>
-                              ) : null;
-                              break;
-                            case "details":
-                              content = (
-                                <div className="bg-slate-50 rounded-xl p-4 mb-8 border border-slate-100 text-sm">
-                                  <div className="flex justify-between items-center py-2 border-b border-slate-200 border-dashed">
-                                    <span className="text-slate-500">Ref Number</span>
-                                    <span className="font-semibold text-slate-800 font-mono text-xs">{pushStatus.refNumber || `TXN-${Date.now().toString().slice(6)}`}</span>
-                                  </div>
-                                  <div className="flex justify-between items-center py-2 border-b border-slate-200 border-dashed">
-                                    <span className="text-slate-500">Payment Time</span>
-                                    <span className="font-semibold text-slate-800 text-xs text-right max-w-[120px]">
-                                      {new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between items-center py-2 h-10">
-                                    <span className="text-slate-500">Method</span>
-                                    <span className="font-semibold text-slate-800 flex items-center gap-1.5 text-xs">
-                                      <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
-                                      M-Pesa ({phone.slice(-4)})
-                                    </span>
-                                  </div>
-                                </div>
-                              );
-                              break;
-                            case "barcode":
-                              content = (
-                                <div className="flex justify-center mt-2 pb-2 opacity-60 mix-blend-multiply relative z-10">
-                                  <Barcode className="w-full max-w-[200px] h-10 text-slate-800" strokeWidth={1} />
-                                </div>
-                              );
-                              break;
-                          }
-                          return content ? <div key={block}>{content}</div> : null;
-                        })}
-                      </div>
-
-                      <div className="text-center print:hidden mt-6">
-                          <button
-                            onClick={downloadPdfReceipt}
-                            className="bg-[#6f3cd4] hover:bg-[#5b2ab9] text-white font-bold py-3.5 px-6 rounded-full w-full transition-all shadow-lg shadow-[#6f3cd4]/30 cursor-pointer flex justify-center items-center gap-2 animate-bounce"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            </svg>
-                            Download PDF Receipt
-                          </button>
-
-                          <button
-                            onClick={() => {
-                              document.body.classList.add('print-mode-receipt');
-                              window.print();
-                              setTimeout(() => { document.body.classList.remove('print-mode-receipt'); }, 500);
-                            }}
-                            className="mt-3.5 text-xs text-slate-500 hover:text-[#6f3cd4] font-medium tracking-wide flex items-center justify-center gap-1 mx-auto transition-colors cursor-pointer"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4" />
-                            </svg>
-                            Print Receipt instead
-                          </button>
-                          
-                          <button 
-                            onClick={() => {
-                              setPushStatus({ type: "idle", message: "" });
-                              setPhone("");
-                            }}
-                            className="mt-4 text-sm text-slate-400 hover:text-slate-600 font-semibold cursor-pointer underline block w-full text-center"
-                          >
-                            Done
-                          </button>
-                        </div>
-                    </div>
+                    <ReceiptView
+                      data={buildReceiptData(
+                        mpesaConfig,
+                        Number(amount === "custom" ? customAmount : amount) || 0,
+                        pushStatus.refNumber || `TXN-${receiptWhen.getTime().toString().slice(-8)}`,
+                        phone,
+                        receiptWhen
+                      )}
+                      onDone={() => {
+                        setPushStatus({ type: "idle", message: "" });
+                        setPhone("");
+                      }}
+                    />
                   ) : (
                     <>
                       <h3 className="text-2xl font-bold tracking-tight">Support the ministry</h3>
