@@ -23,7 +23,12 @@ export default function Hero({ onAskAI, webLogo, photos = [], events = [] }: Her
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   const photo = photos.find((p) => p.url && (!p.mediaType || p.mediaType === "image"));
-  const next = events.find((e) => e.status !== "Past");
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  // Earliest upcoming event (the list isn't guaranteed to be sorted by date)
+  const next = [...events]
+    .filter((e) => e.status !== "Past" && !Number.isNaN(new Date(e.date).getTime()) && new Date(e.date) >= today)
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
 
   return (
     <section
