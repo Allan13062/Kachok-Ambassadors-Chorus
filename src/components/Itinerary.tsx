@@ -5,7 +5,7 @@ import {
   CalendarDays, MapPin, ShieldCheck, Clock, Plus, Trash2, Edit, Play, 
   Minimize2, ZoomIn, Eye, ChevronRight, Upload, X, Check, Filter, 
   Newspaper, Camera, Film, AlertCircle, RefreshCw, Send, HelpCircle, Heart, Share2,
-  Bell, BellRing, CalendarPlus, Download, FileText
+  Bell, BellRing, CalendarPlus, Download, FileText, Search
 } from "lucide-react";
 
 import { User as FirebaseUser } from "firebase/auth";
@@ -1184,12 +1184,8 @@ export default function Itinerary({
   return (
     <section 
       id="itinerary" 
-      className="py-24 px-4 sm:px-6 md:px-12 bg-transparent text-white relative border-t border-b border-white/5 overflow-hidden"
+      className="relative overflow-hidden px-4 py-24 text-white sm:px-6 md:px-12"
     >
-      {/* Background Soft Accents to soften dark mode */}
-      <div className="absolute top-10 left-10 w-[500px] h-[500px] bg-amber-500/[0.02] rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-10 right-10 w-[500px] h-[500px] bg-rose-600/[0.02] rounded-full blur-[120px] pointer-events-none" />
-
       <div className="max-w-6xl mx-auto relative z-10">
         
         {/* Printable Header - Repeating on every page via print css position: fixed */}
@@ -1210,43 +1206,40 @@ export default function Itinerary({
           </div>
         </div>
 
-        {/* Newspaper Style Editorial Header */}
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 mb-12 border-b border-slate-900 pb-10 print:hidden">
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="h-[2px] w-8 bg-amber-500 block" />
-              <span className="text-amber-400 font-mono text-[10px] tracking-widest uppercase font-bold">
-                Missions Gazette
-              </span>
-            </div>
-            <h2 className="font-sans font-extrabold text-4xl md:text-6xl tracking-tight text-white mb-2 leading-none uppercase">
-              Our <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-rose-500 to-amber-300">Itinerary</span>
+        {/* Header */}
+        <div className="mb-12 flex flex-col gap-8 print:hidden lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <p className="inline-flex items-center gap-2.5 rounded-full border border-white/15 px-3.5 py-1.5 text-xs font-semibold text-white/70">
+              <span className="h-2 w-2 rounded-full" style={{ background: "var(--fill-accent)" }} />
+              Itinerary
+            </p>
+            <h2 className="mt-5 text-4xl md:text-6xl">
+              Where we’re <span style={{ color: "var(--hue-primary)" }}>singing next</span>
             </h2>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 font-sans text-xs text-slate-400">
-              <span className="text-amber-500 font-semibold">West Kenya Union Conference</span>
-              <span className="text-slate-600">•</span>
-              <span>Charities & Live Music Schedules</span>
-            </div>
+            <p className="mt-4 text-base leading-relaxed text-white/60 md:text-lg">
+              Concerts, Sabbath vespers and charity missions. Add any event to your calendar or share it with a friend.
+            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 print:hidden">
             <button
+              type="button"
               onClick={downloadProfessionalSchedulePDF}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 via-rose-500 to-amber-600 hover:opacity-95 text-slate-950 font-sans font-extrabold text-[11px] uppercase tracking-wider px-5 py-3.5 rounded-xl transition-all cursor-pointer shadow-lg shadow-amber-500/10 active:scale-95 duration-100 font-bold"
-              style={{ color: '#090d16' }}
-              title="Download print-friendly official bulletin schedule PDF formatted for local church distribution"
+              className="btn-outline !py-2.5 !text-sm"
+              title="Download a print-friendly schedule (PDF)"
             >
-               <FileText className="w-3.5 h-3.5 shrink-0 stroke-[2.5]" />
-               <span>Download PDF</span>
+              <FileText className="h-4 w-4 shrink-0" aria-hidden="true" />
+              Download schedule
             </button>
             {isAdmin && (
               <button
+                type="button"
                 id="btn-add-itinerary-ga"
                 onClick={onAdd}
-                className="flex items-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-sans font-extrabold text-xs uppercase tracking-wider px-6 py-3.5 rounded-xl shadow-lg shadow-amber-500/10 hover:shadow-amber-500/20 active:scale-95 duration-150 transition-all cursor-pointer"
+                className="btn-solid fill-accent !py-2.5 !text-sm"
               >
-                <Plus className="w-4 h-4 shrink-0 stroke-[3]" />
-                <span>Create New Schedule</span>
+                <Plus className="h-4 w-4 shrink-0" aria-hidden="true" />
+                New event
               </button>
             )}
           </div>
@@ -1254,8 +1247,8 @@ export default function Itinerary({
 
         {/* Next Tour / Event Countdown Banner with 'Days Until' dynamic countdown timer */}
         {nextUpcomingEvent && timeLeft && (
-          <div className="mb-12 p-[1px] bg-gradient-to-r from-amber-500 via-rose-500 to-amber-600 rounded-3xl shadow-2xl shadow-amber-500/[0.05] animate-in fade-in duration-700 print:hidden">
-            <div className="bg-slate-950 rounded-[23px] p-6 md:p-8">
+          <div className="mb-12 overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.04]">
+            <div className="p-6 md:p-10">
               {editingItemId === nextUpcomingEvent.id && editForm ? (
                 <form onSubmit={handleInlineSave} className="space-y-6">
                   <div className="flex items-center justify-between border-b border-slate-900 pb-4">
@@ -1389,234 +1382,153 @@ export default function Itinerary({
                   </div>
                 </form>
               ) : (
-                <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-6 lg:gap-8 w-full">
-                  
-                  {/* Left Column: Event details, venue context, and admin quick edit shortcut */}
-                  <div className="space-y-4 text-center lg:text-left flex-1 min-w-0 w-full">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full text-amber-400 font-mono text-[9px] uppercase tracking-wider font-extrabold max-w-full">
-                      <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-ping shrink-0" />
-                      <span>Next Upcoming Choral Destination</span>
-                    </div>
-                    
-                    <h3 className="text-xl sm:text-2xl md:text-3xl font-sans font-black text-white uppercase tracking-tight leading-tight break-words" title={nextUpcomingEvent.event}>
+                <div className="grid items-center gap-8 lg:grid-cols-[1fr_auto]">
+                  <div className="min-w-0">
+                    <p className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em]" style={{ color: "var(--hue-accent)" }}>
+                      <span className="relative flex h-2 w-2">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60" style={{ background: "var(--fill-accent)" }} />
+                        <span className="relative inline-flex h-2 w-2 rounded-full" style={{ background: "var(--fill-accent)" }} />
+                      </span>
+                      Next up
+                    </p>
+
+                    <h3 className="mt-3 break-words text-2xl font-bold leading-tight tracking-tight sm:text-4xl" title={nextUpcomingEvent.event}>
                       {nextUpcomingEvent.event}
                     </h3>
-                    
-                    <div className="flex flex-wrap justify-center lg:justify-start items-center gap-x-3 gap-y-1.5 text-xs text-slate-400 w-full min-w-0">
-                      <span className="flex items-center gap-1.5 min-w-0 max-w-full">
-                        <MapPin className="w-4 h-4 text-amber-500 shrink-0" />
-                        <span className="break-words text-slate-300 font-medium text-left">{nextUpcomingEvent.location}</span>
-                      </span>
-                      <span className="text-slate-800 hidden sm:inline">•</span>
-                      <span className="flex items-center gap-1.5 font-mono text-slate-300 shrink-0">
-                        <CalendarDays className="w-4 h-4 text-rose-500" />
-                        <span>{formatFriendlyDate(nextUpcomingEvent.date)}</span>
+
+                    <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-white/65">
+                      <span className="inline-flex items-center gap-2">
+                        <CalendarDays className="h-4 w-4 shrink-0" aria-hidden="true" />
+                        {formatFriendlyDate(nextUpcomingEvent.date)}
                       </span>
                       {nextUpcomingEvent.time && (
-                        <>
-                          <span className="text-slate-800 hidden sm:inline">•</span>
-                          <span className="text-slate-350 font-mono text-xs shrink-0 font-semibold">{nextUpcomingEvent.time}</span>
-                        </>
+                        <span className="inline-flex items-center gap-2">
+                          <Clock className="h-4 w-4 shrink-0" aria-hidden="true" />
+                          {nextUpcomingEvent.time}
+                        </span>
                       )}
+                      <span className="inline-flex min-w-0 items-center gap-2">
+                        <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
+                        <span className="break-words">{nextUpcomingEvent.location}</span>
+                      </span>
                     </div>
-                    
+
                     {nextUpcomingEvent.notes && (
-                      <p className="text-xs text-slate-400 max-w-xl font-sans leading-relaxed break-words italic border-l-2 border-slate-800 pl-3.5 py-0.5 text-left lg:text-left">
-                        "{nextUpcomingEvent.notes}"
+                      <p className="mt-4 max-w-xl break-words border-l-2 pl-4 text-sm leading-relaxed text-white/55" style={{ borderColor: "var(--fill-primary)" }}>
+                        {nextUpcomingEvent.notes}
                       </p>
                     )}
-                    
-                    {/* Admin Quick Editor Portal toggle inside the countdown unit to guarantee Timeline is easily editable */}
-                    {isAdmin && (
-                      <div className="pt-1 flex flex-wrap justify-center lg:justify-start gap-2 items-center">
-                        <span className="text-[10px] uppercase font-mono tracking-wider text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded flex items-center gap-1">
-                          <ShieldCheck className="w-3 h-3" />
-                          <span>Timeline Editor Mode</span>
-                        </span>
+
+                    <div className="mt-6 flex flex-wrap items-center gap-3">
+                      <a
+                        href={getGoogleCalendarURL(nextUpcomingEvent)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-solid fill-accent !px-5 !py-2.5 !text-sm"
+                      >
+                        <CalendarPlus className="h-4 w-4" aria-hidden="true" />
+                        Add to calendar
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => onBookSelect(nextUpcomingEvent.event)}
+                        className="btn-outline !px-5 !py-2.5 !text-sm"
+                      >
+                        Invite us
+                      </button>
+                      {isAdmin && (
                         <button
                           type="button"
                           onClick={() => startInlineEdit(nextUpcomingEvent)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-sans font-black uppercase tracking-wider transition-all shadow-md shadow-amber-500/10 cursor-pointer"
-                          title="Directly edit dates and itinerary sequence parameters"
+                          className="inline-flex items-center gap-1.5 rounded-full border border-white/15 px-4 py-2.5 text-sm font-semibold text-white/70 transition hover:border-white/40 hover:text-white"
+                          title="Edit this event"
                         >
-                          <Edit className="w-3.5 h-3.5" />
-                          <span>Timeline Quick-Edit</span>
+                          <Edit className="h-4 w-4" aria-hidden="true" />
+                          Quick edit
                         </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Right Column: Beautiful animated digital countdown block - highly optimized and responsive avoiding text spills */}
-                  <div className="shrink-0 w-full lg:w-auto bg-slate-900/40 border border-slate-900/60 rounded-2xl p-4 sm:p-6 flex items-center justify-center gap-2 xs:gap-3 sm:gap-6 shadow-xl relative overflow-hidden font-sans">
-                    {/* Subtle visual lighting accent under the digital digits */}
-                    <div className="absolute -inset-10 bg-amber-500/[0.03] rounded-full blur-2xl pointer-events-none" />
-                    
-                    {/* Years/Days countdown slot */}
-                    <div className="flex flex-col items-center min-w-[42px] xs:min-w-[50px] sm:min-w-[60px] shrink-0">
-                      <div className="text-2xl xs:text-3xl sm:text-4xl font-extrabold font-mono text-white tracking-tight leading-none drop-shadow-md">
-                        {String(timeLeft.days).padStart(2, '0')}
-                      </div>
-                      <span className="text-[8px] sm:text-[9px] font-mono text-slate-500 uppercase tracking-widest mt-1.5 font-bold">Days</span>
-                    </div>
-                    
-                    <div className="text-lg sm:text-xl font-black font-mono text-amber-500/40 select-none -translate-y-1.5 shrink-0">:</div>
-                    
-                    {/* Hours countdown slot */}
-                    <div className="flex flex-col items-center min-w-[42px] xs:min-w-[50px] sm:min-w-[60px] shrink-0">
-                      <div className="text-2xl xs:text-3xl sm:text-4xl font-extrabold font-mono text-white tracking-tight leading-none drop-shadow-md">
-                        {String(timeLeft.hours).padStart(2, '0')}
-                      </div>
-                      <span className="text-[8px] sm:text-[9px] font-mono text-slate-500 uppercase tracking-widest mt-1.5 font-bold">Hours</span>
-                    </div>
-                    
-                    <div className="text-lg sm:text-xl font-black font-mono text-amber-500/40 select-none -translate-y-1.5 shrink-0">:</div>
-                    
-                    {/* Minutes countdown slot */}
-                    <div className="flex flex-col items-center min-w-[42px] xs:min-w-[50px] sm:min-w-[60px] shrink-0">
-                      <div className="text-2xl xs:text-3xl sm:text-4xl font-extrabold font-mono text-white tracking-tight leading-none drop-shadow-md">
-                        {String(timeLeft.minutes).padStart(2, '0')}
-                      </div>
-                      <span className="text-[8px] sm:text-[9px] font-mono text-slate-500 uppercase tracking-widest mt-1.5 font-bold">Mins</span>
-                    </div>
-                    
-                    <div className="text-lg sm:text-xl font-black font-mono text-amber-500/40 select-none -translate-y-1.5 shrink-0">:</div>
-                    
-                    {/* Seconds countdown slot with highlighted accent */}
-                    <div className="flex flex-col items-center min-w-[42px] xs:min-w-[50px] sm:min-w-[60px] shrink-0">
-                      <div className="text-2xl xs:text-3xl sm:text-4xl font-extrabold font-mono text-amber-400 tracking-tight leading-none drop-shadow-md animate-pulse">
-                        {String(timeLeft.seconds).padStart(2, '0')}
-                      </div>
-                      <span className="text-[8px] sm:text-[9px] font-mono text-amber-400 font-bold uppercase tracking-widest mt-1.5">Secs</span>
+                      )}
                     </div>
                   </div>
 
+                  {/* Countdown */}
+                  <div className="grid grid-cols-4 gap-2 sm:gap-3" role="timer" aria-label="Time until the next event">
+                    {([
+                      ["Days", timeLeft.days],
+                      ["Hours", timeLeft.hours],
+                      ["Mins", timeLeft.minutes],
+                      ["Secs", timeLeft.seconds],
+                    ] as const).map(([unit, value], idx) => (
+                      <div
+                        key={unit}
+                        className="flex min-w-[64px] flex-col items-center rounded-2xl border border-white/10 bg-slate-950 px-3 py-4 sm:min-w-[84px] sm:py-5"
+                      >
+                        <span
+                          className="font-display text-3xl font-bold tabular-nums leading-none tracking-tight sm:text-5xl"
+                          style={idx === 3 ? { color: "var(--hue-accent)" } : undefined}
+                        >
+                          {String(value).padStart(2, "0")}
+                        </span>
+                        <span className="mt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/45">{unit}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
           </div>
         )}
 
-        {/* Search & Filter bar for Itinerary events */}
-        <div className="mb-8 max-w-md animate-in fade-in duration-300">
-          <div className="relative">
+        {/* Filters + search */}
+        <div className="mb-8 flex flex-col gap-4 print:hidden md:flex-row md:items-center md:justify-between">
+          <div role="tablist" aria-label="Filter events" className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+            {([
+              ["all", "All"],
+              ["upcoming", "Upcoming"],
+              ["charity", "Charity"],
+              ["revival", "Revivals"],
+              ["past", "Past"],
+            ] as const).map(([id, text]) => {
+              const active = activeTab === id;
+              return (
+                <button
+                  key={id}
+                  role="tab"
+                  type="button"
+                  aria-selected={active}
+                  onClick={() => setActiveTab(id)}
+                  className={`flex shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                    active ? "border-transparent text-white" : "border-white/15 text-white/65 hover:border-white/40 hover:text-white"
+                  }`}
+                  style={active ? { background: "var(--fill-primary)" } : undefined}
+                >
+                  {text}
+                  <span className={`text-xs tabular-nums ${active ? "text-white/80" : "text-white/40"}`}>{getCount(id)}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="relative w-full md:w-72">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" aria-hidden="true" />
             <input
-              type="text"
-              placeholder="Search itinerary events, venues, keywords..."
+              type="search"
+              placeholder="Search events or venues"
+              aria-label="Search events"
               value={itinerarySearch || ""}
               onChange={(e) => setItinerarySearch(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 focus:border-amber-500 rounded-xl py-3.5 pl-11 pr-10 text-xs text-white placeholder-slate-500 focus:outline-none transition-all shadow-inner"
+              className="w-full rounded-full border border-white/15 bg-transparent py-2.5 pl-11 pr-10 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-[color:var(--fill-primary)] focus:ring-2 focus:ring-[color:var(--fill-primary)]/25"
             />
-            <svg 
-              className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" 
-              fill="none" 
-              stroke="currentColor" 
-              strokeWidth="2.5"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
             {itinerarySearch && (
               <button
                 type="button"
                 onClick={() => setItinerarySearch("")}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-450 hover:text-white transition-colors cursor-pointer"
+                aria-label="Clear search"
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-white/45 transition hover:text-white"
               >
-                <X className="w-4 h-4" />
+                <X className="h-4 w-4" />
               </button>
             )}
           </div>
-        </div>
-
-        {/* Newspaper Section Style Filter Pills with Sliding active background */}
-        <div className="flex flex-wrap gap-2 mb-10 pb-4 border-b border-slate-900/60 overflow-x-auto scrollbar-none relative">
-          <motion.button 
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => setActiveTab("all")} 
-            className="px-4 py-2 rounded-lg font-sans text-xs font-bold uppercase tracking-wider relative cursor-pointer flex items-center gap-2 shrink-0 border z-10 overflow-hidden"
-          >
-            {activeTab === "all" ? (
-              <motion.div 
-                layoutId="activeItineraryTabIndicator" 
-                className="absolute inset-0 bg-amber-500 border border-amber-500 -z-10 shadow-md shadow-amber-500/10"
-                transition={{ type: "spring", stiffness: 200, damping: 25 }}
-              />
-            ) : null}
-            <span className={activeTab === "all" ? "text-slate-950 font-bold" : "text-slate-400 font-bold group-hover:text-white"}>All Bulletins</span>
-            <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'all' ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-950 text-slate-500'}`}>{getCount("all")}</span>
-          </motion.button>
-
-          <motion.button 
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => setActiveTab("upcoming")} 
-            className="px-4 py-2 rounded-lg font-sans text-xs font-bold uppercase tracking-wider relative cursor-pointer flex items-center gap-2 shrink-0 border z-10 overflow-hidden"
-          >
-            {activeTab === "upcoming" ? (
-              <motion.div 
-                layoutId="activeItineraryTabIndicator" 
-                className="absolute inset-0 bg-amber-500 border border-amber-500 -z-10 shadow-md shadow-amber-500/10"
-                transition={{ type: "spring", stiffness: 200, damping: 25 }}
-              />
-            ) : null}
-            <CalendarDays className={`w-3.5 h-3.5 ${activeTab === "upcoming" ? "text-slate-950" : "text-slate-400"}`} />
-            <span className={activeTab === "upcoming" ? "text-slate-950 font-bold" : "text-slate-400 font-bold"}>Active Missions</span>
-            <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'upcoming' ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-950 text-slate-500'}`}>{getCount("upcoming")}</span>
-          </motion.button>
-
-          <motion.button 
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => setActiveTab("charity")} 
-            className="px-4 py-2 rounded-lg font-sans text-xs font-bold uppercase tracking-wider relative cursor-pointer flex items-center gap-2 shrink-0 border z-10 overflow-hidden"
-          >
-            {activeTab === "charity" ? (
-              <motion.div 
-                layoutId="activeItineraryTabIndicator" 
-                className="absolute inset-0 bg-rose-600 border border-rose-600 -z-10 shadow-md shadow-rose-600/10"
-                transition={{ type: "spring", stiffness: 200, damping: 25 }}
-              />
-            ) : null}
-            <Heart className={`w-3.5 h-3.5 ${activeTab === "charity" ? "text-rose-50" : "text-slate-400"}`} />
-            <span className={activeTab === "charity" ? "text-rose-50 font-bold" : "text-slate-400 font-bold"}>Benevolence Charity</span>
-            <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'charity' ? 'bg-slate-950/20 text-rose-500' : 'bg-slate-950 text-slate-500'}`}>{getCount("charity")}</span>
-          </motion.button>
-
-          <motion.button 
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => setActiveTab("revival")} 
-            className="px-4 py-2 rounded-lg font-sans text-xs font-bold uppercase tracking-wider relative cursor-pointer flex items-center gap-2 shrink-0 border z-10 overflow-hidden"
-          >
-            {activeTab === "revival" ? (
-              <motion.div 
-                layoutId="activeItineraryTabIndicator" 
-                className="absolute inset-0 bg-amber-500 border border-amber-500 -z-10 shadow-md shadow-amber-500/10"
-                transition={{ type: "spring", stiffness: 200, damping: 25 }}
-              />
-            ) : null}
-            <Clock className={`w-3.5 h-3.5 ${activeTab === "revival" ? "text-slate-950" : "text-slate-400"}`} />
-            <span className={activeTab === "revival" ? "text-slate-950 font-bold" : "text-slate-400 font-bold"}>Sabbath Revivals</span>
-            <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'revival' ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-900 text-slate-500'}`}>{getCount("revival")}</span>
-          </motion.button>
-
-          <motion.button 
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => setActiveTab("past")} 
-            className="px-4 py-2 rounded-lg font-sans text-xs font-bold uppercase tracking-wider relative cursor-pointer flex items-center gap-2 shrink-0 border z-10 overflow-hidden"
-          >
-            {activeTab === "past" ? (
-              <motion.div 
-                layoutId="activeItineraryTabIndicator" 
-                className="absolute inset-0 bg-amber-500 border border-amber-500 -z-10 shadow-md shadow-amber-500/10"
-                transition={{ type: "spring", stiffness: 200, damping: 25 }}
-              />
-            ) : null}
-            <ShieldCheck className={`w-3.5 h-3.5 ${activeTab === "past" ? "text-slate-950" : "text-slate-400"}`} />
-            <span className={activeTab === "past" ? "text-slate-950 font-bold" : "text-slate-400 font-bold"}>Past Archives</span>
-            <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'past' ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-950 text-slate-500'}`}>{getCount("past")}</span>
-          </motion.button>
         </div>
 
         {/* Dynamic List Block */}
@@ -1642,7 +1554,7 @@ export default function Itinerary({
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-8">
+          <div className="grid grid-cols-1 gap-5">
             {filteredItems.map((item) => {
               const isEditing = editingItemId === item.id;
               const isMediaTarget = mediaTargetId === item.id;
@@ -1793,7 +1705,7 @@ export default function Itinerary({
                 <div 
                   key={item.id}
                   id={`itinerary-dispatch-${item.id}`}
-                  className="group relative glass-card hover:border-amber-400/40 rounded-3xl overflow-hidden transition-all duration-300 shadow-xl flex flex-col lg:flex-row items-stretch scroll-mt-24"
+                  className="group relative flex scroll-mt-24 flex-col items-stretch overflow-hidden rounded-[1.75rem] border border-white/10 bg-white/[0.03] transition duration-300 hover:border-white/25 lg:flex-row"
                 >
                   
                   {/* Column 1: Feature Photo/Video Panel (Editorial News Style) */}
@@ -1829,14 +1741,14 @@ export default function Itinerary({
                           src={displayUrl} 
                           alt="" 
                           referrerPolicy="no-referrer"
-                          className="w-full h-full min-h-[220px] object-cover opacity-75 group-hover:opacity-95 group-hover:scale-105 transition-all duration-700 ease-out" 
+                          className="w-full h-full min-h-[220px] object-cover group-hover:scale-105 transition-all duration-700 ease-out" 
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/10 to-transparent pointer-events-none" />
                         
                         {!hasMedia && (
                           <div className="absolute inset-x-4 top-4 text-center mt-12">
                             <Newspaper className="w-6 h-6 text-slate-650 mx-auto opacity-50" />
-                            <p className="font-mono text-[9px] text-slate-500 uppercase mt-2 tracking-widest">Kachok Press Association</p>
+                            <p className="font-mono text-[9px] text-slate-500 uppercase mt-2 tracking-widest">Kachamba Chorus</p>
                           </div>
                         )}
 
@@ -1854,7 +1766,7 @@ export default function Itinerary({
                     )}
 
                     {/* Left Column Accent: Big Date Flag Overlay */}
-                    <div className="absolute top-4 left-4 flex flex-col items-center bg-slate-950/95 border border-slate-850 px-3 py-2 rounded-xl backdrop-blur-md shadow-2xl">
+                    <div className="absolute top-4 left-4 flex flex-col items-center bg-slate-950 px-3 py-2 rounded-xl">
                       <span className="text-[10px] font-mono text-amber-400 font-bold uppercase tracking-widest leading-none">
                         {new Date(item.date).toLocaleString('en-US', { month: 'short' })}
                       </span>
@@ -1890,55 +1802,61 @@ export default function Itinerary({
                   <div className="flex-1 p-6 md:p-8 flex flex-col justify-between gap-6 relative">
                     
                     <div>
-                      {/* Top Metadata Header: Category Label and Status Pill */}
-                      <div className="flex flex-wrap items-center gap-3 mb-4">
-                        <span className={`text-[9px] font-mono font-extrabold px-2.5 py-0.5 rounded border uppercase tracking-wider ${catTag.color}`}>
-                          {catTag.label}
+                      {/* Category + status */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center gap-2 rounded-full border border-white/15 px-3 py-1 text-xs font-bold">
+                          <i
+                            className="h-2 w-2 rounded-full"
+                            style={{
+                              background: catTag.label.includes("CHARITY")
+                                ? "var(--fill-accent)"
+                                : catTag.label.includes("REVIVAL")
+                                  ? "var(--fill-primary)"
+                                  : catTag.label.includes("PAST")
+                                    ? "var(--color-slate-500)"
+                                    : "var(--fill-secondary)",
+                            }}
+                          />
+                          <span className="capitalize">{catTag.label.toLowerCase()}</span>
                         </span>
-                        
-                        <span className="text-[10px] font-mono text-slate-400 flex items-center gap-1 bg-slate-950 px-2 py-0.5 rounded border border-slate-900">
-                          <Clock className="w-3 h-3 text-amber-400 shrink-0" />
-                          <span>{item.time || "Event Schedule Pending"}</span>
-                        </span>
-
-                        <span className="text-[10px] font-mono text-slate-500">
-                          Published: {formatFriendlyDate(item.date)}
-                        </span>
+                        {item.status === "Tentative" && (
+                          <span className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-white/60">Tentative</span>
+                        )}
                       </div>
 
-                      {/* Main Title Headings */}
-                      <h3 className="font-sans font-extrabold text-xl md:text-2xl text-white group-hover:text-amber-200 transition-colors duration-200 tracking-tight leading-snug">
-                        {item.event}
-                      </h3>
+                      <h3 className="mt-4 text-2xl font-bold leading-tight tracking-tight md:text-3xl">{item.event}</h3>
 
-                      {/* Venue particulars */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 text-xs text-slate-400 border-t border-b border-slate-900 py-3.5">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className="w-6 h-6 rounded-lg bg-slate-900 border border-slate-850 flex items-center justify-center shrink-0">
-                            <MapPin className="w-3 h-3 text-amber-500" />
-                          </div>
-                          <div className="flex flex-col min-w-0">
-                            <span className="text-[9px] font-mono text-slate-550 uppercase">Mission Venue</span>
-                            <span className="truncate text-white font-medium">{item.location}</span>
+                      <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2">
+                        <div className="flex items-start gap-3">
+                          <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-white/45" aria-hidden="true" />
+                          <div className="min-w-0">
+                            <dt className="text-xs font-medium text-white/45">When</dt>
+                            <dd className="font-semibold">
+                              {formatFriendlyDate(item.date)}
+                              {item.time ? ` · ${item.time}` : ""}
+                            </dd>
                           </div>
                         </div>
-
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className="w-6 h-6 rounded-lg bg-slate-900 border border-slate-850 flex items-center justify-center shrink-0">
-                            <ShieldCheck className="w-3 h-3 text-amber-500" />
-                          </div>
-                          <div className="flex flex-col min-w-0">
-                            <span className="text-[9px] font-mono text-slate-550 uppercase">Lead Host Body</span>
-                            <span className="truncate text-white font-medium">{item.host || "Local SDA Church"}</span>
+                        <div className="flex items-start gap-3">
+                          <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-white/45" aria-hidden="true" />
+                          <div className="min-w-0">
+                            <dt className="text-xs font-medium text-white/45">Where</dt>
+                            <dd className="break-words font-semibold">{item.location}</dd>
                           </div>
                         </div>
-                      </div>
+                        <div className="flex items-start gap-3">
+                          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-white/45" aria-hidden="true" />
+                          <div className="min-w-0">
+                            <dt className="text-xs font-medium text-white/45">Hosted by</dt>
+                            <dd className="break-words font-semibold">{item.host || "Local SDA Church"}</dd>
+                          </div>
+                        </div>
+                      </dl>
 
-                      {/* Editorial Paragraph Description */}
                       {item.notes && (
-                        <div className="mt-4 text-xs leading-relaxed text-slate-350 bg-slate-900/10 border-l-2 border-amber-500/30 pl-4 py-1.5 font-sans">
+                        <p className="mt-5 border-l-2 pl-4 text-sm leading-relaxed text-white/60" style={{ borderColor: "var(--fill-primary)" }}>
                           {item.notes}
-                        </div>
+                        </p>
                       )}
                     </div>
 
@@ -2171,258 +2089,4 @@ export default function Itinerary({
                           <button 
                             type="button"
                             onClick={closeMediaUploader}
-                            className="bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white p-2 rounded-xl border border-slate-850 cursor-pointer"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-
-                        {/* Drag and Drop/Media Options Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-4">
-                          
-                          {/* File Uploader Pane */}
-                          <div className="bg-slate-900/60 border border-dashed border-slate-800 hover:border-amber-500/40 rounded-2xl p-4 flex flex-col items-center justify-center text-center transition-all min-h-[120px] relative">
-                            <input 
-                              type="file" 
-                              id={`local-file-picker-${item.id}`}
-                              accept="image/*,video/*"
-                              onClick={(e) => { (e.target as HTMLInputElement).value = ''; }}
-                              onChange={handleLocalFileSelection}
-                              className="hidden" 
-                            />
-                            
-                            {localFileBase64 ? (
-                              <div className="flex flex-col items-center gap-2 w-full">
-                                <div className="w-16 h-10 rounded overflow-hidden border border-slate-800">
-                                  {localFileType === 'video' ? (
-                                    <div className="bg-slate-950 w-full h-full flex items-center justify-center">
-                                      <Film className="w-4 h-4 text-amber-400" />
-                                    </div>
-                                  ) : (
-                                    <img src={localFileBase64} alt="" className="w-full h-full object-cover" />
-                                  )}
-                                </div>
-                                <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1.5 bg-emerald-900/10 border border-emerald-950 px-2 py-0.5 rounded">
-                                  <Check className="w-3 h-3 stroke-[3]" />
-                                  <span>Local File Encoded</span>
-                                </span>
-                                <label 
-                                  htmlFor={`local-file-picker-${item.id}`}
-                                  className="text-[9px] text-slate-455 hover:text-amber-400 font-mono underline uppercase cursor-pointer"
-                                >
-                                  Choose Different File
-                                </label>
-                              </div>
-                            ) : (
-                              <label 
-                                htmlFor={`local-file-picker-${item.id}`}
-                                className="cursor-pointer flex flex-col items-center gap-2 group/u"
-                              >
-                                <div className="w-9 h-9 rounded-full bg-slate-950 border border-slate-850 flex items-center justify-center text-amber-500 group-hover/u:bg-amber-500 group-hover/u:text-slate-950 duration-200">
-                                  <Upload className="w-4 h-4 stroke-[2]" />
-                                </div>
-                                <div>
-                                  <p className="text-xs font-sans font-bold text-slate-205">Browse Local Image/Video</p>
-                                  <p className="text-[9px] font-mono text-slate-500 mt-1 uppercase">Supports file uploads under 12MB</p>
-                                </div>
-                              </label>
-                            )}
-                          </div>
-
-                          {/* Fallback Paste URL Options */}
-                          <div className="space-y-3 flex flex-col justify-center">
-                            <div>
-                              <label className="block text-[9px] font-mono text-slate-400 uppercase font-bold tracking-wider mb-1">Or Paste Cloud Media Url</label>
-                              <input 
-                                type="text"
-                                value={mediaUrlInput || ""}
-                                onChange={(e) => {
-                                  setMediaUrlInput(e.target.value);
-                                  setLocalFileBase64(null);
-                                }}
-                                disabled={!!localFileBase64}
-                                className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-amber-400 font-mono disabled:opacity-40"
-                                placeholder="https://external-site.com/image.jpg"
-                              />
-                            </div>
-
-                            <div className="flex items-center gap-3">
-                              <span className="text-[9px] font-mono text-slate-455 uppercase font-bold">Media Type:</span>
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => setMediaTypeInput('image')}
-                                  disabled={!!localFileBase64}
-                                  className={`px-3 py-1 rounded text-[9px] font-mono uppercase font-bold border transition-colors ${
-                                    mediaTypeInput === 'image' 
-                                      ? "bg-amber-500 border-amber-500 text-slate-950" 
-                                      : "bg-slate-900 border-slate-800 text-slate-400"
-                                  }`}
-                                >
-                                  Photo
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setMediaTypeInput('video')}
-                                  disabled={!!localFileBase64}
-                                  className={`px-3 py-1 rounded text-[9px] font-mono uppercase font-bold border transition-colors ${
-                                    mediaTypeInput === 'video' 
-                                      ? "bg-amber-500 border-amber-500 text-slate-950" 
-                                      : "bg-slate-900 border-slate-800 text-slate-400"
-                                  }`}
-                                >
-                                  Video Clip
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-
-                        </div>
-
-                        {/* Interactive live preview of the current change */}
-                        {(localFileBase64 || mediaUrlInput) && (
-                          <div className="mt-4 p-3 bg-slate-900/40 rounded-xl border border-slate-800/60 max-w-sm mx-auto w-full">
-                            <p className="text-[10px] font-mono text-slate-550 uppercase tracking-widest mb-1.5 text-left">Live Composition Preview</p>
-                            <div className="aspect-[16/9] w-full rounded-xl overflow-hidden border border-slate-800 bg-slate-900 flex items-center justify-center relative">
-                              {localFileBase64 ? (
-                                localFileType === 'video' ? (
-                                  <video src={localFileBase64} controls className="w-full h-full object-cover" />
-                                ) : (
-                                  <img src={localFileBase64} alt="Preloaded base64" className="w-full h-full object-cover" />
-                                )
-                              ) : (
-                                mediaTypeInput === 'video' ? (
-                                  <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 text-slate-450 gap-1 p-2">
-                                    <Film className="w-6 h-6 text-amber-500 animate-pulse" />
-                                    <span className="text-[10px] font-mono text-center truncate max-w-full">{mediaUrlInput}</span>
-                                  </div>
-                                ) : (
-                                  <img src={mediaUrlInput} alt="External link" className="w-full h-full object-cover" onError={(e) => {
-                                    (e.target as HTMLImageElement).src = defaultBanner;
-                                  }} />
-                                )
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {fileError && (
-                          <div className="mt-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl p-2.5 text-xs flex items-center gap-1.5 max-w-xl font-sans">
-                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                            <span>{fileError}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Footer save managers */}
-                      <div className="flex flex-wrap items-center justify-end gap-3 pt-3 border-t border-slate-900 mt-4">
-                        {(localFileBase64 || mediaUrlInput) && (
-                          <button 
-                            type="button" 
-                            onClick={() => {
-                              setLocalFileBase64(null);
-                              setLocalFileType(null);
-                              setMediaUrlInput("");
-                              setMediaTypeInput("image");
-                            }}
-                            className="mr-auto px-3.5 py-2.5 rounded-xl text-[10px] font-sans font-bold uppercase tracking-wider text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors border border-red-500/20 cursor-pointer"
-                          >
-                            Remove Photo
-                          </button>
-                        )}
-                        <button 
-                          type="button" 
-                          onClick={closeMediaUploader}
-                          className="px-3.5 py-2 rounded-xl text-[10px] font-sans font-bold uppercase tracking-wider text-slate-400 hover:text-white transition-colors cursor-pointer"
-                        >
-                          Dismiss
-                        </button>
-                        <button 
-                          type="button" 
-                          onClick={handleSaveMediaChange}
-                          disabled={savingId === item.id}
-                          className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-405 text-slate-950 text-[10px] font-sans font-bold uppercase tracking-wider transition-all shadow-md shadow-amber-500/10 cursor-pointer flex items-center gap-1.5"
-                        >
-                          {savingId === item.id ? (
-                            <>
-                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                              <span>Uploading...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Check className="w-3.5 h-3.5 stroke-[3]" />
-                              <span>Save Media Setup</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-
-                    </div>
-                  )}
-
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-      </div>
-
-      {/* Media Lightbox Viewer Overlay */}
-      {activeMedia && (
-        <div 
-          id="itinerary-lightbox"
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/98 p-4 md:p-8 backdrop-blur-md"
-          onClick={() => setActiveMedia(null)}
-        >
-          <div 
-            className="relative max-w-4xl w-full flex flex-col items-center text-white space-y-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header info */}
-            <div className="w-full flex items-center justify-between border-b border-slate-900 pb-3">
-              <div className="flex flex-col text-left">
-                <span className="text-[10px] font-mono uppercase text-amber-500 tracking-widest font-extrabold">Media Attachment Viewer</span>
-                <h3 className="font-sans font-extrabold text-sm md:text-md text-white line-clamp-1">{activeMedia.eventTitle}</h3>
-              </div>
-              <button 
-                id="btn-close-lightbox-overlay"
-                className="bg-slate-900 hover:bg-slate-800 text-slate-300 p-2.5 rounded-full border border-slate-800 cursor-pointer transition-colors"
-                onClick={() => setActiveMedia(null)}
-                title="Dismiss Media Viewer"
-              >
-                <Minimize2 className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Render Canvas Image/Video */}
-            <div className="w-full bg-slate-950 border border-slate-900 rounded-3xl overflow-hidden aspect-video flex items-center justify-center relative shadow-3xl">
-              {activeMedia.type === "video" ? (
-                <video 
-                  src={activeMedia.url} 
-                  controls 
-                  autoPlay 
-                  className="w-full h-full max-h-[70vh] object-contain"
-                />
-              ) : (
-                <img 
-                  src={activeMedia.url} 
-                  alt={activeMedia.eventTitle} 
-                  referrerPolicy="no-referrer"
-                  className="w-full h-full max-h-[70vh] object-contain"
-                />
-              )}
-            </div>
-
-            <div className="w-full text-center">
-              <span className="text-[9px] text-slate-500 font-mono uppercase tracking-widest">
-                Press anywhere outside or hit close button to dismiss view
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
-
-    </section>
-  );
-}
+       
