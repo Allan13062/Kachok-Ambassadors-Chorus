@@ -144,7 +144,7 @@ html.light :is(
 ) { --color-white: #ffffff; }
 
 /* Printed M-Pesa receipts must stay paper-white in both modes */
-html.light :is(#mpesa-receipt, #mpesa-receipt-preview, #mpesa-receipt-container) {
+html.light :is(#mpesa-receipt, #mpesa-receipt-preview, #mpesa-receipt-container, .receipt-sheet) {
   --color-white: #ffffff;
   --color-slate-50: #f6f7f9; --color-slate-100: #eceef2; --color-slate-200: #d9dde4; --color-slate-300: #b8bfcb;
   --color-slate-400: #8891a1; --color-slate-500: #646d7d; --color-slate-600: #464e5c; --color-slate-700: #343b47;
@@ -413,3 +413,31 @@ main section .blur-3xl.pointer-events-none { display: none !important; }
 #itinerary .uppercase { text-transform: none; letter-spacing: 0; }
 #itinerary .font-black, #itinerary .font-extrabold { font-weight: 700; }
 #itinerary [class*="bg-gradient-to-r"][class*="from-amber"] { background: var(--fill-accent); color: #fff; }
+
+/* =====================================================================
+   RECEIPT PRINTING
+   The receipt is mounted a second time on <body> (.receipt-print-only).
+   It is hidden on screen; when "Print" is pressed everything else is
+   hidden and only the receipt prints, on a clean A4 page.
+   ===================================================================== */
+.receipt-print-only { display: none; }
+
+@media print {
+  @page { size: A4; margin: 16mm; }
+
+  body.print-mode-receipt { background: #fff !important; color: #0f172a !important; }
+  body.print-mode-receipt > *:not(.receipt-print-only) { display: none !important; }
+  body.print-mode-receipt > .receipt-print-only { display: block !important; }
+
+  body.print-mode-receipt .receipt-sheet {
+    max-width: 176mm;
+    margin: 0 auto;
+    box-shadow: none;
+    break-inside: avoid;
+  }
+  .receipt-sheet, .receipt-sheet * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .no-print { display: none !important; }
+}
