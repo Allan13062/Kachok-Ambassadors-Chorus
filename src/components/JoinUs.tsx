@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Music, Star, Mic, CheckCircle, CreditCard, Smartphone, Coins, Eye, X, Info, Send, Barcode } from "lucide-react";
+import { Mic, CheckCircle, Smartphone, Eye, X, Info, Barcode, Copy, Check, Loader2, AlertCircle, ArrowRight, ShieldCheck, Lock } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { jsPDF } from "jspdf";
 const sdaLogo = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Seventh-day_Adventist_Church_logo_svg.svg/320px-Seventh-day_Adventist_Church_logo_svg.svg.png";
@@ -15,6 +15,9 @@ export default function JoinUs() {
     experience: ""
   });
   const [submitted, setSubmitted] = useState(false);
+  const [auditionLoading, setAuditionLoading] = useState(false);
+  const [auditionError, setAuditionError] = useState("");
+  const [tillCopied, setTillCopied] = useState(false);
 
   // M-Pesa contribution states
   const [mpesaConfig, setMpesaConfig] = useState<any>({
@@ -62,92 +65,103 @@ export default function JoinUs() {
     loadMpesaConfig();
   }, []);
 
-  const handleAuditionSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.name || !formData.email) return;
+  useEffect(() => {
+    if (window.location.hash === "#support") {
+      setActiveTab("mpesa");
+      window.setTimeout(() => document.getElementById("join")?.scrollIntoView({ behavior: "smooth" }), 400);
+    }
+  }, []);
 
-    setSubmitted(true);
-    setTimeout(() => {
-      setSubmitted(false);
-      setFormData({ name: "", email: "", voicePart: "Soprano", experience: "" });
-    }, 6000);
+  const handleCopyTill = async () => {
+    try {
+      await navigator.clipboard.writeText(String(mpesaConfig.tillNumber || ""));
+      setTillCopied(true);
+      window.setTimeout(() => setTillCopied(false), 2000);
+    } catch {
+      /* clipboard blocked — number is still visible and selectable */
+    }
+  };
+
+  // Audition applications are saved as inquiries, so they appear in the admin Inbox.
+  const handleAuditionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name.trim() || !formData.email.trim()) return;
+    setAuditionLoading(true);
+    setAuditionError("");
+    try {
+      const res = await fetch("/api/inquiries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.name.trim(),
+          email: formData.email.trim(),
+          subject: `Audition application — ${formData.voicePart}`,
+          message:
+            `Voice part: ${formData.voicePart}\n` +
+            `Musical experience: ${formData.experience.trim() || "Not provided"}`
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Could not send your application.");
+      setSubmitted(true);
+    } catch (err: any) {
+      setAuditionError(err?.message || "Network error. Please try again.");
+    } finally {
+      setAuditionLoading(false);
+    }
   };
 
   const handleStkPushSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!phone) return;
 
-    setIsPushing(true);
-    setPushStatus({
-      type: "loading",
-      message: "Sending Lipa Na M-Pesa STK Prompt to " + phone + "... Please check your phone keypad."
-    });
-
-    const finalAmount = amount === "custom" ? customAmount : amount;
-    if (!finalAmount || isNaN(Number(finalAmount)) || Number(finalAmount) <= 0) {
-      setPushStatus({
-        type: "error",
-        message: "Please enter a valid monetary amount."
-      });
-      setIsPushing(false);
+    const digits = phone.replace(/[^0-9]/g, "");
+    if (!/^(254|0)?(7|1)\d{8}$/.test(digits)) {
+      setPushStatus({ type: "error", message: "Please enter a valid Safaricom number, e.g. 0712 345 678." });
       return;
     }
+
+    const finalAmount = amount === "custom" ? customAmount : amount;
+    if (!finalAmount || isNaN(Number(finalAmount)) || Number(finalAmount) < 1) {
+      setPushStatus({ type: "error", message: "Please enter a valid amount of at least KES 1." });
+      return;
+    }
+
+    setIsPushing(true);
+    setPushStatus({ type: "loading", message: "Sending the M-Pesa prompt to your phone…" });
 
     try {
       const res = await fetch("/api/mpesa/stkpush", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, amount: finalAmount })
+        body: JSON.stringify({ phone: digits, amount: finalAmount })
       });
-      let data;
+      const text = await res.text();
+      let data: any = {};
       try {
-        const text = await res.text();
-        try {
-          data = JSON.parse(text);
-        } catch (e) {
-          throw new Error("Invalid JSON: " + text.slice(0, 100));
-        }
-      } catch (e: any) {
-        setPushStatus({
-          type: "error",
-          message: "Connection failed: " + e.message
-        });
-        setIsPushing(false);
-        return;
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("The payment service did not respond properly. Please try again.");
       }
-      
-      if (res.ok && data.success) {
+
+      if (res.ok && data.success && data.realApi) {
         setPushStatus({
           type: "success",
           message: data.message,
           refNumber: data.checkoutRequestId || `ws_CO_${Date.now().toString().slice(3)}`
         });
-
-        // Loop simulate response when testing in dev/sandbox with mock responses
-        if (!data.realApi) {
-          setTimeout(() => {
-            setPushStatus({
-              type: "success",
-              message: "✓ Simulated contribution of KES " + finalAmount + " processed successfully! Thank you for supporting Kachamba Chorus!",
-              refNumber: data.checkoutRequestId || `ws_CO_${Date.now().toString().slice(3)}`
-            });
-            setIsPushing(false);
-          }, 5000);
-        } else {
-          setIsPushing(false);
-        }
-      } else {
+      } else if (res.ok && data.success && !data.realApi) {
+        // Server is running without live M-Pesa credentials: never pretend a payment happened.
         setPushStatus({
           type: "error",
-          message: data.error || "Failed to trigger M-pesa billing prompt."
+          message:
+            "Online M-Pesa prompts aren't switched on right now. Please pay with the till number below and your contribution will still reach us."
         });
-        setIsPushing(false);
+      } else {
+        setPushStatus({ type: "error", message: data.error || "We couldn't send the M-Pesa prompt. Please try again." });
       }
     } catch (err: any) {
-      setPushStatus({
-        type: "error",
-        message: "Connection failed: " + err.message
-      });
+      setPushStatus({ type: "error", message: err?.message || "Connection failed. Please check your internet and try again." });
+    } finally {
       setIsPushing(false);
     }
   };
@@ -334,197 +348,155 @@ export default function JoinUs() {
   };
 
   const steps = [
-    {
-      icon: Mic,
-      title: "1. Vocal Placement",
-      description: "A friendly, private 5-minute audition with our Choir Council. We check your vocal range to find if you fit best as a Soprano, Alto, Tenor, or Bass."
-    },
-    {
-      icon: Music,
-      title: "2. Faith Commitment",
-      description: "Ambasaddors are disciples first. We match our lifestyles to Seventh-day Adventist standards, holding high Bible values and supportive fellowship."
-    },
-    {
-      icon: Star,
-      title: "3. Stand and Ministry",
-      description: "Once positioned, you gather weekly for vestry devotionals, dress rehearsals, and embark on countrywide tours spread across conferences."
-    }
+    { icon: Mic, title: "Vocal placement", description: "A friendly, private five-minute audition with our Choir Council to find your part — Soprano, Alto, Tenor or Bass." },
+    { icon: ShieldCheck, title: "Faith commitment", description: "Ambassadors are disciples first. We hold to Seventh-day Adventist standards and supportive fellowship." },
+    { icon: ArrowRight, title: "Stand and minister", description: "Meet weekly for devotionals and rehearsals, then tour churches and conferences across the country." }
   ];
 
-  return (
-    <section
-      id="join"
-      className="py-28 px-6 md:px-12 bg-slate-950 text-white relative overflow-hidden"
-    >
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_20%_60%,rgba(245,158,11,0.04)_0%,transparent_60%)] pointer-events-none" />
-      <div className="max-w-6xl mx-auto relative">
+  const parts = ["Soprano", "Alto", "Tenor", "Bass", "Unsure"];
+  const field =
+    "w-full rounded-xl border border-white/15 bg-transparent px-4 py-3 text-[15px] text-white placeholder:text-white/35 outline-none transition focus:border-[color:var(--fill-primary)] focus:ring-2 focus:ring-[color:var(--fill-primary)]/25";
+  const label = "mb-2 block text-xs font-semibold text-white/60";
+  const finalAmount = amount === "custom" ? customAmount : amount;
 
-        {/* Section Header */}
-        <div className="text-center mb-16">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="w-6 h-px bg-amber-400/50" />
-            <span className="label-caps text-amber-400/70 text-[11px]">Lift Your Voice · Support Our Mission</span>
-            <div className="w-6 h-px bg-amber-400/50" />
-          </div>
-          <h2 className="font-display font-bold text-4xl md:text-6xl text-white tracking-tight leading-none mb-3">
-            Participate &<br /><span className="text-white/25 font-light">Elevate</span>
+  return (
+    <section id="join" className="relative px-6 py-24 text-white md:px-12">
+      <div className="mx-auto max-w-6xl">
+        {/* Heading */}
+        <div className="mb-14 max-w-2xl">
+          <p className="inline-flex items-center gap-2.5 rounded-full border border-white/15 px-3.5 py-1.5 text-xs font-semibold text-white/70">
+            <span className="h-2 w-2 rounded-full" style={{ background: "var(--fill-secondary)" }} />
+            Join &amp; support
+          </p>
+          <h2 className="mt-5 text-4xl md:text-6xl">
+            Sing with us. <span style={{ color: "var(--hue-primary)" }}>Support the mission.</span>
           </h2>
-          <p className="text-white/40 text-sm font-light max-w-md mx-auto leading-relaxed">
-            Help Kachamba Chorus further the Gospel cause.
+          <p className="mt-4 text-base leading-relaxed text-white/60 md:text-lg">
+            Audition for a place in the chorus, or give towards our outreach and tours.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-
-          {/* Left Block: Steps */}
-          <div className="print-hidden lg:col-span-5">
-            <div className="flex flex-col gap-4">
-              {steps.map((step, idx) => (
-                <div key={idx} className="flex gap-4 glass rounded-2xl p-5">
-                  <div className="w-10 h-10 glass rounded-xl flex items-center justify-center flex-shrink-0">
-                    <step.icon className="w-4 h-4 text-amber-400/70" />
-                  </div>
-                  <div>
-                    <h4 className="font-display font-semibold text-sm text-white mb-1">{step.title}</h4>
-                    <p className="text-white/40 text-xs leading-relaxed">{step.description}</p>
-                  </div>
+        <div className="grid items-start gap-10 lg:grid-cols-12 lg:gap-14">
+          {/* Steps */}
+          <ol className="print-hidden divide-y divide-white/10 border-y border-white/10 lg:col-span-5">
+            {steps.map((step, i) => (
+              <li key={step.title} className="flex gap-5 py-6">
+                <span className="font-display text-3xl font-bold leading-none tracking-tight text-white/25">0{i + 1}</span>
+                <div>
+                  <h3 className="text-lg font-bold">{step.title}</h3>
+                  <p className="mt-1.5 text-sm leading-relaxed text-white/55">{step.description}</p>
                 </div>
-              ))}
-            </div>
-          </div>
+              </li>
+            ))}
+            <li className="py-5 text-xs font-medium text-white/45">
+              Weekly rehearsals · Sabbath afternoons · Kachok SDA Church, Kisumu
+            </li>
+          </ol>
 
-          {/* Right Block: Tabs */}
-          <div className="lg:col-span-7 glass rounded-2xl p-6 md:p-8 relative overflow-hidden">
-            
-            {/* Tab switch controller */}
-            <div className="print-hidden flex glass p-1 rounded-xl mb-6">
-              <button
-                type="button"
-                onClick={() => { setActiveTab("audition"); setPushStatus({ type: "idle", message: "" }); }}
-                className={`flex-1 py-2.5 rounded-lg label-caps text-[11px] transition-all duration-300 flex items-center justify-center gap-1.5 cursor-pointer ${
-                  activeTab === "audition"
-                    ? "bg-amber-400 text-slate-950 font-semibold shadow-md"
-                    : "text-white/45 hover:text-white"
-                }`}
-              >
-                <Mic className="w-3 h-3" />
-                Audition
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("mpesa")}
-                className={`flex-1 py-2.5 rounded-lg label-caps text-[11px] transition-all duration-300 flex items-center justify-center gap-1.5 cursor-pointer ${
-                  activeTab === "mpesa"
-                    ? "bg-amber-400 text-slate-950 font-semibold shadow-md"
-                    : "text-white/45 hover:text-white"
-                }`}
-              >
-                <CreditCard className="w-3 h-3" />
-                M-Pesa Contribute
-              </button>
+          {/* Panel */}
+          <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 sm:p-8 lg:col-span-7">
+            <div role="tablist" aria-label="Join or support" className="print-hidden mb-7 grid grid-cols-2 gap-1 rounded-full border border-white/10 p-1">
+              {([
+                ["audition", "Audition"],
+                ["mpesa", "Support the ministry"]
+              ] as const).map(([id, text]) => (
+                <button
+                  key={id}
+                  role="tab"
+                  type="button"
+                  aria-selected={activeTab === id}
+                  onClick={() => {
+                    setActiveTab(id);
+                    if (id === "audition") setPushStatus({ type: "idle", message: "" });
+                  }}
+                  className={`rounded-full px-3 py-2.5 text-sm font-bold transition ${
+                    activeTab === id ? "text-white" : "text-white/55 hover:text-white"
+                  }`}
+                  style={activeTab === id ? { background: id === "audition" ? "var(--fill-primary)" : "var(--fill-accent)" } : undefined}
+                >
+                  {text}
+                </button>
+              ))}
             </div>
 
             <AnimatePresence mode="wait">
               {activeTab === "audition" ? (
-                /* Tab 1: Apply to Audition */
-                <motion.div
-                  key="audition-tab"
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 10 }}
-                  transition={{ duration: 0.25 }}
-                >
-                  <div className="mb-6">
-                    <h3 className="font-sans font-bold text-xl text-white">Join the Chorus</h3>
-                    <p className="font-sans text-xs text-slate-400 mt-1">
-                      Fill in your details, and our choir director will contact you soon.
-                    </p>
-                  </div>
+                <motion.div key="audition-tab" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
+                  <h3 className="text-2xl font-bold tracking-tight">Join the chorus</h3>
+                  <p className="mt-1.5 text-sm text-white/55">Tell us a little about you. Our choir secretary will be in touch.</p>
 
                   {submitted ? (
-                    <div className="bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 p-6 rounded-xl text-center flex flex-col items-center justify-center gap-3">
-                      <CheckCircle className="w-10 h-10 text-emerald-400 animate-bounce" />
-                      <h4 className="font-sans font-bold text-lg text-white">Application Received!</h4>
-                      <p className="font-sans text-xs leading-relaxed max-w-xs">
-                        Praise God! We have recorded your interest in the **{formData.voicePart}** part. Our Choir secretary will reach out shortly to guide you on our meetings.
+                    <div className="mt-8 rounded-2xl border border-white/10 p-8 text-center">
+                      <CheckCircle className="mx-auto h-10 w-10" style={{ color: "var(--hue-secondary)" }} aria-hidden="true" />
+                      <h4 className="mt-4 text-xl font-bold">Application received</h4>
+                      <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-white/60">
+                        Thank you{formData.name ? `, ${formData.name.split(" ")[0]}` : ""}. We’ve noted your interest in the {formData.voicePart === "Unsure" ? "right" : formData.voicePart} part and will reach out about rehearsals.
                       </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSubmitted(false);
+                          setFormData({ name: "", email: "", voicePart: "Soprano", experience: "" });
+                        }}
+                        className="btn-outline mt-6 !py-2.5 !text-sm"
+                      >
+                        Submit another
+                      </button>
                     </div>
                   ) : (
-                    <form onSubmit={handleAuditionSubmit} className="flex flex-col gap-4 text-sm">
-                      <div>
-                        <label className="block text-xs font-mono text-slate-400 mb-1.5 uppercase tracking-wide">Full Name</label>
-                        <input 
-                          type="text" 
-                          required
-                          value={formData.name || ""}
-                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                          className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-lg p-2.5 outline-none font-sans text-sm focus:ring-1 focus:ring-amber-500/20 text-white transition-all"
-                          placeholder="Your official name"
-                        />
+                    <form onSubmit={handleAuditionSubmit} className="mt-7 space-y-5">
+                      <div className="grid gap-5 sm:grid-cols-2">
+                        <div>
+                          <label htmlFor="aud-name" className={label}>Full name</label>
+                          <input id="aud-name" type="text" required autoComplete="name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className={field} placeholder="Your name" />
+                        </div>
+                        <div>
+                          <label htmlFor="aud-email" className={label}>Email</label>
+                          <input id="aud-email" type="email" required autoComplete="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className={field} placeholder="you@example.com" />
+                        </div>
                       </div>
 
-                      <div>
-                        <label className="block text-xs font-mono text-slate-400 mb-1.5 uppercase tracking-wide">Email Address</label>
-                        <input 
-                          type="email" 
-                          required
-                          value={formData.email || ""}
-                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                          className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-lg p-2.5 outline-none font-sans text-sm focus:ring-1 focus:ring-amber-500/20 text-white transition-all"
-                          placeholder="yourname@gmail.com"
-                        />
-                      </div>
+                      <fieldset>
+                        <legend className={label}>Voice part</legend>
+                        <div className="flex flex-wrap gap-2">
+                          {parts.map((p) => (
+                            <button
+                              key={p}
+                              type="button"
+                              onClick={() => setFormData({ ...formData, voicePart: p })}
+                              aria-pressed={formData.voicePart === p}
+                              className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                                formData.voicePart === p ? "border-transparent text-white" : "border-white/15 text-white/65 hover:border-white/40"
+                              }`}
+                              style={formData.voicePart === p ? { background: "var(--fill-primary)" } : undefined}
+                            >
+                              {p === "Unsure" ? "Not sure" : p}
+                            </button>
+                          ))}
+                        </div>
+                      </fieldset>
 
                       <div>
-                        <label className="block text-xs font-mono text-slate-400 mb-1.5 uppercase tracking-wide">Vocal Part Preference</label>
-                        <select 
-                          value={formData.voicePart || ""}
-                          onChange={(e) => setFormData({ ...formData, voicePart: e.target.value })}
-                          className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-lg p-2.5 outline-none font-sans text-sm text-white focus:ring-1 focus:ring-amber-500/20 cursor-pointer transition-all"
-                        >
-                          <option value="Soprano">Soprano (High range girls)</option>
-                          <option value="Alto">Alto (Mid/Deep range girls)</option>
-                          <option value="Tenor">Tenor (High range boys)</option>
-                          <option value="Bass">Bass (Deep range boys)</option>
-                          <option value="Unsure">Not sure (Auditoner will place you)</option>
-                        </select>
+                        <label htmlFor="aud-exp" className={label}>Musical experience <span className="font-normal text-white/40">(optional)</span></label>
+                        <textarea id="aud-exp" rows={3} value={formData.experience} onChange={(e) => setFormData({ ...formData, experience: e.target.value })} className={field} placeholder="Other choirs you’ve sung in, reading music, instruments…" />
                       </div>
 
-                      <div>
-                        <label className="block text-xs font-mono text-slate-400 mb-1.5 uppercase tracking-wide">Musical Experience (Optional)</label>
-                        <textarea 
-                          value={formData.experience || ""}
-                          onChange={(e) => setFormData({ ...formData, experience: e.target.value })}
-                          rows={3}
-                          className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-lg p-2.5 outline-none font-sans text-sm focus:ring-1 focus:ring-amber-500/20 text-white transition-all resize-none"
-                          placeholder="Tell us if you have sung in other SDA choruses or read sheet music..."
-                        />
-                      </div>
+                      {auditionError && (
+                        <p className="flex items-start gap-2 text-sm font-medium" style={{ color: "var(--hue-accent)" }} role="alert">
+                          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                          {auditionError}
+                        </p>
+                      )}
 
-                      <button
-                        type="submit"
-                        className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-sans font-bold py-3 px-6 rounded-xl shadow-lg transition-all cursor-pointer mt-2"
-                      >
-                        Submit Audition Application
+                      <button type="submit" disabled={auditionLoading} className="btn-solid fill-primary w-full !py-3.5 disabled:opacity-60">
+                        {auditionLoading ? (<><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Sending…</>) : (<>Submit application <ArrowRight className="h-4 w-4" aria-hidden="true" /></>)}
                       </button>
                     </form>
                   )}
-
-                  <div className="mt-4 text-center">
-                    <p className="font-mono text-[10px] text-slate-500">
-                      Weekly Rehearsals: Sabbath Day (Saturdays) @ Kachok Church
-                    </p>
-                  </div>
                 </motion.div>
               ) : (
-                /* Tab 2: Send M-Pesa Contribution */
-                <motion.div
-                  key="mpesa-tab"
-                  initial={{ opacity: 0, x: 10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -10 }}
-                  transition={{ duration: 0.25 }}
-                >
+                <motion.div key="mpesa-tab" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
+                  <span id="support" className="block -translate-y-24" aria-hidden="true" />
                   {pushStatus.type === "success" ? (
                     <div id="mpesa-receipt-container" className="flex flex-col items-center justify-center font-sans print:fixed print:inset-0 print:bg-slate-50 print:z-[9999] print:w-screen print:h-screen print:flex print:flex-col print:items-center print:justify-center">
                       <div id="mpesa-receipt" className={`bg-white rounded-[24px] p-8 pt-10 max-w-sm w-full mx-auto shadow-2xl relative print:shadow-none print:max-w-md print:border border-slate-100 ${mpesaConfig.receiptLayout === 'classic' ? 'border print:border-none' : ''} ${mpesaConfig.receiptFontFamily || 'font-sans'} ${mpesaConfig.receiptTextAlign || 'text-center'} overflow-visible`}>
@@ -590,7 +562,7 @@ export default function JoinUs() {
                                   <h4 className={`${mpesaConfig.receiptHeaderSize || 'text-2xl'} font-bold ${mpesaConfig.receiptHeaderColor || 'text-slate-800'} mb-1`}>
                                     {mpesaConfig.receiptTitle || mpesaConfig.tillName || "Kachamba Chorus"}
                                   </h4>
-                                  <p className={`${mpesaConfig.receiptBodySize || 'text-sm'} ${mpesaConfig.receiptBodyColor || 'text-slate-500'}`}>Payment Successful</p>
+                                  <p className={`${mpesaConfig.receiptBodySize || 'text-sm'} ${mpesaConfig.receiptBodyColor || 'text-slate-500'}`}>Contribution request sent</p>
                                   <p className="text-[10px] text-emerald-600 font-bold mt-1 print:hidden">Please enter M-Pesa PIN on your phone to complete.</p>
                                 </div>
                               );
@@ -686,181 +658,107 @@ export default function JoinUs() {
                     </div>
                   ) : (
                     <>
-                      <div className="mb-5">
-                        <h3 className="font-sans font-bold text-xl text-white">Support the Ministry</h3>
-                        <p className="font-sans text-xs text-slate-400 mt-1">
-                          Support us via Lipa Na M-Pesa. Choose an amount, enter your phone, and complete the STK prompt on your screen.
-                        </p>
-                      </div>
+                      <h3 className="text-2xl font-bold tracking-tight">Support the ministry</h3>
+                      <p className="mt-1.5 text-sm text-white/55">
+                        Give by M-Pesa. Choose an amount, enter your number and approve the prompt on your phone.
+                      </p>
 
                       {pushStatus.type !== "idle" && (
-                        <div id="mpesa-error-container" className={`p-4 rounded-xl text-xs mb-5 border leading-relaxed font-sans ${
-                          pushStatus.type === "loading" 
-                            ? "bg-amber-500/10 border-amber-500/20 text-amber-300 animate-pulse" 
-                            : "bg-red-500/10 border-red-500/20 text-red-400"
-                        }`}>
-                          <div className="flex gap-2 items-start">
-                            {pushStatus.type === "loading" && <div className="w-3.5 h-3.5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin shrink-0 mt-0.5" />}
-                            {pushStatus.type === "error" && <span className="text-red-400 shrink-0">⚠</span>}
-                            <span>{pushStatus.message}</span>
-                          </div>
+                        <div
+                          id="mpesa-error-container"
+                          role={pushStatus.type === "error" ? "alert" : "status"}
+                          className="mt-6 flex items-start gap-3 rounded-xl border border-white/10 p-4 text-sm leading-relaxed"
+                          style={pushStatus.type === "error" ? { borderColor: "var(--fill-accent)", color: "var(--hue-accent)" } : undefined}
+                        >
+                          {pushStatus.type === "loading" ? (
+                            <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin" aria-hidden="true" />
+                          ) : (
+                            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                          )}
+                          <span>{pushStatus.message}</span>
                         </div>
                       )}
 
-                      <form onSubmit={handleStkPushSubmit} className="flex flex-col gap-4 text-sm font-sans mb-6">
-                        {/* Phone field */}
-                        <div>
-                          <label className="block text-xs font-mono text-slate-400 mb-1.5 uppercase tracking-wide flex items-center gap-1">
-                            <Smartphone className="w-3.5 h-3.5 text-amber-500" />
-                            M-Pesa Phone Number
-                          </label>
-                          <div className="flex bg-slate-950 border border-slate-800 rounded-lg overflow-hidden focus-within:border-amber-500 transition-all focus-within:ring-1 focus-within:ring-amber-500/20">
-                            <div className="bg-slate-900 px-3.5 py-2.5 font-mono text-sm text-slate-400 border-r border-slate-800 flex items-center select-none">
-                              🇰🇪 +254
-                            </div>
-                            <input 
-                              type="text" 
-                              required
-                              value={phone || ""}
-                              onChange={(e) => setPhone(e.target.value)}
-                              className="flex-1 bg-transparent p-2.5 outline-none font-mono text-sm text-white"
-                              placeholder="712345678"
-                            />
-                          </div>
-                          <p className="text-[10px] text-slate-500 mt-1 leading-normal font-sans">
-                            Enter your Safaricom mobile number (e.g. 0712345678 or 712345678)
-                          </p>
-                        </div>
-
-                        {/* Amount selectors */}
-                        <div>
-                          <label className="block text-xs font-mono text-slate-400 mb-1.5 uppercase tracking-wide flex items-center gap-1">
-                            <Coins className="w-3.5 h-3.5 text-amber-500" />
-                            Select Amount (KES)
-                          </label>
-                          <div className="grid grid-cols-4 gap-2 mb-3">
+                      <form onSubmit={handleStkPushSubmit} className="mt-7 space-y-6">
+                        <fieldset>
+                          <legend className={label}>Amount (KES)</legend>
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                             {["200", "500", "1000", "2500"].map((preset) => (
                               <button
                                 key={preset}
                                 type="button"
-                                onClick={() => {
-                                  setAmount(preset);
-                                  setCustomAmount("");
-                                }}
-                                className={`py-2 rounded-lg text-xs font-mono font-bold border transition-all cursor-pointer ${
-                                  amount === preset 
-                                    ? "bg-amber-500 text-slate-950 border-amber-500 font-extrabold shadow" 
-                                    : "bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700"
+                                aria-pressed={amount === preset}
+                                onClick={() => { setAmount(preset); setCustomAmount(""); }}
+                                className={`rounded-xl border py-3 text-sm font-bold tabular-nums transition ${
+                                  amount === preset ? "border-transparent text-white" : "border-white/15 text-white/70 hover:border-white/40"
                                 }`}
+                                style={amount === preset ? { background: "var(--fill-primary)" } : undefined}
                               >
-                                {preset}
+                                {Number(preset).toLocaleString()}
                               </button>
                             ))}
+                            <button
+                              type="button"
+                              aria-pressed={amount === "custom"}
+                              onClick={() => setAmount("custom")}
+                              className={`col-span-2 rounded-xl border py-3 text-sm font-bold transition sm:col-span-1 ${
+                                amount === "custom" ? "border-transparent text-white" : "border-white/15 text-white/70 hover:border-white/40"
+                              }`}
+                              style={amount === "custom" ? { background: "var(--fill-primary)" } : undefined}
+                            >
+                              Other
+                            </button>
                           </div>
-
-                          <button
-                            type="button"
-                            onClick={() => setAmount("custom")}
-                            className={`w-full py-2.5 rounded-lg text-xs font-sans font-bold border transition-all cursor-pointer ${
-                              amount === "custom" 
-                                ? "bg-amber-500 text-slate-950 border-amber-500 font-extrabold shadow mb-2" 
-                                : "bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700 mb-0"
-                            }`}
-                          >
-                            Enter Custom Amount
-                          </button>
-
                           {amount === "custom" && (
-                            <div className="relative mt-2">
-                              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-slate-450 font-bold text-xs select-none">KES</span>
-                              <input 
-                                type="number"
-                                required
-                                min="1"
-                                value={customAmount || ""}
-                                onChange={(e) => setCustomAmount(e.target.value)}
-                                className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-lg p-2.5 pl-12 outline-none font-sans text-sm focus:ring-1 focus:ring-amber-500/20 text-white transition-all"
-                                placeholder="Type contribution amount..."
-                              />
+                            <div className="relative mt-3">
+                              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-white/50">KES</span>
+                              <input type="number" inputMode="numeric" required min={1} value={customAmount} onChange={(e) => setCustomAmount(e.target.value)} className={`${field} !pl-14`} placeholder="Enter amount" aria-label="Custom amount in KES" />
                             </div>
                           )}
+                        </fieldset>
+
+                        <div>
+                          <label htmlFor="mpesa-phone" className={label}>M-Pesa phone number</label>
+                          <div className="flex overflow-hidden rounded-xl border border-white/15 transition focus-within:border-[color:var(--fill-primary)] focus-within:ring-2 focus-within:ring-[color:var(--fill-primary)]/25">
+                            <span className="flex items-center gap-2 border-r border-white/15 px-4 text-sm font-semibold text-white/60">
+                              <Smartphone className="h-4 w-4" aria-hidden="true" /> +254
+                            </span>
+                            <input id="mpesa-phone" type="tel" inputMode="tel" autoComplete="tel-national" required value={phone} onChange={(e) => setPhone(e.target.value)} className="min-w-0 flex-1 bg-transparent px-4 py-3 text-[15px] text-white outline-none placeholder:text-white/35" placeholder="712 345 678" />
+                          </div>
                         </div>
 
-                        <button
-                          type="submit"
-                          disabled={isPushing}
-                          className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-sans font-bold py-3 px-6 rounded-xl shadow-lg transition-all cursor-pointer mt-2 flex items-center justify-center gap-2"
-                        >
+                        <button type="submit" disabled={isPushing} className="btn-solid fill-accent w-full !py-4 disabled:opacity-60">
                           {isPushing ? (
-                            <>
-                              <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                              Verifying & Prompting Pin...
-                            </>
+                            <><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Waiting for M-Pesa…</>
                           ) : (
-                            `Send Lipa Na M-Pesa Prompt (KES ${amount === "custom" ? customAmount || "0" : amount})`
+                            <>Give KES {finalAmount ? Number(finalAmount).toLocaleString() || finalAmount : "0"} <ArrowRight className="h-4 w-4" aria-hidden="true" /></>
                           )}
                         </button>
+                        <p className="flex items-center justify-center gap-2 text-xs text-white/45">
+                          <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+                          You approve on your own phone. We never see your M-Pesa PIN.
+                        </p>
                       </form>
 
-                      {/* SECTION: Media Preview of Till */}
-                      <div className="border-t border-slate-800 pt-5 mt-5">
-                        <p className="block text-xs font-mono text-slate-400 mb-2 uppercase tracking-wide flex items-center gap-1">
-                          <Eye className="w-3.5 h-3.5 text-amber-500" />
-                          Till Media Poster Preview
-                        </p>
-
-                        {mpesaConfig.tillImage ? (
-                          /* Loaded custom poster media file */
-                          <div 
-                            className="relative group cursor-pointer border border-slate-800 rounded-xl overflow-hidden aspect-video shadow-md bg-slate-950 p-2 flex items-center justify-center max-h-52" 
-                            onClick={() => setShowPosterModal(true)}
-                            title="Click to enlarge M-Pesa sticker"
-                          >
-                            <img 
-                              src={mpesaConfig.tillImage} 
-                              alt="Lipa Na M-Pesa Till Poster Detail" 
-                              className="max-h-full max-w-full object-contain transition-all group-hover:scale-[1.02] duration-500" 
-                            />
-                            <div className="absolute inset-0 bg-slate-950/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center duration-300 gap-1.5">
-                              <Eye className="w-6 h-6 text-amber-400" />
-                              <span className="text-[10px] bg-amber-500 text-slate-955 font-mono font-bold uppercase tracking-wider px-3 py-1 rounded-full">
-                                Click to Expand
-                              </span>
-                            </div>
-                            <div className="absolute bottom-2 left-3 bg-slate-950/85 px-2.5 py-0.5 rounded border border-slate-800 text-[9px] font-mono font-semibold tracking-wider uppercase text-slate-400">
-                              Custom Poster
-                            </div>
+                      {/* Pay directly */}
+                      <div className="mt-8 rounded-2xl border border-white/10 p-5">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-white/55">
+                              Prefer to pay directly? {mpesaConfig.tillType === "paybill" ? "Paybill number" : "Buy Goods till"}
+                            </p>
+                            <p className="mt-1 select-all font-display text-3xl font-bold tracking-wider">{mpesaConfig.tillNumber}</p>
+                            <p className="mt-0.5 truncate text-sm text-white/55">{mpesaConfig.tillName}</p>
                           </div>
-                        ) : (
-                          /* Stylistic Realistic Safaricom Terminal card fallback */
-                          <div 
-                            className="relative group cursor-pointer bg-emerald-50 rounded-xl border-2 border-emerald-500 overflow-hidden text-slate-800 p-4 shadow-lg transition-transform hover:-translate-y-0.5 duration-300 select-none flex flex-col gap-3 font-sans"
-                            onClick={() => setShowPosterModal(true)}
-                            title="Click to show fullscreen helper modal"
-                          >
-                            <div className="bg-emerald-600 px-3 py-1 text-[10px] font-bold text-white uppercase tracking-wider flex justify-between items-center rounded">
-                              <span>Lipa Na M-Pesa</span>
-                              <span className="text-[8px] bg-emerald-800/40 px-1.5 py-0.5 rounded text-emerald-100">by Safaricom</span>
-                            </div>
-                            <div className="text-center py-2 bg-white/40 rounded-lg">
-                              <p className="text-[9px] uppercase font-mono tracking-widest text-slate-500 font-semibold">
-                                {mpesaConfig.tillType === "paybill" ? "Paybill Business No:" : "Buy Goods Till No:"}
-                              </p>
-                              <h4 className="text-3xl font-extrabold tracking-wider text-emerald-800 font-mono select-all">
-                                {mpesaConfig.tillNumber}
-                              </h4>
-                              <p className="text-[11px] text-slate-700 font-bold uppercase mt-1">
-                                {mpesaConfig.tillName}
-                              </p>
-                            </div>
-                            <div className="text-[9px] text-slate-500 font-mono border-t border-dashed border-slate-200.5 pt-2 flex justify-between">
-                              <span>CHARGES: NONE</span>
-                              <span className="text-emerald-700 font-bold flex items-center gap-0.5">
-                                🔍 TAP TO EXPAND
-                              </span>
-                            </div>
-                          </div>
-                        )}
+                          <button type="button" onClick={handleCopyTill} className="btn-outline shrink-0 !px-4 !py-2.5 !text-sm" aria-label="Copy till number">
+                            {tillCopied ? <Check className="h-4 w-4" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
+                            {tillCopied ? "Copied" : "Copy"}
+                          </button>
+                        </div>
+                        <button type="button" onClick={() => setShowPosterModal(true)} className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-white/65 underline decoration-white/25 underline-offset-4 hover:text-white">
+                          <Eye className="h-4 w-4" aria-hidden="true" />
+                          {mpesaConfig.tillImage ? "View till poster" : "How to pay manually"}
+                        </button>
                       </div>
                     </>
                   )}
@@ -868,7 +766,6 @@ export default function JoinUs() {
               )}
             </AnimatePresence>
           </div>
-
         </div>
       </div>
 
