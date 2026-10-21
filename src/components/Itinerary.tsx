@@ -2085,10 +2085,7 @@ export default function Itinerary({
                               <h4 className="font-sans font-extrabold text-sm text-white uppercase tracking-wider">Fast Media Attachment Portal</h4>
                               <p className="text-[10px] font-mono text-slate-400 line-clamp-1">Item: {item.event}</p>
                             </div>
-                          </div>
-                          <button 
-                            type="button"
-                            onClick={closeMediaUploader} 
+                          </div> 
                           <button 
                             type="button"
                             onClick={closeMediaUploader}
@@ -2347,3 +2344,7 @@ export default function Itinerary({
     </section>
   );
 }
+
+
+
+
