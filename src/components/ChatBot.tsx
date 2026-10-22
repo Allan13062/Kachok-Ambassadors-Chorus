@@ -194,7 +194,7 @@ export default function ChatBot({ isOpen, onClose, onOpen }: ChatBotProps) {
             className="bg-slate-950 px-5 py-4 border-b border-slate-805 flex justify-between items-center cursor-grab active:cursor-grabbing select-none"
           >
             <div className="flex items-center gap-3">
-              <div className="relative w-8 h-8 rounded-full overflow-hidden border border-amber-550/35 bg-[#050B14] flex items-center justify-center shadow-md">
+              <div className="relative w-8 h-8 rounded-full overflow-hidden border border-amber-550/35 bg-slate-950 flex items-center justify-center shadow-md">
                 <img 
                   src="https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png" 
                   alt="Kachamba Chorus Logo" 
@@ -303,7 +303,7 @@ export default function ChatBot({ isOpen, onClose, onOpen }: ChatBotProps) {
                     <User className="w-4 h-4" />
                   </div>
                 ) : (
-                  <div className="relative w-7 h-7 rounded-full overflow-hidden border border-amber-550/30 bg-[#050B14] flex items-center justify-center shrink-0 shadow">
+                  <div className="relative w-7 h-7 rounded-full overflow-hidden border border-amber-550/30 bg-slate-950 flex items-center justify-center shrink-0 shadow">
                     <img 
                       src="https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png" 
                       alt="Kachamba Chorus Logo" 
@@ -336,7 +336,7 @@ export default function ChatBot({ isOpen, onClose, onOpen }: ChatBotProps) {
             {/* AI Processing Bubble */}
             {loading && (
               <div className="flex gap-3 max-w-[85%] self-start">
-                <div className="relative w-7 h-7 rounded-full overflow-hidden border border-amber-550/30 bg-[#050B14] flex items-center justify-center shrink-0 shadow">
+                <div className="relative w-7 h-7 rounded-full overflow-hidden border border-amber-550/30 bg-slate-950 flex items-center justify-center shrink-0 shadow">
                   <img 
                     src="https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png" 
                     alt="Kachamba Chorus Logo" 
