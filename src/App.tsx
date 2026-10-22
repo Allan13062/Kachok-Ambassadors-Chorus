@@ -643,6 +643,8 @@ export default function App() {
             setIsChatOpen(true);
           }}
           webLogo={webLogo}
+          photos={dbData.gallery}
+          events={dbData.itinerary}
         />
       </FadeInSection>
 
@@ -980,10 +982,18 @@ export default function App() {
             {/* Links */}
             <div className="flex flex-col gap-2">
               <p className="label-caps text-[10px] text-white/25 mb-1">Navigate</p>
-              {["Itinerary", "Ministries", "Music", "Gallery", "Join Us", "Contact"].map(label => (
+              {[
+                ["Itinerary", "itinerary"],
+                ["Ministries", "activities"],
+                ["Leaders", "leadership"],
+                ["Music", "music"],
+                ["Gallery", "gallery"],
+                ["Join Us", "join"],
+                ["Contact", "contact"],
+              ].map(([label, id]) => (
                 <a
-                  key={label}
-                  href={`#${label.toLowerCase().replace(" ", "")}`}
+                  key={id}
+                  href={`#${id}`}
                   className="label-caps text-[11px] text-white/40 hover:text-amber-400 transition-colors"
                 >
                   {label}
