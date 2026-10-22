@@ -819,3 +819,69 @@ main section[id]:not(#home) {
 @media (min-width: 1024px) {
   .hero-title { font-size: 4.5rem !important; }
 }
+/* =====================================================================
+   ANK-INSPIRED LAYOUT: Jost typeface, yellow highlighter, navy buttons,
+   orange pill labels. Added last so it overrides the earlier styles.
+   ===================================================================== */
+:root {
+  --font-display: "Jost", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Jost", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Yellow highlighter behind one key word in a headline */
+.accent-word {
+  font-style: normal;
+  font-weight: inherit;
+  color: inherit;
+  padding: 0 0.08em;
+  background: linear-gradient(transparent 58%, #FFD232 58%, #FFD232 92%, transparent 92%);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+/* Orange pill label above headlines */
+.eyebrow-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: #F07426;
+  color: #ffffff;
+  padding: 0.5rem 1.1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Navy solid button (primary) */
+.btn-navy,
+.btn-outline-navy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 8px;
+  padding: 0.85rem 1.5rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+.btn-navy {
+  background: #0B2A4A;
+  color: #ffffff;
+  border: 2px solid #0B2A4A;
+}
+.btn-navy:hover { background: #134170; border-color: #134170; }
+.btn-outline-navy {
+  background: transparent;
+  color: #0B2A4A;
+  border: 2px solid #0B2A4A;
+}
+.btn-outline-navy:hover { background: #0B2A4A; color: #ffffff; }
+
+/* Header stays navy at the top of the page, so white text is always readable */
+.glass-nav-transparent {
+  background: var(--color-slate-950);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-white) 10%, transparent);
+}
