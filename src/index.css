@@ -711,3 +711,74 @@ html.light :is(#mpesa-receipt, #mpesa-receipt-preview, #mpesa-receipt-container,
   }
   .no-print { display: none !important; }
 }
+/* =====================================================================
+   COLOUR REFRESH: richer complementary palette
+   Primary:    Navy #081830 · Orange #F09010 (from the logo)
+   Complement: Teal #2EB3A6 (opposite orange on the colour wheel)
+   Supporting: Steel #5B7BA6 · Soft gold #FFC46B
+   ===================================================================== */
+:root {
+  --fill-primary: #F09010;
+  --fill-secondary: #2EB3A6;
+  --fill-accent: #F09010;
+  --fill-accent-hover: #D17A05;
+  --hue-primary: #F09010;
+  --hue-secondary: #5FD3C4;
+  --hue-accent: #FFC46B;
+
+  /* Lifted navy surfaces for cards and alternating sections */
+  --color-slate-900: #0D2442;
+  --color-slate-850: #102B4F;
+  --color-slate-800: #163459;
+
+  /* Teal ramp (complement of orange) */
+  --color-emerald-50: #E6FAF7;
+  --color-emerald-100: #C2F2EB;
+  --color-emerald-200: #8FE5D9;
+  --color-emerald-300: #5FD3C4;
+  --color-emerald-400: #2EB3A6;
+  --color-emerald-500: #23958A;
+  --color-emerald-600: #1B7A71;
+  --color-emerald-700: #15605A;
+  --color-emerald-800: #0F4742;
+  --color-emerald-900: #0A2F2C;
+  --color-emerald-950: #06201E;
+
+  --color-teal-300: #5FD3C4;
+  --color-teal-400: #2EB3A6;
+  --color-teal-500: #23958A;
+  --color-teal-600: #1B7A71;
+  --color-teal-700: #15605A;
+  --color-green-300: #5FD3C4;
+  --color-green-400: #2EB3A6;
+  --color-green-500: #23958A;
+  --color-green-600: #1B7A71;
+  --color-green-700: #15605A;
+  --color-cyan-300: #7FDCE6;
+  --color-cyan-400: #4CC3D1;
+  --color-cyan-500: #2A9FAE;
+
+  /* Soft gold for highlights on navy */
+  --color-amber-300: #FFC46B;
+  --color-amber-350: #FFB347;
+}
+
+/* Light mode: deeper shades so text stays readable on cream */
+html.light {
+  --fill-secondary: #15605A;
+  --hue-secondary: #15605A;
+  --color-emerald-300: #15605A;
+  --color-emerald-400: #15605A;
+  --color-emerald-500: #1B7A71;
+  --color-emerald-600: #15605A;
+  --color-teal-300: #15605A;
+  --color-teal-400: #15605A;
+  --color-teal-500: #1B7A71;
+  --color-green-300: #15605A;
+  --color-green-400: #15605A;
+  --color-green-500: #1B7A71;
+  --color-cyan-300: #1B7A71;
+  --color-cyan-400: #15605A;
+  --color-amber-300: #A85F00;
+  --color-amber-350: #A85F00;
+}
