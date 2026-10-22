@@ -1,26 +1,149 @@
-import React, { useMemo, useState } from "react";
-import { createPortal } from "react-dom";
-import { Download, Printer, Check, Loader2 } from "lucide-react";
-import {
-  ReceiptData,
-  SCRIPTURE,
-  barcodePattern,
-  downloadReceiptPdf,
-  formatKes,
-  formatWhen,
-  maskPhone,
-  verificationCode,
-} from "../lib/receipt";
+import { jsPDF } from "jspdf";
 
-/* ───────────────────────── The receipt itself ─────────────────────────
-   Used on screen AND in the printout, so what you see is what prints.
-   Colours inside .receipt-sheet are always "paper" (see index.css). */
+/* Helpers for M-Pesa receipts. The on-screen and printed receipt UI lives in
+   src/components/ReceiptView.tsx and reads everything from these exports. */
 
-export function ReceiptSheet({ data }: { data: ReceiptData }) {
-  const [logoFailed, setLogoFailed] = useState(false);
-  const bars = useMemo(() => barcodePattern(`${data.reference}${data.when.getTime()}`), [data]);
-  const total = bars.reduce((n, w) => n + w + 0.7, 0);
+export type ReceiptData = {
+  reference: string;
+  when: Date;
+  phone: string;
+  amount: number;
+  title: string;
+  message: string;
+  orgName: string;
+  logoUrl?: string;
+  extraLogoUrl?: string;
+  tillName: string;
+  tillLabel: string;
+  tillNumber: string;
+};
 
+export const SCRIPTURE = "“God loves a cheerful giver.” — 2 Corinthians 9:7";
+
+const DEFAULT_MESSAGE = "We have received your generous contribution. May God bless you abundantly.";
+
+// Small stable string hash (FNV-1a), used for deterministic barcode and codes
+function hashString(input: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h >>> 0;
+}
+
+export function formatKes(amount: number): string {
+  const n = Number.isFinite(amount) ? amount : 0;
+  return `KES ${n.toLocaleString("en-KE", { maximumFractionDigits: 0 })}`;
+}
+
+export function formatWhen(when: Date): string {
+  return when.toLocaleString("en-KE", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Africa/Nairobi",
+  });
+}
+
+// "0712345678" or "254712345678" → "0712••••678"
+export function maskPhone(phone: string): string {
+  const digits = (phone || "").replace(/\D/g, "");
+  if (digits.length < 7) return phone || "";
+  return `${digits.slice(0, 4)}••••${digits.slice(-3)}`;
+}
+
+// Bar widths for the decorative barcode. Same input always gives the same bars.
+export function barcodePattern(seed: string): number[] {
+  let state = hashString(seed) || 1;
+  const bars: number[] = [];
+  for (let i = 0; i < 48; i++) {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    bars.push(1 + ((state >>> 24) % 3));
+  }
+  return bars;
+}
+
+// Short human-checkable code printed on the receipt
+export function verificationCode(reference: string, when: Date): string {
+  return hashString(`${reference}|${when.getTime()}`)
+    .toString(36)
+    .toUpperCase()
+    .padStart(8, "0")
+    .slice(-8);
+}
+
+// Builds receipt data from the till settings in JoinUs
+export function buildReceiptData(
+  cfg: any,
+  amount: number,
+  reference: string,
+  phone: string,
+  when: Date
+): ReceiptData {
+  return {
+    reference,
+    when,
+    phone,
+    amount,
+    title: cfg?.receiptTitle || "Contribution receipt",
+    message: cfg?.receiptMessage || DEFAULT_MESSAGE,
+    orgName: "Kachamba Chorus",
+    logoUrl: cfg?.receiptLogo || undefined,
+    extraLogoUrl: cfg?.receiptExtraLogo || undefined,
+    tillName: cfg?.tillName || "Kachok Ambassadors Chorus",
+    tillLabel: cfg?.tillType === "paybill" ? "Paybill No." : "Till No.",
+    tillNumber: String(cfg?.tillNumber || ""),
+  };
+}
+
+// Creates a PDF copy of the receipt (A5 portrait) and downloads it
+export async function downloadReceiptPdf(data: ReceiptData): Promise<void> {
+  const pdf = new jsPDF({ unit: "mm", format: "a5" });
+  const W = 148;
+  const margin = 12;
+
+  // Header band
+  pdf.setFillColor(8, 24, 48);
+  pdf.rect(0, 0, W, 38, "F");
+  pdf.setFillColor(240, 144, 16);
+  pdf.rect(0, 38, W, 1.4, "F");
+
+  pdf.setTextColor(255, 255, 255);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(15);
+  pdf.text(data.orgName, margin, 18);
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(8.5);
+  pdf.text("Seventh-day Adventist Youth Ministry · Kisumu, Kenya", margin, 25);
+
+  // Title and reference
+  pdf.setTextColor(8, 24, 48);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(8);
+  pdf.text("RECEIPT", margin, 50);
+  pdf.setFontSize(13);
+  pdf.text(data.title, margin, 57);
+
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(8);
+  pdf.setTextColor(100, 110, 125);
+  pdf.text("Receipt no.", W - margin, 50, { align: "right" });
+  pdf.setFont("courier", "bold");
+  pdf.setFontSize(8.5);
+  pdf.setTextColor(8, 24, 48);
+  pdf.text(data.reference, W - margin, 56, { align: "right" });
+
+  // Amount
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(7.5);
+  pdf.setTextColor(100, 110, 125);
+  pdf.text("AMOUNT", margin, 69);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(20);
+  pdf.setTextColor(8, 24, 48);
+  pdf.text(formatKes(data.amount), margin, 80);
+
+  // Details rows
   const rows: [string, string][] = [
     ["Date & time", formatWhen(data.when)],
     ["Payment method", `M-Pesa · ${maskPhone(data.phone)}`],
@@ -28,185 +151,42 @@ export function ReceiptSheet({ data }: { data: ReceiptData }) {
     [data.tillLabel, data.tillNumber],
     ["Purpose", "Ministry contribution"],
   ];
+  let y = 92;
+  rows.forEach(([label, value]) => {
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(9);
+    pdf.setTextColor(100, 110, 125);
+    pdf.text(label, margin, y);
+    pdf.setFont("helvetica", "bold");
+    pdf.setTextColor(8, 24, 48);
+    pdf.text(value, W - margin, y, { align: "right" });
+    pdf.setDrawColor(220, 224, 230);
+    pdf.line(margin, y + 2.5, W - margin, y + 2.5);
+    y += 9;
+  });
 
-  return (
-    <div className="receipt-sheet w-full overflow-hidden rounded-3xl border border-slate-200 bg-white text-slate-900">
-      {/* brand strip */}
-      <div className="flex h-1.5" aria-hidden="true">
-        <i className="flex-[5]" style={{ background: "var(--fill-primary)" }} />
-        <i className="flex-[3]" style={{ background: "var(--fill-secondary)" }} />
-        <i className="flex-[2]" style={{ background: "var(--fill-accent)" }} />
-      </div>
+  // Message and scripture
+  y += 6;
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(9);
+  pdf.setTextColor(40, 50, 65);
+  const messageLines = pdf.splitTextToSize(data.message, W - margin * 2) as string[];
+  pdf.text(messageLines, margin, y);
+  y += messageLines.length * 4.6 + 3;
+  pdf.setFont("helvetica", "italic");
+  pdf.setFontSize(8);
+  pdf.setTextColor(100, 110, 125);
+  pdf.text(SCRIPTURE, margin, y);
 
-      {/* header with logo */}
-      <div className="flex items-center gap-4 px-6 py-6 sm:px-8" style={{ background: "var(--fill-primary)" }}>
-        <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-white p-1.5">
-          {!logoFailed && data.logoUrl ? (
-            <img
-              src={data.logoUrl}
-              alt={`${data.orgName} logo`}
-              className="h-full w-full object-contain"
-              referrerPolicy="no-referrer"
-              onError={() => setLogoFailed(true)}
-            />
-          ) : (
-            <span className="font-display text-3xl font-bold" style={{ color: "var(--fill-primary)" }}>
-              K
-            </span>
-          )}
-        </div>
-        <div className="min-w-0 text-white">
-          <p className="truncate font-display text-xl font-bold leading-tight tracking-tight">{data.orgName}</p>
-          <p className="mt-0.5 text-xs leading-snug text-white/80">Seventh-day Adventist Youth Ministry · Kisumu, Kenya</p>
-        </div>
-      </div>
-
-      <div className="px-6 pb-7 pt-6 sm:px-8">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.16em]" style={{ color: "var(--fill-primary)" }}>
-              Receipt
-            </p>
-            <h4 className="mt-1 font-display text-2xl font-bold tracking-tight">{data.title}</h4>
-          </div>
-          <div className="text-right">
-            <p className="text-[11px] text-slate-500">Receipt no.</p>
-            <p className="break-all font-mono text-xs font-bold">{data.reference}</p>
-          </div>
-        </div>
-
-        {/* amount */}
-        <div className="mt-6 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-5">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Amount</p>
-            <p className="mt-1 font-display text-4xl font-bold leading-none tracking-tight tabular-nums sm:text-5xl">
-              {formatKes(data.amount)}
-            </p>
-          </div>
-          <span
-            className="shrink-0 rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.1em]"
-            style={{ background: "#def4f0", color: "#08796f" }}
-          >
-            Request sent
-          </span>
-        </div>
-
-        {/* details */}
-        <dl className="mt-5 divide-y divide-slate-200 text-sm">
-          {rows.map(([label, value]) => (
-            <div key={label} className="flex items-baseline justify-between gap-6 py-3">
-              <dt className="text-slate-500">{label}</dt>
-              <dd className="break-words text-right font-semibold">{value}</dd>
-            </div>
-          ))}
-        </dl>
-
-        {/* message */}
-        <div className="mt-5 rounded-2xl border-l-4 px-5 py-4" style={{ background: "#eef1fe", borderColor: "var(--fill-primary)" }}>
-          <p className="text-sm leading-relaxed text-slate-800">{data.message}</p>
-          <p className="mt-2 text-xs italic leading-relaxed text-slate-500">{SCRIPTURE}</p>
-        </div>
-
-        <p className="mt-5 text-xs leading-relaxed text-slate-500">
-          This receipt acknowledges a contribution request made through M-Pesa. Your M-Pesa confirmation message is your
-          official proof of payment.
-        </p>
-
-        {/* footer */}
-        <div className="mt-6 flex items-end justify-between gap-4 border-t border-slate-200 pt-4">
-          <div>
-            <svg viewBox={`0 0 ${total} 24`} preserveAspectRatio="none" className="h-8 w-40" aria-hidden="true">
-              {(() => {
-                let x = 0;
-                return bars.map((w, i) => {
-                  const rect = i % 2 === 0 ? <rect key={i} x={x} y={0} width={w} height={24} fill="#0f172a" /> : null;
-                  x += w + 0.7;
-                  return rect;
-                });
-              })()}
-            </svg>
-            <p className="mt-1.5 text-[10px] text-slate-500">
-              Verification code {verificationCode(data.reference, data.when)} · kachambachorus.online
-            </p>
-          </div>
-          {data.extraLogoUrl && (
-            <img
-              src={data.extraLogoUrl}
-              alt=""
-              className="h-10 w-10 shrink-0 object-contain"
-              referrerPolicy="no-referrer"
-              onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
-            />
-          )}
-        </div>
-      </div>
-    </div>
+  // Footer
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(7.5);
+  pdf.text(
+    `Verification code ${verificationCode(data.reference, data.when)} · kachambachorus.online`,
+    margin,
+    198
   );
-}
 
-/* ───────────────────────── Screen view + actions + print ───────────────────────── */
-
-export default function ReceiptView({ data, onDone }: { data: ReceiptData; onDone: () => void }) {
-  const [busy, setBusy] = useState(false);
-
-  const handleDownload = async () => {
-    setBusy(true);
-    try {
-      await downloadReceiptPdf(data);
-    } catch (err) {
-      console.error("Receipt PDF failed:", err);
-      alert("Sorry, the PDF couldn't be created. Please try Print instead.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handlePrint = () => {
-    const cleanup = () => {
-      document.body.classList.remove("print-mode-receipt");
-      window.removeEventListener("afterprint", cleanup);
-    };
-    document.body.classList.add("print-mode-receipt");
-    window.addEventListener("afterprint", cleanup);
-    window.setTimeout(() => {
-      window.print();
-      window.setTimeout(cleanup, 120000); // safety net for browsers that skip `afterprint`
-    }, 50);
-  };
-
-  return (
-    <div id="mpesa-receipt-container" className="mx-auto w-full max-w-md">
-      <div id="mpesa-receipt">
-        <ReceiptSheet data={data} />
-      </div>
-
-      <div className="no-print mt-6 grid gap-3 sm:grid-cols-2">
-        <button type="button" onClick={handleDownload} disabled={busy} className="btn-solid fill-primary !py-3.5 disabled:opacity-60">
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
-          {busy ? "Preparing…" : "Download PDF"}
-        </button>
-        <button type="button" onClick={handlePrint} className="btn-outline !py-3.5">
-          <Printer className="h-4 w-4" aria-hidden="true" />
-          Print
-        </button>
-      </div>
-      <button
-        type="button"
-        onClick={onDone}
-        className="no-print mx-auto mt-4 flex items-center gap-2 text-sm font-semibold text-white/60 underline decoration-white/25 underline-offset-4 hover:text-white"
-      >
-        <Check className="h-4 w-4" aria-hidden="true" />
-        Done
-      </button>
-
-      {/* Print-only copy, mounted on <body> so nothing else on the page prints with it */}
-      {typeof document !== "undefined" &&
-        createPortal(
-          <div className="receipt-print-only">
-            <ReceiptSheet data={data} />
-          </div>,
-          document.body
-        )}
-    </div>
-  );
-}
+  const safeRef = data.reference.replace(/[^A-Za-z0-9-]/g, "_") || "receipt";
+  pdf.save(`receipt-${safeRef}.pdf`);
+                       }
