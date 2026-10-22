@@ -537,7 +537,9 @@ export default function AdminPanel({
   const fetchMpesaReceiptsList = async () => {
     setLoadingReceipts(true);
     try {
-      const res = await fetch("/api/mpesa/receipts");
+      const res = await fetch("/api/mpesa/receipts", {
+        headers: { "x-admin-passcode": adminToken || "" }
+      });
       if (res.ok) {
         const data = await res.json();
         setMpesaReceipts(data.receipts || []);
