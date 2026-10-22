@@ -119,7 +119,7 @@ export function ReceiptSheet({ data }: { data: ReceiptData }) {
               {(() => {
                 let x = 0;
                 return bars.map((w, i) => {
-                  const rect = i % 2 === 0 ? <rect key={i} x={x} y={0} width={w} height={24} fill="#0f172a" /> : null;
+                  const rect = i % 2 === 0 ? <rect key={i} x={x} y={0} width={w} height={24} fill="#081830" /> : null;
                   x += w + 0.7;
                   return rect;
                 });
