@@ -2090,7 +2090,6 @@ export default function Itinerary({
                             type="button"
                             onClick={closeMediaUploader}
                             className="bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white p-2 rounded-xl border border-slate-850 cursor-pointer"
-                          >
                             <X className="w-3.5 h-3.5" />
                           </button>
                         </div>
