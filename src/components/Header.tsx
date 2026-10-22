@@ -196,68 +196,61 @@ export default function Header({
         }}
       />
 
-      {/* Mobile full-screen sheet */}
+      {/* Mobile dropdown panel (white in both modes) */}
       <AnimatePresence>
         {mobileOpen && (
           <motion.nav
             id="mobile-navigation"
             aria-label="Mobile navigation"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-x-0 bottom-0 top-[68px] overflow-y-auto bg-slate-950 px-6 pb-10 pt-4 lg:hidden"
+            className="fixed inset-x-0 top-[68px] z-40 max-h-[calc(100vh-68px)] overflow-y-auto bg-white pb-8 text-[#0B2A4A] shadow-2xl shadow-[#0B2A4A]/20 lg:hidden"
           >
-            <ul className="divide-y divide-white/10">
-              {navItems.map(([label, id], i) => (
-                <motion.li
-                  key={id}
-                  initial={{ opacity: 0, x: -12 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.035 * i, duration: 0.35 }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => scrollTo(id)}
-                    className="flex w-full items-center gap-4 py-4 text-left"
-                  >
-                    <span
-                      className="h-3 w-3 shrink-0 rounded-full"
-                      style={{ background: ["var(--fill-primary)", "var(--fill-secondary)", "var(--fill-accent)"][i % 3] }}
-                    />
-                    <span
-                      className={`font-display text-3xl font-bold tracking-tight ${
-                        activeSection === id ? "text-[color:var(--hue-primary)]" : ""
+            <ul>
+              {navItems.map(([label, id]) => {
+                const active = activeSection === id;
+                return (
+                  <li key={id}>
+                    <button
+                      type="button"
+                      onClick={() => scrollTo(id)}
+                      aria-current={active ? "true" : undefined}
+                      className={`flex w-full items-center px-[3.25rem] py-[1.1rem] text-left font-display text-[1.05rem] font-medium transition ${
+                        active ? "bg-[#F07426] text-white" : "text-[#0B2A4A] hover:bg-[#F4F8FC]"
                       }`}
                     >
                       {label}
-                    </span>
-                  </button>
-                </motion.li>
-              ))}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
 
-            <div className="mt-8 grid grid-cols-2 gap-3">
-              <button type="button" onClick={onToggleTheme} className="btn-outline !py-3 !text-[13px]">
+            <div className="mt-6 grid grid-cols-2 gap-3 px-6">
+              <button
+                type="button"
+                onClick={onToggleTheme}
+                className="flex items-center justify-center gap-2 rounded-lg border-2 border-[#0B2A4A] py-3 text-[13px] font-semibold text-[#0B2A4A]"
+              >
                 {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                 {isDark ? "Light mode" : "Dark mode"}
               </button>
               <button
                 type="button"
                 onClick={isAdmin ? onLogout : onOpenAdmin}
-                className="btn-outline !py-3 !text-[13px]"
+                className="flex items-center justify-center gap-2 rounded-lg border-2 border-[#0B2A4A] py-3 text-[13px] font-semibold text-[#0B2A4A]"
               >
                 <Lock className="h-4 w-4" />
                 {isAdmin ? "Logout" : "Admin"}
               </button>
             </div>
-            <button
-              type="button"
-              onClick={() => scrollTo("contact")}
-              className="btn-solid fill-accent mt-3 w-full !py-4"
-            >
-              Book the chorus
-            </button>
+            <div className="px-6 pt-3">
+              <button type="button" onClick={() => scrollTo("contact")} className="btn-navy w-full">
+                Book the chorus
+              </button>
+            </div>
           </motion.nav>
         )}
       </AnimatePresence>
