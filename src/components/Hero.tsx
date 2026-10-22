@@ -32,7 +32,7 @@ export default function Hero({ photos = [], events = [] }: HeroProps) {
         <span className="eyebrow-pill">Kachok SDA Church · Kisumu, Kenya</span>
 
         <h1 className="hero-title mt-6 font-display font-bold text-[#0B2A4A]">
-          Sounds of <span className="accent-word">togetherness.</span>
+          Sounds of <span className="accent-word">Togetherness.</span>
         </h1>
 
         <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-[#0B2A4A]/75 md:text-lg">
