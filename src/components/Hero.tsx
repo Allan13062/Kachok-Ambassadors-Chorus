@@ -9,10 +9,12 @@ interface HeroProps {
   events?: ItineraryItem[];
 }
 
-export default function Hero({ onAskAI, webLogo, photos = [], events = [] }: HeroProps) {
+export default function Hero({ onAskAI, photos = [], events = [] }: HeroProps) {
   const go = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 
+  // Background: first gallery photo if there is one, otherwise public/hero.jpg
   const photo = photos.find((p) => p.url && (!p.mediaType || p.mediaType === "image"));
+  const background = photo?.url || "/hero.jpg";
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -20,102 +22,90 @@ export default function Hero({ onAskAI, webLogo, photos = [], events = [] }: Her
     .filter((e) => e.status !== "Past" && !Number.isNaN(new Date(e.date).getTime()) && new Date(e.date) >= today)
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
 
+  const nextDate = next
+    ? new Date(next.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    : "";
+
   return (
-    <section id="home" className="relative overflow-hidden bg-slate-950 px-5 pb-16 pt-24 text-white md:px-10 md:pb-24 md:pt-32">
-      <div className="mx-auto grid max-w-5xl items-center gap-12 lg:grid-cols-12 lg:gap-10">
-        {/* Copy */}
-        <div className="lg:col-span-7">
-          <h1 className="hero-title mt-5 font-display font-bold text-white">
-            Sounds of <span className="text-amber-400">togetherness.</span>
-          </h1>
+    <section id="home" className="relative isolate flex min-h-[92vh] flex-col justify-end overflow-hidden bg-slate-950 text-white">
+      <div
+        className="absolute inset-0 -z-10 bg-cover bg-center"
+        style={{ backgroundImage: `url("${background}")` }}
+        role="img"
+        aria-label="Kachamba Chorus singing"
+      />
+      <div className="absolute inset-0 -z-10 bg-gradient-to-t from-slate-950 via-slate-950/70 to-slate-950/30" />
 
-          <p className="mt-5 max-w-md text-base leading-relaxed text-white/65">
-            Kachamba Chorus is the a cappella ministry of Kachok SDA Church. Worship, service and outreach, carried by voice alone.
-          </p>
+      <div className="mx-auto w-full max-w-6xl px-5 pb-12 pt-36 md:px-10 md:pb-16">
+        <p className="text-xs font-semibold tracking-wide text-white/80">Kachok SDA Church · Kisumu, Kenya</p>
 
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <button type="button" onClick={() => go("itinerary")} className="btn-solid fill-accent">
-              See upcoming events
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </button>
-            <button type="button" onClick={() => go("music")} className="btn-outline">
-              Listen to our music
-            </button>
-          </div>
+        <h1 className="hero-title mt-4 max-w-3xl font-display font-bold text-white">
+          Sounds of <span className="accent-word">togetherness.</span>
+        </h1>
 
+        <p className="mt-5 max-w-lg text-base leading-relaxed text-white/75">
+          Kachamba Chorus is the a cappella ministry of Kachok SDA Church. Worship, service and outreach, carried by voice alone.
+        </p>
+
+        <div className="mt-8 flex flex-wrap items-center gap-3">
+          <button type="button" onClick={() => go("itinerary")} className="btn-solid fill-accent">
+            See upcoming events
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </button>
+          <button type="button" onClick={() => go("music")} className="btn-outline">
+            Listen to our music
+          </button>
           <button
             type="button"
             onClick={onAskAI}
-            className="mt-6 inline-flex items-center gap-2 text-sm text-white/55 underline decoration-white/25 underline-offset-4 transition hover:text-white"
+            className="inline-flex items-center gap-2 px-2 text-sm text-white/70 underline underline-offset-4 hover:text-white"
           >
             <MessageCircle className="h-4 w-4" aria-hidden="true" />
-            Questions? Ask the Kachamba Guide
-          </button>
-
-          <dl className="mt-12 grid max-w-md grid-cols-3 divide-x divide-white/10 border-y border-white/10">
-            {[
-              ["2021", "Founded"],
-              ["4 parts", "Soprano to bass"],
-              ["100%", "A cappella"],
-            ].map(([big, small]) => (
-              <div key={big} className="px-4 py-4 first:pl-0">
-                <dt className="font-display text-lg font-bold tracking-tight">{big}</dt>
-                <dd className="mt-0.5 text-xs text-white/50">{small}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-
-        {/* Visual */}
-        <div className="relative mx-auto w-full max-w-sm lg:col-span-5 lg:max-w-none">
-          <div className="relative aspect-[4/5] overflow-hidden rounded-2xl bg-slate-800">
-            {photo ? (
-              <img
-                src={photo.url}
-                alt={photo.title || "Kachamba Chorus"}
-                className="h-full w-full object-cover"
-                loading="eager"
-                decoding="async"
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <div className="grid h-full w-full place-items-center bg-gradient-to-b from-slate-800 to-slate-900">
-                {webLogo ? (
-                  <img src={webLogo} alt="Kachamba Chorus emblem" className="h-40 w-40 rounded-full object-cover" referrerPolicy="no-referrer" />
-                ) : (
-                  <span className="font-display text-6xl font-bold text-white/80">K</span>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Next up */}
-          <button
-            type="button"
-            onClick={() => go("itinerary")}
-            className="absolute -bottom-6 left-4 right-4 rounded-xl border border-white/10 bg-slate-900 p-4 text-left shadow-2xl shadow-black/40 transition hover:border-amber-400/50 sm:left-auto sm:right-auto sm:-left-8 sm:w-72"
-          >
-            <span className="block text-xs font-semibold text-amber-400">{next ? "Next up" : "On the road"}</span>
-            <span className="mt-1 block font-display text-base font-semibold leading-snug">
-              {next ? next.event : "See where we’re singing next"}
-            </span>
-            {next && (
-              <span className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-white/55">
-                <span>
-                  {new Date(next.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                  {next.time ? ` · ${next.time}` : ""}
-                </span>
-                {next.location && (
-                  <span className="inline-flex items-center gap-1">
-                    <MapPin className="h-3 w-3" aria-hidden="true" />
-                    {next.location}
-                  </span>
-                )}
-              </span>
-            )}
+            Ask the guide
           </button>
         </div>
       </div>
+
+      {/* Next event strip */}
+      <a
+        href="#itinerary"
+        onClick={(e) => {
+          e.preventDefault();
+          go("itinerary");
+        }}
+        className="group relative block w-full border-t border-white/15 bg-slate-950/85"
+      >
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-4 md:px-10">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold tracking-wide text-amber-400">
+              {next ? "Next event" : "Upcoming"}
+            </p>
+            <p className="truncate font-display text-base font-semibold md:text-lg">
+              {next ? next.event : "See where we are singing next"}
+            </p>
+          </div>
+
+          {next && (
+            <div className="hidden shrink-0 items-center gap-5 text-xs text-white/65 sm:flex">
+              <span>
+                {nextDate}
+                {next.time ? ` · ${next.time}` : ""}
+              </span>
+              {next.location && (
+                <span className="inline-flex items-center gap-1">
+                  <MapPin className="h-3 w-3" aria-hidden="true" />
+                  {next.location}
+                </span>
+              )}
+            </div>
+          )}
+
+          <ArrowRight
+            className="h-5 w-5 shrink-0 text-white/60 transition group-hover:translate-x-1 group-hover:text-amber-400"
+            aria-hidden="true"
+          />
+        </div>
+      </a>
     </section>
   );
 }
