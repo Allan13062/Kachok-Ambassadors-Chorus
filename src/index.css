@@ -782,3 +782,40 @@ html.light {
   --color-amber-300: #A85F00;
   --color-amber-350: #A85F00;
 }
+/* =====================================================================
+   MODERN LAYOUT REFRESH
+   ===================================================================== */
+
+/* Accent word in headlines (italic, orange) */
+.accent-word {
+  font-style: italic;
+  font-weight: 500;
+  color: var(--fill-primary);
+  letter-spacing: -0.01em;
+}
+
+/* Calmer buttons: squared corners, sentence case, no bouncing */
+.btn-solid,
+.btn-outline {
+  border-radius: 6px;
+  text-transform: none;
+  letter-spacing: 0.01em;
+  font-size: 0.875rem;
+  padding: 0.8rem 1.25rem;
+}
+.btn-solid:hover { transform: none; filter: brightness(1.06); }
+.btn-outline:hover { transform: none; }
+
+/* Remove the decorative coloured bars on top of sections */
+main > div > section::before { display: none; }
+
+/* Consistent, generous section spacing (hero excluded) */
+main section[id]:not(#home) {
+  padding-top: clamp(4rem, 8vw, 7rem);
+  padding-bottom: clamp(4rem, 8vw, 7rem);
+}
+
+/* Bigger headline on large screens only */
+@media (min-width: 1024px) {
+  .hero-title { font-size: 4.5rem !important; }
+}
