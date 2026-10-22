@@ -154,9 +154,6 @@ async function getAdminPasscode(): Promise<string> {
 
 // Authentication middleware using Firestore sessions and roles as the source of truth
 async function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
-  // Admin login is disabled. Bypass authentication.
-  return next();
-  
   const code = req.headers["x-admin-passcode"] as string;
   const token = (req.headers["x-admin-token"] || req.headers["x-admin-passcode"]) as string;
   const userId = req.headers["x-user-id"] as string;
@@ -1266,8 +1263,44 @@ app.post("/api/mpesa/stkpush", async (req, res) => {
   }
 });
 
+// Save a confirmed M-Pesa payment so it appears in the admin receipts list.
+// Safaricom can resend a callback, so a receipt number is only stored once.
+async function saveMpesaReceipt(entry: { receiptNo: string; amount: number; phone: string; checkoutRequestId: string }) {
+  const localDb: any = await getLocalDb();
+  const existing: any[] = Array.isArray(localDb.receipts) ? localDb.receipts : [];
+  if (existing.some((r: any) => r.receiptNo === entry.receiptNo)) return null;
+
+  const createdAt = new Date().toISOString();
+  const record = {
+    id: `rcpt-${entry.receiptNo}`,
+    receiptNo: entry.receiptNo,
+    contributorName: "Contributor",
+    amount: entry.amount,
+    phone: entry.phone,
+    date: new Date().toLocaleString("en-KE", { timeZone: "Africa/Nairobi" }),
+    checkoutRequestId: entry.checkoutRequestId,
+    pdfUrl: "",
+    createdAt,
+  };
+  await syncLocalFile("receipts", "insert", record);
+  return record;
+}
+
+// Admin: list saved M-Pesa receipts, newest first
+app.get("/api/mpesa/receipts", requireAdmin, async (req, res) => {
+  try {
+    const localDb: any = await getLocalDb();
+    const receipts = (Array.isArray(localDb.receipts) ? localDb.receipts : [])
+      .slice()
+      .sort((a: any, b: any) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+    res.json({ receipts });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || "Could not load receipts" });
+  }
+});
+
 // Robust Callback Endpoint to handle Safaricom async JSON webhooks
-app.post("/api/mpesa/callback", (req, res) => {
+app.post("/api/mpesa/callback", async (req, res) => {
   console.log("[M-Pesa Webhook] Received callback block.");
   
   try {
@@ -1290,8 +1323,19 @@ app.post("/api/mpesa/callback", (req, res) => {
          const phoneObj = CallbackMetadata.Item.find((i: any) => i.Name === "PhoneNumber");
          
          console.log(`[M-Pesa Webhook] Paid ${amountObj?.Value} KES. Receipt: ${receiptObj?.Value}. From: ${phoneObj?.Value}`);
-         
-         // TODO: In a production app, save this receipt logic strictly to the database (e.g. Postgres or Firestore).
+
+         if (receiptObj?.Value) {
+           try {
+             await saveMpesaReceipt({
+               receiptNo: String(receiptObj.Value),
+               amount: Number(amountObj?.Value) || 0,
+               phone: String(phoneObj?.Value || ""),
+               checkoutRequestId: String(CheckoutRequestID || ""),
+             });
+           } catch (saveErr: any) {
+             console.warn("[M-Pesa Webhook] Could not save receipt:", saveErr?.message || saveErr);
+           }
+         }
       }
 
     } else {
@@ -2213,6 +2257,40 @@ app.delete("/api/leaders/:id", requireAdmin, async (req, res) => {
 });
 
 // 16a. Cloudinary signature route — client uploads directly to Cloudinary using this token.
+// Admin diagnostic: uploads a 1x1 test image to Cloudinary, times it, then deletes it.
+app.post("/api/cloudinary-diagnostic", requireAdmin, async (req, res) => {
+  try {
+    const config = cloudinary.config();
+    const mask = (v?: string) => (v ? `${v.slice(0, 4)}••••${v.slice(-3)}` : "missing");
+    const pixel = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+    const started = Date.now();
+    const uploaded: any = await cloudinary.uploader.upload(pixel, { folder: "kachamba_diagnostics", resource_type: "image" });
+    const uploadTimeMs = Date.now() - started;
+
+    let deletionStatus = "skipped";
+    try {
+      const removed: any = await cloudinary.uploader.destroy(uploaded.public_id);
+      deletionStatus = removed?.result || "unknown";
+    } catch (delErr: any) {
+      deletionStatus = `failed: ${delErr?.message || delErr}`;
+    }
+
+    res.json({
+      cloudName: config.cloud_name || "missing",
+      apiKey: mask(config.api_key as string),
+      apiSecret: mask(config.api_secret as string),
+      uploadTimeMs,
+      uploadedUrl: uploaded.secure_url,
+      deletionStatus,
+      isUsingCustomCredentials: Boolean(
+        process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET
+      ),
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || "Cloudinary diagnostic failed" });
+  }
+});
+
 app.post("/api/cloudinary-signature", requireAdmin, async (req, res) => {
   if (!isCloudinaryAvailable()) {
     return res.status(503).json({ success: false, error: "Cloudinary is not configured on this server." });
