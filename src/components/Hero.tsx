@@ -1,118 +1,74 @@
 import React from "react";
-import { ArrowRight, ArrowUpRight, MapPin, Play, MessageCircle } from "lucide-react";
-import { motion } from "motion/react";
+import { ArrowRight, MapPin, MessageCircle } from "lucide-react";
 import type { GalleryPhoto, ItineraryItem } from "../types";
 
 interface HeroProps {
   onAskAI: () => void;
   webLogo?: string;
-  /** Optional: pass dbData.gallery so the hero can show a real photo of the choir */
   photos?: GalleryPhoto[];
-  /** Optional: pass dbData.itinerary so the hero can show the next event */
   events?: ItineraryItem[];
 }
 
-const ease = [0.16, 1, 0.3, 1] as const;
-const rise = {
-  hidden: { opacity: 0, y: 22 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.85, ease } },
-};
-
 export default function Hero({ onAskAI, webLogo, photos = [], events = [] }: HeroProps) {
-  const go = (id: string) =>
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const go = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   const photo = photos.find((p) => p.url && (!p.mediaType || p.mediaType === "image"));
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  // Earliest upcoming event (the list isn't guaranteed to be sorted by date)
   const next = [...events]
     .filter((e) => e.status !== "Past" && !Number.isNaN(new Date(e.date).getTime()) && new Date(e.date) >= today)
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
 
   return (
-    <section
-      id="home"
-      className="relative overflow-hidden bg-slate-950 px-6 pb-20 pt-28 text-white md:px-12 md:pb-28 md:pt-36"
-    >
-      <motion.div
-        initial="hidden"
-        animate="visible"
-        variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.09 } } }}
-        className="mx-auto grid w-full max-w-6xl items-center gap-16 lg:grid-cols-12 lg:gap-12"
-      >
-        {/* ───────── Copy ───────── */}
+    <section id="home" className="relative overflow-hidden bg-slate-950 px-5 pb-16 pt-24 text-white md:px-10 md:pb-24 md:pt-32">
+      <div className="mx-auto grid max-w-5xl items-center gap-12 lg:grid-cols-12 lg:gap-10">
+        {/* Copy */}
         <div className="lg:col-span-7">
-          <motion.p
-            variants={rise}
-            className="inline-flex items-center gap-2.5 rounded-full border border-white/15 px-3.5 py-1.5 text-xs font-semibold text-white/70"
-          >
-            <span className="h-2 w-2 rounded-full" style={{ background: "var(--fill-secondary)" }} />
-            Adventist Youth Ministry · A cappella · Kisumu, Kenya
-          </motion.p>
+          <h1 className="hero-title mt-5 font-display font-bold text-white">
+            Sounds of <span className="text-amber-400">togetherness.</span>
+          </h1>
 
-          <motion.h1
-            variants={rise}
-            className="mt-7 font-display text-[3.1rem] font-bold leading-[0.95] tracking-[-0.05em] sm:text-7xl lg:text-[5.75rem]"
-          >
-            Sounds of
-            <br />
-            <span style={{ color: "var(--hue-primary)" }}>Togetherness.</span>
-          </motion.h1>
+          <p className="mt-5 max-w-md text-base leading-relaxed text-white/65">
+            Kachamba Chorus is the a cappella ministry of Kachok SDA Church. Worship, service and outreach, carried by voice alone.
+          </p>
 
-          <motion.p variants={rise} className="mt-7 max-w-xl text-lg leading-relaxed text-white/65">
-            Kachamba Chorus is the voice-only gospel ministry of Kachok SDA Church — worship,
-            service and outreach, carried by harmony alone.
-          </motion.p>
-
-          <motion.div variants={rise} className="mt-9 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <button type="button" onClick={() => go("itinerary")} className="btn-solid fill-accent">
               See upcoming events
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </button>
             <button type="button" onClick={() => go("music")} className="btn-outline">
-              <Play className="h-4 w-4" aria-hidden="true" />
               Listen to our music
             </button>
-          </motion.div>
+          </div>
 
-          <motion.button
-            variants={rise}
+          <button
             type="button"
             onClick={onAskAI}
-            className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-white/55 underline decoration-white/25 underline-offset-4 transition hover:text-white"
+            className="mt-6 inline-flex items-center gap-2 text-sm text-white/55 underline decoration-white/25 underline-offset-4 transition hover:text-white"
           >
             <MessageCircle className="h-4 w-4" aria-hidden="true" />
             Questions? Ask the Kachamba Guide
-          </motion.button>
+          </button>
 
-          <motion.dl
-            variants={rise}
-            className="mt-14 grid max-w-lg grid-cols-3 divide-x divide-white/10 border-y border-white/10"
-          >
+          <dl className="mt-12 grid max-w-md grid-cols-3 divide-x divide-white/10 border-y border-white/10">
             {[
               ["2021", "Founded"],
               ["4 parts", "Soprano to bass"],
               ["100%", "A cappella"],
             ].map(([big, small]) => (
               <div key={big} className="px-4 py-4 first:pl-0">
-                <dt className="font-display text-2xl font-bold tracking-tight md:text-3xl">{big}</dt>
-                <dd className="mt-0.5 text-xs font-medium text-white/50">{small}</dd>
+                <dt className="font-display text-lg font-bold tracking-tight">{big}</dt>
+                <dd className="mt-0.5 text-xs text-white/50">{small}</dd>
               </div>
             ))}
-          </motion.dl>
+          </dl>
         </div>
 
-        {/* ───────── Visual ───────── */}
-        <motion.div variants={rise} className="relative mx-auto w-full max-w-md lg:col-span-5 lg:max-w-none">
-          {/* offset colour block behind the photo */}
-          <div
-            aria-hidden="true"
-            className="absolute inset-0 translate-x-3 translate-y-3 rounded-[2rem] sm:translate-x-5 sm:translate-y-5"
-            style={{ background: "var(--fill-primary)" }}
-          />
-
-          <div className="relative aspect-[4/5] overflow-hidden rounded-[2rem] bg-slate-800">
+        {/* Visual */}
+        <div className="relative mx-auto w-full max-w-sm lg:col-span-5 lg:max-w-none">
+          <div className="relative aspect-[4/5] overflow-hidden rounded-2xl bg-slate-800">
             {photo ? (
               <img
                 src={photo.url}
@@ -123,69 +79,43 @@ export default function Hero({ onAskAI, webLogo, photos = [], events = [] }: Her
                 referrerPolicy="no-referrer"
               />
             ) : (
-              <div
-                className="grid h-full w-full place-items-center"
-                style={{ background: "var(--fill-secondary)" }}
-              >
-                <div className="rounded-full border border-white/25 p-5">
-                  <div className="rounded-full border border-white/25 p-5">
-                    {webLogo ? (
-                      <img
-                        src={webLogo}
-                        alt="Kachamba Chorus emblem"
-                        className="h-36 w-36 rounded-full border-4 border-white/90 object-cover sm:h-44 sm:w-44"
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      <span className="grid h-36 w-36 place-items-center font-display text-7xl font-bold text-white">K</span>
-                    )}
-                  </div>
-                </div>
+              <div className="grid h-full w-full place-items-center bg-gradient-to-b from-slate-800 to-slate-900">
+                {webLogo ? (
+                  <img src={webLogo} alt="Kachamba Chorus emblem" className="h-40 w-40 rounded-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  <span className="font-display text-6xl font-bold text-white/80">K</span>
+                )}
               </div>
             )}
-
-            <span
-              className="absolute left-4 top-4 rounded-full px-3 py-1.5 text-xs font-bold text-white"
-              style={{ background: "var(--fill-secondary)" }}
-            >
-              Kachok SDA Church
-            </span>
           </div>
 
-          {/* Next-up card */}
+          {/* Next up */}
           <button
             type="button"
             onClick={() => go("itinerary")}
-            className="group absolute -bottom-6 left-3 right-3 rounded-2xl border border-white/10 bg-slate-900 p-4 text-left shadow-2xl shadow-black/30 transition hover:-translate-y-1 sm:-left-8 sm:right-auto sm:w-[19rem]"
+            className="absolute -bottom-6 left-4 right-4 rounded-xl border border-white/10 bg-slate-900 p-4 text-left shadow-2xl shadow-black/40 transition hover:border-amber-400/50 sm:left-auto sm:right-auto sm:-left-8 sm:w-72"
           >
-            <span className="flex items-center justify-between text-[11px] font-bold uppercase tracking-[0.14em]">
-              <span style={{ color: "var(--hue-accent)" }}>{next ? "Next up" : "On the road"}</span>
-              <ArrowUpRight className="h-4 w-4 text-white/40 transition group-hover:text-white" aria-hidden="true" />
-            </span>
-            <span className="mt-1.5 block font-display text-lg font-semibold leading-snug tracking-tight">
+            <span className="block text-xs font-semibold text-amber-400">{next ? "Next up" : "On the road"}</span>
+            <span className="mt-1 block font-display text-base font-semibold leading-snug">
               {next ? next.event : "See where we’re singing next"}
             </span>
-            <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-white/55">
-              {next ? (
-                <>
-                  <span>
-                    {next.date}
-                    {next.time ? ` · ${next.time}` : ""}
+            {next && (
+              <span className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-white/55">
+                <span>
+                  {new Date(next.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  {next.time ? ` · ${next.time}` : ""}
+                </span>
+                {next.location && (
+                  <span className="inline-flex items-center gap-1">
+                    <MapPin className="h-3 w-3" aria-hidden="true" />
+                    {next.location}
                   </span>
-                  {next.location && (
-                    <span className="inline-flex items-center gap-1">
-                      <MapPin className="h-3 w-3" aria-hidden="true" />
-                      {next.location}
-                    </span>
-                  )}
-                </>
-              ) : (
-                <span>Concerts, vespers and outreach — full itinerary</span>
-              )}
-            </span>
+                )}
+              </span>
+            )}
           </button>
-        </motion.div>
-      </motion.div>
+        </div>
+      </div>
     </section>
   );
 }
