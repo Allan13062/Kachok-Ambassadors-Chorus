@@ -111,7 +111,7 @@ export default function Header({
             decoding="async"
             referrerPolicy="no-referrer"
           />
-          <span className="font-display text-lg font-bold tracking-tight">
+          <span className="brand-name font-display font-bold">
             Kachamba<span className="text-white/50"> Chorus</span>
           </span>
         </button>
