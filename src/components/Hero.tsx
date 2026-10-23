@@ -32,11 +32,11 @@ export default function Hero({ photos = [], events = [] }: HeroProps) {
         <span className="eyebrow-pill">Kachok SDA Church · Kisumu, Kenya</span>
 
         <h1 className="hero-title mt-6 font-display font-bold text-[#0B2A4A]">
-          Sounds of <span className="accent-word">togetherness.</span>
+          Sounds of <span className="accent-word">Togetherness.</span>
         </h1>
 
         <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-[#0B2A4A]/75 md:text-lg">
-          Kachamba Chorus is the a cappella ministry of Kachok SDA Church. Worship, service and outreach, carried by voice alone.
+          Kachamba Chorus is a vibrant Adventist Youth Ministry focused on worship, service and outreach, with the sole aim of bringing back the lost sheep into the fold.
         </p>
 
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
