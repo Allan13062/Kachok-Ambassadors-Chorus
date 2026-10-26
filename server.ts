@@ -1091,18 +1091,20 @@ function mpesaSettings(): MpesaSettingsResult {
   const secret = process.env.MPESA_CONSUMER_SECRET;
   const passkey = process.env.MPESA_PASSKEY;
   const shortcode = process.env.MPESA_STORE_NUMBER || process.env.MPESA_SHORTCODE;
-  const appUrl = process.env.APP_URL;
+  // APP_URL is optional on Vercel: fall back to the deployment's own address.
+  const vercelHost = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+  const appUrl = process.env.APP_URL || (vercelHost ? `https://${vercelHost}` : undefined);
   const missing = [
     ["MPESA_CONSUMER_KEY", key],
     ["MPESA_CONSUMER_SECRET", secret],
     ["MPESA_PASSKEY", passkey],
     ["MPESA_STORE_NUMBER", shortcode],
-    ["APP_URL", appUrl],
+    ["APP_URL (or deploy on Vercel)", appUrl],
   ].filter(([, value]) => !value).map(([name]) => name);
   if (missing.length) {
     return { ok: false, error: `Online M-Pesa is not set up yet. Add these in Vercel and redeploy: ${missing.join(", ")}.` };
   }
-  const isProd = process.env.MPESA_ENV !== "sandbox";
+  const isProd = String(process.env.MPESA_ENV || "").trim().toLowerCase() !== "sandbox";
   return {
     ok: true,
     s: {
@@ -1112,7 +1114,7 @@ function mpesaSettings(): MpesaSettingsResult {
       passkey: String(passkey),
       key: String(key),
       secret: String(secret),
-      callbackUrl: `${String(appUrl).replace(/\/$/, "")}/api/mpesa/callback`,
+      callbackUrl: `${(/^https?:\/\//.test(String(appUrl)) ? String(appUrl) : `https://${appUrl}`).replace(/\/$/, "")}/api/mpesa/callback`,
     },
   };
 }
@@ -1291,7 +1293,7 @@ app.get("/api/mpesa/status/:checkoutRequestId", async (req, res) => {
 
     if (String(data.ResultCode) === "0") {
       await recordPaymentOutcome(checkoutRequestId, { status: "paid" });
-      return res.json({ status: "paid", message: data.ResultDesc || "" });
+      return res.json({ status: "paid", message: data.ResultDesc || "", receiptNo: saved?.receiptNo || "" });
     }
     if (data.ResultCode !== undefined && data.ResultCode !== null) {
       // Cancelled, timed out, or insufficient funds
@@ -1339,6 +1341,39 @@ app.get("/api/mpesa/receipts", requireAdmin, async (req, res) => {
     res.json({ receipts });
   } catch (err: any) {
     res.status(500).json({ error: err?.message || "Could not load receipts" });
+  }
+});
+
+// Attach the generated receipt PDF to a payment that Safaricom has confirmed.
+// Only confirmed payments can be saved, so nobody can forge receipts.
+app.post("/api/mpesa/receipt/save", async (req, res) => {
+  try {
+    const { checkoutRequestId, pdfBase64 } = req.body || {};
+    if (!checkoutRequestId) return res.status(400).json({ success: false, error: "checkoutRequestId is required." });
+    const localDb: any = await getLocalDb();
+    const payment = (localDb.payments || []).find((p: any) => p.id === String(checkoutRequestId));
+    if (!payment || payment.status !== "paid") {
+      return res.status(403).json({ success: false, error: "This payment has not been confirmed." });
+    }
+    const receiptNo = payment.receiptNo;
+    if (!receiptNo) return res.json({ success: true, pdfUrl: "" });
+
+    let pdfUrl = "";
+    if (pdfBase64 && isCloudinaryAvailable()) {
+      try {
+        const up: any = await cloudinary.uploader.upload(`data:application/pdf;base64,${pdfBase64}`, {
+          resource_type: "image", folder: "kachamba-receipts", public_id: `receipt-${receiptNo}`, overwrite: true,
+        });
+        pdfUrl = up.secure_url || "";
+      } catch (e: any) {
+        console.warn("[M-Pesa] Receipt PDF upload failed:", e?.message || e);
+      }
+    }
+    const existing = (localDb.receipts || []).find((r: any) => r.receiptNo === receiptNo);
+    if (existing && pdfUrl) await syncLocalFile("receipts", "update", { ...existing, pdfUrl });
+    return res.json({ success: true, pdfUrl });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err?.message || "Could not save the receipt." });
   }
 });
 
