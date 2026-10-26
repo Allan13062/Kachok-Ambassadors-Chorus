@@ -110,6 +110,21 @@ export function useAdminAuth(): AdminSession {
     };
   }, [establishSession]);
 
+  // Firebase tokens expire after about an hour; refresh them so admin saves keep working.
+  useEffect(() => {
+    if (!isAdmin) return;
+    const refresh = window.setInterval(async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+      try {
+        setAdminToken(await user.getIdToken(true));
+      } catch (error) {
+        console.error("Could not refresh admin session:", error);
+      }
+    }, 45 * 60 * 1000);
+    return () => window.clearInterval(refresh);
+  }, [isAdmin]);
+
   const login = useCallback(
     async (email: string, password?: string): Promise<boolean> => {
       setAuthLoading(true);
