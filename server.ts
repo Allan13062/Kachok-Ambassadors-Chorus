@@ -1,3 +1,4 @@
+import "./src/envLoader.ts";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -13,7 +14,9 @@ import { Readable } from "stream";
 import { v2 as cloudinary } from "cloudinary";
 
 import { db } from "./src/db/index.ts";
-import { getLocalDb, saveLocalDb, insertItem, deleteItem, getSession, deleteSession } from "./dbStorage.ts";
+import { getLocalDb, saveLocalDb, insertItem, deleteItem, getSession, deleteSession, saveFile, getFile } from "./dbStorage.ts";
+import { timingSafeEqual, randomBytes, scryptSync } from "crypto";
+import { verifyAdminIdToken } from "./src/lib/firebaseAdmin.ts";
 import { activities, itinerary, leaders, inquiries, musicConfig, adminConfig, uploads, users, gallery } from "./src/db/schema.ts";
 import { eq } from "drizzle-orm";
 
@@ -76,7 +79,7 @@ app.use("/uploads", (req, res, next) => {
 // Fast In-Memory Passcode Cache to prevent Database slowness
 let cachedPasscode: string | null = null;
 let passcodeCacheTime: number = 0;
-let fallbackPasscode: string = process.env.ADMIN_PASSCODE || "SDA2026";
+let fallbackPasscode: string | null = null;
 
 function isDbAvailable(): boolean {
   const host = process.env.SQL_HOST;
@@ -99,100 +102,65 @@ function isCloudinaryAvailable(): boolean {
   return Boolean(c.cloud_name && c.api_key && c.api_secret);
 }
 
-async function getAdminPasscode(): Promise<string> {
-  if (process.env.ADMIN_PASSCODE) {
-    return process.env.ADMIN_PASSCODE;
-  }
+// Constant-time comparison so guesses can't be timed.
+function safeEqual(a: string, b: string): boolean {
+  const left = Buffer.from(String(a));
+  const right = Buffer.from(String(b));
+  return left.length === right.length && timingSafeEqual(left, right);
+}
 
-  // Ultra-fast response: If cached in memory, return instantly (cache for 10 seconds max).
-  if (cachedPasscode && (Date.now() - passcodeCacheTime < 10000)) {
-    return cachedPasscode;
+// Passwords are stored as salted scrypt hashes, never as plain text.
+function hashPassword(password: string): string {
+  const salt = randomBytes(16).toString("hex");
+  const hash = scryptSync(String(password), salt, 64).toString("hex");
+  return `scrypt$${salt}$${hash}`;
+}
+
+function checkPassword(stored: string | undefined, input: string): boolean {
+  if (!stored) return false;
+  if (stored.startsWith("scrypt$")) {
+    const [, salt, hash] = stored.split("$");
+    return safeEqual(scryptSync(String(input), salt, 64).toString("hex"), hash);
   }
-  
-  // Try directly connected Firestore first for ultra-fast admin auth
+  // Older accounts were saved as plain text; they still sign in.
+  return safeEqual(stored, String(input));
+}
+
+// The admin passcode comes from ADMIN_PASSCODE (Vercel environment variable),
+// otherwise from the passcode saved in the site database. There is no built-in default.
+async function getAdminPasscode(): Promise<string | null> {
+  if (process.env.ADMIN_PASSCODE) return process.env.ADMIN_PASSCODE;
+  if (cachedPasscode && Date.now() - passcodeCacheTime < 10000) return cachedPasscode;
   try {
-    const { getDoc, doc } = await import('firebase/firestore/lite');
-    const { firestore } = await import('./src/lib/firebaseLite.ts');
-    const adminDoc = await getDoc(doc(firestore, "configs", "admin"));
-    if (adminDoc.exists() && adminDoc.data().passcode) {
-      cachedPasscode = adminDoc.data().passcode;
+    const localDb = await getLocalDb();
+    if (localDb?.passcode && !String(localDb.passcode).startsWith("CHANGE_ME")) {
+      cachedPasscode = String(localDb.passcode);
       passcodeCacheTime = Date.now();
       return cachedPasscode;
     }
   } catch (error: any) {
-    console.error("[Kachamba Server] Firestore passcode retrieval failed:", error.message);
+    console.error("[Admin] Could not read the passcode from the database:", error?.message || error);
   }
-  
-  // Then check Cloud SQL if available
-  if (!isDbAvailable()) {
-    // If no SQL, and Firestore didn't have it, load it from local JSON sync
-    try {
-      const localDb = await getLocalDb();
-      if (localDb && localDb.passcode) {
-        cachedPasscode = localDb.passcode;
-        passcodeCacheTime = Date.now();
-        return cachedPasscode;
-      }
-    } catch (e) {
-      console.error("Local db passcode fallback failed", e);
-    }
-    return fallbackPasscode;
-  }
-  
-  try {
-    const passcodeRecords = await db.select().from(adminConfig).where(eq(adminConfig.key, "passcode")).limit(1);
-    const dbPasscode = passcodeRecords && passcodeRecords.length > 0 ? passcodeRecords[0].value : fallbackPasscode;
-    
-    cachedPasscode = dbPasscode;
-    passcodeCacheTime = Date.now();
-    return dbPasscode;
-  } catch (error) {
-    // Silently fallback if DB is not configured or reachable.
-    return fallbackPasscode; // Return fallback but do NOT cache it permanently!
-  }
+  return null;
 }
 
 // Authentication middleware using Firestore sessions and roles as the source of truth
 async function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
-  const code = req.headers["x-admin-passcode"] as string;
-  const token = (req.headers["x-admin-token"] || req.headers["x-admin-passcode"]) as string;
-  const userId = req.headers["x-user-id"] as string;
-
+  const token = (req.headers["x-admin-token"] || req.headers["x-admin-passcode"]) as string | undefined;
   try {
-    // 1. Check secure session token from headers (Firestore-backed server-side sessions)
     if (token) {
       const session = await getSession(token);
-      if (session && session.expiresAt > Date.now()) {
-        return next();
-      }
-    }
+      if (session && session.expiresAt > Date.now()) return next();
 
-    // 2. Fallback check for raw passcode (backwards compatible / manual CLI tools)
-    if (code) {
-      const dbPasscode = await getAdminPasscode();
-      if (code === dbPasscode) {
-        return next();
-      }
-    }
+      const passcode = await getAdminPasscode();
+      if (passcode && safeEqual(String(token), passcode)) return next();
 
-    // 3. User permission check - Source of truth in Firestore
-    if (userId) {
-      const localDb = await getLocalDb();
-      const dbUser = (localDb.users || []).find((u: any) => u.uid === userId);
-      // Permit leaders (role === "leader" / "admin" / isLeader === true etc)
-      if (dbUser && (
-        dbUser.role === "leader" || 
-        dbUser.role === "admin" || 
-        dbUser.isLeader === true || 
-        dbUser.voicePart === "Section Leader"
-      )) {
-        return next();
-      }
+      // Firebase sign-in from the admin login screen
+      if (await verifyAdminIdToken(String(token))) return next();
     }
-
-    res.status(401).json({ error: "Unauthorized: Invalid credentials or insufficient permissions. Please log in as Admin/Leader." });
-  } catch (error) {
-    res.status(500).json({ error: "Authentication check database query failed." });
+    res.status(401).json({ error: "Admin sign-in required. Enter the admin passcode and try again." });
+  } catch (error: any) {
+    res.status(500).json({ error: "Admin check failed: " + (error?.message || "unknown error") });
   }
 }
 
@@ -218,7 +186,9 @@ async function syncLocalFile(section: string, operation: string, data: any) {
     }
     console.log(`[Local Sync] Completed ${operation} on section: "${section}" successfully.`);
   } catch (err: any) {
-    console.warn("[Local Sync Warning] Could not replicate update to local JSON:", err.message);
+    // Re-throw so the calling route reports the failure instead of pretending it saved.
+    console.error("[Save Error] Could not save to the database:", err?.message || err);
+    throw err;
   }
 }
 
@@ -375,7 +345,7 @@ async function seedCloudSqlFromLocalDb() {
               photoURL: u.photoURL || "",
               voicePart: u.voicePart || "Listener",
               providerId: u.providerId || "email",
-              password: u.password || "",
+
               role: u.role || "user",
               isLeader: u.isLeader ? "true" : "false",
               createdAt: u.createdAt || new Date().toISOString()
@@ -408,6 +378,43 @@ async function seedCloudSqlFromLocalDb() {
   }
 }
 
+// One-time copy of content that already exists in the Postgres tables into the site store.
+// A flag stops it from running again, so items you delete don't come back.
+async function importLegacyPostgresData() {
+  if (!isDbAvailable()) return;
+  const state: any = await getLocalDb();
+  if (state.legacyImported) return;
+  const [acts, iti, ldr, music] = await Promise.all([
+    db.select().from(activities),
+    db.select().from(itinerary),
+    db.select().from(leaders),
+    db.select().from(musicConfig).where(eq(musicConfig.id, 1)).limit(1),
+  ]);
+  const hasContent = acts.length + iti.length + ldr.length + music.length > 0;
+  const merged = {
+    ...state,
+    activities: state.activities?.length ? state.activities : acts,
+    itinerary: state.itinerary?.length ? state.itinerary : iti,
+    leaders: state.leaders?.length ? state.leaders : ldr,
+    music: state.music?.songTitle ? state.music : (music[0] ?? state.music),
+    legacyImported: true,
+  };
+  await saveLocalDb(merged);
+  if (hasContent) console.log(`[Migration] Copied ${acts.length} activities, ${iti.length} itinerary, ${ldr.length} leaders from Postgres.`);
+}
+
+let legacyImportPromise: Promise<void> | null = null;
+// Runs the one-time import the first time it is needed (works on Vercel, where startup hooks don't run).
+function ensureLegacyImport(): Promise<void> {
+  if (!legacyImportPromise) {
+    legacyImportPromise = importLegacyPostgresData().catch((err: any) => {
+      legacyImportPromise = null;
+      console.warn("[Migration] Will retry:", err?.message || err);
+    });
+  }
+  return legacyImportPromise;
+}
+
 // -------------- API ENDPOINTS --------------
 
 // 1. Get raw database contents from Cloud SQL Postgres
@@ -417,38 +424,21 @@ app.get("/api/db", async (req, res) => {
   res.set("Pragma", "no-cache");
   try {
     const dbPasscode = await getAdminPasscode();
-    const isAdmin = req.headers["x-admin-passcode"] === dbPasscode;
+    const adminToken = (req.headers["x-admin-token"] || req.headers["x-admin-passcode"]) as string | undefined;
+    const adminSession = adminToken ? await getSession(adminToken) : null;
+    const isAdmin = Boolean(
+      (adminSession && adminSession.expiresAt > Date.now()) ||
+      (dbPasscode && adminToken && safeEqual(String(adminToken), dbPasscode)) ||
+      (adminToken ? await verifyAdminIdToken(String(adminToken)) : false)
+    );
 
-    let allActs: any[] = [];
-    let allIti: any[] = [];
-    let allLdr: any[] = [];
-    let musicRecs: any[] = [];
-
-    if (isDbAvailable()) {
-      try {
-        // Fast-fail if DB is fully down to maintain high performance
-        const dbPromise = Promise.all([
-          db.select().from(activities),
-          db.select().from(itinerary),
-          db.select().from(leaders),
-          db.select().from(musicConfig).where(eq(musicConfig.id, 1)).limit(1)
-        ]);
-
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("DB Load Timeout")), 5000));
-        
-        // @ts-ignore
-        const [acts, iti, ldr, music] = await Promise.race([dbPromise, timeoutPromise]);
-        allActs = acts;
-        allIti = iti;
-        allLdr = ldr;
-        musicRecs = music;
-      } catch (dbErr: any) {
-        console.warn("[Cloud SQL] Failed to load data from live DB, falling back to local file. Error:", dbErr.message);
-        throw dbErr; // Trigger local file load fallback in general catch block
-      }
-    } else {
-      throw new Error("Live database is not configured");
-    }
+    // Site content is read from the site store (Postgres app_state), where admin saves are written.
+    await ensureLegacyImport();
+    const siteState: any = await getLocalDb();
+    const allActs: any[] = Array.isArray(siteState.activities) ? [...siteState.activities] : [];
+    const allIti: any[] = Array.isArray(siteState.itinerary) ? [...siteState.itinerary] : [];
+    const allLdr: any[] = Array.isArray(siteState.leaders) ? [...siteState.leaders] : [];
+    const musicRecs: any[] = siteState.music?.songTitle ? [siteState.music] : [];
 
     // Keep activities sorted descendingly by id/timestamp
     allActs.sort((a, b) => (b.id || "").localeCompare(a.id || ""));
@@ -734,17 +724,24 @@ app.put("/api/music", requireAdmin, async (req, res) => {
   };
 
   try {
-    await db.insert(musicConfig).values({
-      id: 1,
-      ...musicData,
-      updatedAt: new Date()
-    }).onConflictDoUpdate({
-      target: musicConfig.id,
-      set: {
-        ...musicData,
-        updatedAt: new Date()
+    await insertItem("configs", "music", musicData);
+    try {
+      if (isDbAvailable()) {
+        await db.insert(musicConfig).values({
+          id: 1,
+          ...musicData,
+          updatedAt: new Date()
+        }).onConflictDoUpdate({
+          target: musicConfig.id,
+          set: {
+            ...musicData,
+            updatedAt: new Date()
+          }
+        });
       }
-    });
+    } catch (dbErr: any) {
+      console.warn("[Music] Saved to the site store; database copy failed:", dbErr?.message || dbErr);
+    }
 
     res.json({ success: true, data: musicData });
   } catch (error: any) {
@@ -848,7 +845,7 @@ app.get("/api/proxy-audio", (req, res) => {
   if (targetUrl.includes("drive.google.com")) {
     const driveIdMatch = targetUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || targetUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
     if (driveIdMatch && driveIdMatch[1]) {
-      targetUrl = `https://docs.google.com/uc?export=download&id=${driveIdMatch[1]}`;
+      targetUrl = `https://drive.usercontent.google.com/download?id=${driveIdMatch[1]}&export=download&confirm=t`;
     }
   }
 
@@ -868,7 +865,10 @@ app.post("/api/auth", async (req, res) => {
   const { passcode } = req.body;
   try {
     const dbPasscode = await getAdminPasscode();
-    if (passcode === dbPasscode) {
+    if (!dbPasscode) {
+      return res.status(503).json({ error: "The admin passcode is not set yet. Add ADMIN_PASSCODE in Vercel and redeploy." });
+    }
+    if (passcode && safeEqual(String(passcode), dbPasscode)) {
       // Create a secure session token
       const token = "adm_sess_" + Math.random().toString(36).substring(2, 11) + Math.random().toString(36).substring(2, 11);
       const expiresAt = Date.now() + 2 * 60 * 60 * 1000; // 2 hour session validity duration
@@ -933,53 +933,25 @@ app.post("/api/auth/reset", async (req, res) => {
   if (process.env.ADMIN_PASSCODE) {
     return res.status(403).json({ error: "Passcode is managed by server environment variables and cannot be changed here." });
   }
-
-  const { newPasscode, recoveryKey, currentPasscode } = req.body;
-  
+  const { newPasscode, recoveryKey, currentPasscode } = req.body || {};
   try {
-    const dbPasscode = await getAdminPasscode();
-
-    const isCurrentCorrect = currentPasscode && currentPasscode === dbPasscode;
-    const isMasterRecovery = recoveryKey === "KACHAMBA2026";
-
-    // Allow reset if they know the current passcode OR a recovery key ("KACHAMBA2026")
-    if (isCurrentCorrect || isMasterRecovery) {
-      if (!newPasscode || newPasscode.length < 4) {
-        return res.status(400).json({ error: "New passcode must be at least 4 characters." });
-      }
-
-      // Crucial: Update memory cache & fallback passcode instantly
-      fallbackPasscode = newPasscode;
-      cachedPasscode = newPasscode;
-      passcodeCacheTime = Date.now();
-
-      // Write to connected Firestore
-      try {
-        await insertItem("configs", "admin", { passcode: newPasscode });
-        console.log("[Kachamba Server] Successfully saved updated passcode reset to Firestore configs/admin.");
-      } catch (firestoreErr: any) {
-        console.error("[Kachamba Server] Firestore update failed during reset:", firestoreErr.message);
-      }
-
-      if (isDbAvailable()) {
-        try {
-          await db.insert(adminConfig)
-            .values({ key: "passcode", value: newPasscode, updatedAt: new Date() })
-            .onConflictDoUpdate({
-              target: adminConfig.key,
-              set: { value: newPasscode, updatedAt: new Date() }
-            });
-        } catch (dbErr: any) {
-          console.error("[Kachamba Server] Database insert failed during reset, continuing in-memory:", dbErr.message);
-        }
-      }
-
-      return res.json({ success: true, message: "Passcode updated successfully!" });
-    } else {
+    const current = await getAdminPasscode();
+    const isCurrentCorrect = Boolean(current && currentPasscode && safeEqual(String(currentPasscode), current));
+    // Recovery needs a secret set in Vercel as ADMIN_RECOVERY_KEY (not stored in the code).
+    const recoverySecret = process.env.ADMIN_RECOVERY_KEY;
+    const isRecovery = Boolean(recoverySecret && recoveryKey && safeEqual(String(recoveryKey), recoverySecret));
+    if (!isCurrentCorrect && !isRecovery) {
       return res.status(401).json({ error: "Invalid current passcode or recovery key." });
     }
+    if (!newPasscode || String(newPasscode).length < 4) {
+      return res.status(400).json({ error: "New passcode must be at least 4 characters." });
+    }
+    await insertItem("configs", "admin", { passcode: String(newPasscode) });
+    cachedPasscode = null;
+    passcodeCacheTime = 0;
+    return res.json({ success: true, message: "Passcode updated successfully!" });
   } catch (error: any) {
-    res.status(500).json({ error: "Failed to reset passcode: " + error.message });
+    res.status(500).json({ error: "Failed to reset passcode: " + (error?.message || "unknown error") });
   }
 });
 
@@ -1104,162 +1076,204 @@ app.put("/api/mpesa/config", requireAdmin, async (req, res) => {
 });
 
 // POST M-Pesa STK Push Request
+// ---------------------------------------------------------------------------
+// M-Pesa (Safaricom Daraja). Buy Goods (Till) is the default.
+// Required Vercel settings: MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET,
+// MPESA_PASSKEY, MPESA_STORE_NUMBER (your Till number), APP_URL (your site address).
+// ---------------------------------------------------------------------------
+type MpesaSettingsResult = { ok: boolean; error?: string; s?: { base: string; isProd: boolean; shortcode: string; passkey: string; key: string; secret: string; callbackUrl: string } };
+
+function mpesaSettings(): MpesaSettingsResult {
+  const key = process.env.MPESA_CONSUMER_KEY;
+  const secret = process.env.MPESA_CONSUMER_SECRET;
+  const passkey = process.env.MPESA_PASSKEY;
+  const shortcode = process.env.MPESA_STORE_NUMBER || process.env.MPESA_SHORTCODE;
+  const appUrl = process.env.APP_URL;
+  const missing = [
+    ["MPESA_CONSUMER_KEY", key],
+    ["MPESA_CONSUMER_SECRET", secret],
+    ["MPESA_PASSKEY", passkey],
+    ["MPESA_STORE_NUMBER", shortcode],
+    ["APP_URL", appUrl],
+  ].filter(([, value]) => !value).map(([name]) => name);
+  if (missing.length) {
+    return { ok: false, error: `Online M-Pesa is not set up yet. Add these in Vercel and redeploy: ${missing.join(", ")}.` };
+  }
+  const isProd = process.env.MPESA_ENV !== "sandbox";
+  return {
+    ok: true,
+    s: {
+      base: isProd ? "https://api.safaricom.co.ke" : "https://sandbox.safaricom.co.ke",
+      isProd,
+      shortcode: String(shortcode),
+      passkey: String(passkey),
+      key: String(key),
+      secret: String(secret),
+      callbackUrl: `${String(appUrl).replace(/\/$/, "")}/api/mpesa/callback`,
+    },
+  };
+}
+
+// Daraja timestamps must be in East Africa Time, whatever timezone the server runs in.
+function mpesaTimestamp(): string {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Africa/Nairobi", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  }).formatToParts(new Date());
+  const get = (type: string) => parts.find((p) => p.type === type)?.value || "00";
+  return `${get("year")}${get("month")}${get("day")}${get("hour")}${get("minute")}${get("second")}`;
+}
+
+function mpesaPassword(shortcode: string, passkey: string, timestamp: string): string {
+  return Buffer.from(`${shortcode}${passkey}${timestamp}`).toString("base64");
+}
+
+async function mpesaAccessToken(s: { base: string; key: string; secret: string }): Promise<string> {
+  const auth = Buffer.from(`${s.key}:${s.secret}`).toString("base64");
+  const response = await fetch(`${s.base}/oauth/v1/generate?grant_type=client_credentials`, {
+    headers: { Authorization: `Basic ${auth}` },
+  });
+  if (!response.ok) {
+    throw new Error(`Safaricom rejected the Consumer Key or Secret (HTTP ${response.status}). Check MPESA_CONSUMER_KEY and MPESA_CONSUMER_SECRET in Vercel.`);
+  }
+  const data: any = await response.json();
+  if (!data.access_token) throw new Error("Safaricom did not return an access token.");
+  return data.access_token;
+}
+
+// Remembers each payment request so the donation page can check its outcome.
+async function recordPaymentOutcome(checkoutRequestId: string, patch: Record<string, any>) {
+  if (!checkoutRequestId) return;
+  const localDb: any = await getLocalDb();
+  const existing = (localDb.payments || []).find((p: any) => p.id === checkoutRequestId) || {};
+  await insertItem("payments", checkoutRequestId, { ...existing, ...patch, updatedAt: new Date().toISOString() });
+}
+
 app.post("/api/mpesa/stkpush", async (req, res) => {
   try {
-    let { phone, amount } = req.body;
+    const { phone, amount } = req.body || {};
     if (!phone || !amount) {
       return res.status(400).json({ error: "Phone number and amount are required." });
     }
 
-    // Standardize phone number format: must be 2547XXXXXXXX or 2541XXXXXXXX
-    let formattedPhone = String(phone).trim().replace(/\+/g, "");
-    if (formattedPhone.startsWith("0")) {
-      formattedPhone = "254" + formattedPhone.substring(1);
-    } else if (formattedPhone.startsWith("7") || formattedPhone.startsWith("1")) {
-      formattedPhone = "254" + formattedPhone;
-    }
-
-    // Validate phone number format (2547... or 2541...)
-    if (!/^254(7|1|2|5|9)\d{8}$/.test(formattedPhone)) {
-      return res.status(400).json({ error: "Invalid phone number format. Please provide a valid Kenyan number (e.g., 0712345678 or 254712345678)." });
+    // 2547XXXXXXXX format
+    let formattedPhone = String(phone).trim().replace(/\+/g, "").replace(/\s/g, "");
+    if (formattedPhone.startsWith("0")) formattedPhone = "254" + formattedPhone.substring(1);
+    else if (formattedPhone.startsWith("7") || formattedPhone.startsWith("1")) formattedPhone = "254" + formattedPhone;
+    if (!/^254(7|1)\d{8}$/.test(formattedPhone)) {
+      return res.status(400).json({ error: "Please enter a valid Safaricom number, e.g. 0712345678." });
     }
 
     const numericAmount = Math.round(Number(amount));
-    if (isNaN(numericAmount) || numericAmount <= 0) {
-      return res.status(400).json({ error: "Transaction amount must be a positive integer." });
+    if (!Number.isFinite(numericAmount) || numericAmount < 1) {
+      return res.status(400).json({ error: "The amount must be at least KES 1." });
     }
 
-    // Read Safaricom M-Pesa credentials from process env
-    const mpesaConsumerKey = process.env.MPESA_CONSUMER_KEY;
-    const mpesaConsumerSecret = process.env.MPESA_CONSUMER_SECRET;
-    const mpesaPasskey = process.env.MPESA_PASSKEY;
-    const mpesaStoreNumber = process.env.MPESA_STORE_NUMBER || process.env.MPESA_SHORTCODE; // Explicitly map Store Number for Buy Goods
-    
-    // Read till details from database (used primarily for frontend display, but we can check if it's paybill/buygoods)
-    let databaseType = "buy_goods";
-    try {
-      const records = await db.select().from(adminConfig);
-      const typeRecord = records.find(r => r.key === "mpesa_type");
-      if (typeRecord) databaseType = typeRecord.value;
-    } catch (e) {
-      console.log("[M-Pesa] Notice: Could not read till config from DB, using fallback.");
-    }
+    const settings = mpesaSettings();
+    if (!settings.ok) return res.status(503).json({ success: false, realApi: false, error: settings.error });
+    const s = settings.s;
 
-    // Check if real keys are supplied to execute authentic request
-    const useRealMpesa = mpesaConsumerKey && mpesaConsumerSecret && mpesaPasskey && mpesaStoreNumber;
+    const token = await mpesaAccessToken(s);
+    const timestamp = mpesaTimestamp();
 
-    if (useRealMpesa) {
-      try {
-        console.log(`[STK Push] Initiating real STK push for ${formattedPhone}, amount: KES ${numericAmount}`);
-        
-        // Step 1: Generate Access Token
-        // Default to production unless explicitly set to sandbox
-        const isProd = process.env.MPESA_ENV !== "sandbox";
-        const baseUrl = isProd ? "https://api.safaricom.co.ke" : "https://sandbox.safaricom.co.ke";
-        
-        const auth = Buffer.from(`${mpesaConsumerKey}:${mpesaConsumerSecret}`).toString("base64");
-        
-        const tokenResponse = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
-          method: "GET",
-          headers: {
-            "Authorization": `Basic ${auth}`,
-            "User-Agent": "KachambaApp/1.0"
-          }
-        });
+    // Buy Goods unless the admin has chosen Paybill in the M-Pesa settings
+    const config: any = await getLocalDb().catch(() => ({}));
+    const configuredType = config?.mpesa?.mpesa_type || config?.mpesa?.tillType || "buy_goods";
+    const transactionType = !s.isProd || configuredType === "paybill"
+      ? "CustomerPayBillOnline"
+      : "CustomerBuyGoodsOnline";
 
-        if (!tokenResponse.ok) {
-          const errMsg = await tokenResponse.text();
-          throw new Error("Failed Safaricom OAuth generation request: " + errMsg);
-        }
+    const payload = {
+      BusinessShortCode: Number(s.shortcode),
+      Password: mpesaPassword(s.shortcode, s.passkey, timestamp),
+      Timestamp: timestamp,
+      TransactionType: transactionType,
+      Amount: numericAmount,
+      PartyA: Number(formattedPhone),
+      PartyB: Number(s.shortcode),
+      PhoneNumber: Number(formattedPhone),
+      CallBackURL: s.callbackUrl,
+      AccountReference: "Kachamba",
+      TransactionDesc: "Chorus Support",
+    };
 
-        const tokenData = await tokenResponse.json() as any;
-        const accessToken = tokenData.access_token;
+    const response = await fetch(`${s.base}/mpesa/stkpush/v1/processrequest`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const result: any = await response.json().catch(() => ({}));
 
-        // Step 2: Generate Timestamp and Password
-        const now = new Date();
-        const timestamp = now.getFullYear().toString() + 
-          (now.getMonth() + 1).toString().padStart(2, '0') + 
-          now.getDate().toString().padStart(2, '0') + 
-          now.getHours().toString().padStart(2, '0') + 
-          now.getMinutes().toString().padStart(2, '0') + 
-          now.getSeconds().toString().padStart(2, '0');
-          
-        const password = Buffer.from(`${mpesaStoreNumber}${mpesaPasskey}${timestamp}`).toString("base64");
-        
-        // Always use CustomerPayBillOnline for sandbox testing as per tutorial
-        const transactionType = (!isProd) ? "CustomerPayBillOnline" : (databaseType === "paybill" ? "CustomerPayBillOnline" : "CustomerBuyGoodsOnline");
-        
-        const mpesaAppUrl = process.env.APP_URL || "https://example.com";
-        const callbackUrl = `${mpesaAppUrl.replace(/\/$/, "")}/api/mpesa/callback`;
-
-        const stkPayload = {
-          BusinessShortCode: Number(mpesaStoreNumber),
-          Password: password,
-          Timestamp: timestamp,
-          TransactionType: transactionType,
-          Amount: numericAmount,
-          PartyA: Number(formattedPhone), // Customer's phone number
-          PartyB: Number(mpesaStoreNumber), // The Organization receiving the funds
-          PhoneNumber: Number(formattedPhone),
-          CallBackURL: callbackUrl,
-          AccountReference: "Kachamba", // Max 12 alphanumeric characters (changed from KachambaChorus)
-          TransactionDesc: "Chorus Support"
-        };
-
-        const pushResponse = await fetch(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-            "User-Agent": "KachambaApp/1.0"
-          },
-          body: JSON.stringify(stkPayload)
-        });
-
-        if (!pushResponse.ok) {
-          const pushErr = await pushResponse.text();
-          throw new Error("Safaricom processRequest failure: " + pushErr);
-        }
-
-        const pushResult = await pushResponse.json() as any;
-        console.log("[STK Push] Real push successfully executed:", pushResult);
-
-        if (pushResult.ResponseCode !== "0") {
-            throw new Error("Daraja API rejected the request: " + pushResult.ResponseDescription);
-        }
-
-        return res.json({
-          success: true,
-          realApi: true,
-          message: "An STK Push has been sent to your phone! Please enter your M-pesa PIN to complete the contribution.",
-          merchantRequestId: pushResult.MerchantRequestID,
-          checkoutRequestId: pushResult.CheckoutRequestID,
-          responseDescription: pushResult.ResponseDescription
-        });
-
-      } catch (err: any) {
-        console.error("[STK Push Error] Real API failure:", err);
-        return res.status(400).json({
-          error: "Safaricom M-Pesa Link Error: " + err.message,
-          clarification: "Check if your MPESA Consumer Key, Secret, Passkey, and Store Number are correctly configured."
-        });
-      }
-    } else {
-      // Graceful local/sandbox simulator (returns mock structure for immediate UI preview)
-      console.log(`[STK Push] Simulating Daraja STK Push for ${formattedPhone}, amount: KES ${numericAmount}`);
-      
-      return res.json({
-        success: true,
-        realApi: false,
-        message: "STK push simulated ! (No actual API keys configured in environment).",
-        merchantRequestId: "ws_CO_" + Date.now().toString().slice(3),
-        checkoutRequestId: "ws_CH_" + Math.random().toString(36).substring(2, 10).toUpperCase(),
-        responseDescription: "Success. Request accepted for processing"
+    if (!response.ok || result.ResponseCode !== "0") {
+      console.error("[M-Pesa] STK push rejected:", result);
+      return res.status(400).json({
+        success: false,
+        error: result.errorMessage || result.ResponseDescription || `Safaricom did not accept the request (HTTP ${response.status}).`,
       });
     }
+
+    await recordPaymentOutcome(result.CheckoutRequestID, {
+      status: "pending",
+      phone: formattedPhone,
+      amount: numericAmount,
+      createdAt: new Date().toISOString(),
+    });
+
+    return res.json({
+      success: true,
+      realApi: true,
+      message: "An M-Pesa prompt has been sent to your phone. Enter your PIN to complete the contribution.",
+      merchantRequestId: result.MerchantRequestID,
+      checkoutRequestId: result.CheckoutRequestID,
+      responseDescription: result.ResponseDescription,
+    });
   } catch (err: any) {
-    console.error("[STK Push Error] Backend Crash:", err);
-    return res.status(400).json({ error: "Backend server error: " + err.message });
+    console.error("[M-Pesa] STK push error:", err?.message || err);
+    return res.status(500).json({ success: false, error: err?.message || "The payment service is unavailable. Please try again." });
+  }
+});
+
+// The donation page calls this until the payment is confirmed or cancelled.
+app.get("/api/mpesa/status/:checkoutRequestId", async (req, res) => {
+  const checkoutRequestId = String(req.params.checkoutRequestId || "");
+  try {
+    const localDb: any = await getLocalDb();
+    const saved = (localDb.payments || []).find((p: any) => p.id === checkoutRequestId);
+    if (saved?.status === "paid") return res.json({ status: "paid", receiptNo: saved.receiptNo || "" });
+    if (saved?.status === "failed") return res.json({ status: "failed", message: saved.message || "The payment was cancelled or did not go through." });
+
+    const settings = mpesaSettings();
+    if (!settings.ok) return res.status(503).json({ status: "error", message: settings.error });
+    const s = settings.s;
+
+    const token = await mpesaAccessToken(s);
+    const timestamp = mpesaTimestamp();
+    const response = await fetch(`${s.base}/mpesa/stkpushquery/v1/query`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        BusinessShortCode: Number(s.shortcode),
+        Password: mpesaPassword(s.shortcode, s.passkey, timestamp),
+        Timestamp: timestamp,
+        CheckoutRequestID: checkoutRequestId,
+      }),
+    });
+    const data: any = await response.json().catch(() => ({}));
+
+    if (String(data.ResultCode) === "0") {
+      await recordPaymentOutcome(checkoutRequestId, { status: "paid" });
+      return res.json({ status: "paid", message: data.ResultDesc || "" });
+    }
+    if (data.ResultCode !== undefined && data.ResultCode !== null) {
+      // Cancelled, timed out, or insufficient funds
+      await recordPaymentOutcome(checkoutRequestId, { status: "failed", message: data.ResultDesc || "" });
+      return res.json({ status: "failed", message: data.ResultDesc || "The payment was cancelled or did not go through." });
+    }
+    // Still waiting for the donor to enter their PIN
+    return res.json({ status: "pending", message: "Waiting for your M-Pesa PIN." });
+  } catch (err: any) {
+    console.error("[M-Pesa] Status check error:", err?.message || err);
+    return res.status(500).json({ status: "error", message: err?.message || "Could not check the payment status." });
   }
 });
 
@@ -1311,6 +1325,14 @@ app.post("/api/mpesa/callback", async (req, res) => {
     }
 
     const { ResultCode, ResultDesc, CheckoutRequestID, CallbackMetadata } = callbackData;
+    try {
+      const receiptItem = CallbackMetadata?.Item?.find((i: any) => i.Name === "MpesaReceiptNumber");
+      await recordPaymentOutcome(CheckoutRequestID, ResultCode === 0
+        ? { status: "paid", receiptNo: receiptItem?.Value ? String(receiptItem.Value) : "" }
+        : { status: "failed", message: ResultDesc || "" });
+    } catch (outcomeErr: any) {
+      console.warn("[M-Pesa Webhook] Could not record payment outcome:", outcomeErr?.message || outcomeErr);
+    }
 
     if (ResultCode === 0) {
       // Transaction was highly successful!
@@ -1364,7 +1386,7 @@ app.post("/api/webhooks/github", (req: any, res) => {
   const payload = req.rawBody ? req.rawBody.toString() : JSON.stringify(req.body);
 
   // Retrieve the webhook secret from environment variables, falling back to Admin's preset code
-  const secret = process.env.GITHUB_WEBHOOK_SECRET || "KachambaSync_Secret2026";
+  const secret = process.env.GITHUB_WEBHOOK_SECRET || "";
 
   if (signature && secret) {
     try {
@@ -1812,7 +1834,7 @@ app.post("/api/auth/signup", async (req, res) => {
       voicePart: voicePart || "Listener",
       providerId: provider || "email",
       createdAt: new Date().toISOString(),
-      password: password // simple reliable password persistence for prompt accessibility
+      password: hashPassword(password),
     };
 
     localDb.users.push(newUser);
@@ -1862,7 +1884,7 @@ app.post("/api/auth/login", async (req, res) => {
     if (isDbAvailable()) {
       try {
         const records = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
-        if (records.length > 0 && records[0].password === password) {
+        if (records.length > 0 && checkPassword(records[0].password, password)) {
           user = records[0];
           console.log(`[Users DB] Authenticated user ${user.displayName || user.email} via Neon Postgres.`);
         }
@@ -1874,7 +1896,7 @@ app.post("/api/auth/login", async (req, res) => {
     if (!user) {
       let localDb: any = await getLocalDb();
       localDb.users = localDb.users || [];
-      const localUser = localDb.users.find((u: any) => u.email === normalizedEmail && u.password === password);
+      const localUser = localDb.users.find((u: any) => u.email === normalizedEmail && checkPassword(u.password, password));
       if (localUser) {
         user = localUser;
         console.log(`[Users DB] Authenticated user ${user.displayName || user.email} via local JSON fallback.`);
@@ -2334,27 +2356,9 @@ app.post("/api/upload", requireAdmin, async (req, res) => {
   }
 
   try {
-    if (isDbAvailable()) {
-      // 1. If Neon/Postgres is connected and available, save file persistently in Postgres "uploads" table.
-      // This bypasses local ephemeral storage and Firestore's 1MB limit entirely!
-      await db.insert(uploads).values({
-        id: fileId,
-        filename: filename || "uploaded_file",
-        mimeType: mimeType,
-        base64: base64
-      });
-      console.log(`[Uploads] Saved file ${fileId} (${filename}) to Neon Postgres.`);
-    } else {
-      // 2. If SQL is offline/unavailable, replicate/save to Firestore "uploads" collection as a fallback
-      // Since Firestore has a 1MB limit, this will only succeed if the file is <1MB, but it's a great zero-config fallback.
-      await syncLocalFile("uploads", "insert", {
-        id: fileId,
-        filename: filename || "uploaded_file",
-        mimeType: mimeType,
-        base64: base64
-      });
-      console.log(`[Uploads Fallback] Saved file ${fileId} (${filename}) to Firestore.`);
-    }
+    // Save the file in the app database (app_files table), so it survives redeploys.
+    await saveFile({ id: fileId, filename: filename || "uploaded_file", mimeType, data: base64 });
+    console.log(`[Uploads] Saved file ${fileId} (${filename}) to the database.`);
 
     // Return the stable public URL pointing to our download/serving API route
     const fileUrl = `/api/uploads/${fileId}`;
@@ -2393,19 +2397,12 @@ app.get("/api/uploads/:id", async (req, res) => {
       }
     }
 
-    // Fallback: Check local/Firestore uploads
+    // Files saved by /api/upload live in the app database
     if (!fileRecord) {
       try {
-        const localDb = await getLocalDb();
-        // Since we synced to Firestore, let's see if we can find it in Firestore
-        const { getDoc, doc } = await import('firebase/firestore/lite');
-        const { firestore } = await import('./src/lib/firebaseLite.ts');
-        const fileDoc = await getDoc(doc(firestore, "uploads", id));
-        if (fileDoc.exists()) {
-          fileRecord = fileDoc.data();
-        }
+        fileRecord = await getFile(id);
       } catch (err: any) {
-        console.warn(`[Uploads Server] Failed to query Firestore fallback for file ${id}:`, err.message);
+        console.warn(`[Uploads Server] Could not read file ${id}:`, err?.message || err);
       }
     }
 
@@ -2856,6 +2853,7 @@ async function startServer() {
       try {
         console.log("[Kachamba Server] Warming up Database connection and Passcode Cache...");
         await getAdminPasscode();
+        await importLegacyPostgresData().catch((err: any) => console.warn("[Migration] Skipped:", err?.message || err));
         console.log("[Kachamba Server] Cache warm up complete. Lightning fast Mode Active.");
       } catch (err: any) {
         console.log("[Kachamba Server] Notice: Cache warm up skipped as database appears offline.");
