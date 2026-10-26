@@ -184,6 +184,32 @@ function writeJson(key: string, value: unknown) {
   }
 }
 
+// Loads an image from the site (e.g. /logos/kachamba.png) as a data URL for the PDF.
+async function loadImageDataUrl(src: string): Promise<string | null> {
+  try {
+    const res = await fetch(src);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
+function imageSize(dataUrl: string): Promise<{ w: number; h: number }> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve({ w: img.naturalWidth || 1, h: img.naturalHeight || 1 });
+    img.onerror = () => resolve({ w: 1, h: 1 });
+    img.src = dataUrl;
+  });
+}
+
 /* ───────── component ───────── */
 
 export default function Itinerary({
@@ -326,39 +352,177 @@ export default function Itinerary({
     return `${hours}h ${mins}m`;
   };
 
-  const downloadSchedule = () => {
-    const pdf = new jsPDF({ unit: "mm", format: "a4" });
-    const margin = 18;
-    let y = 24;
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(18);
-    pdf.text("Kachamba Chorus - Itinerary", margin, y);
-    y += 7;
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(10);
-    pdf.setTextColor(90);
-    pdf.text("Kachok SDA Church, Kisumu, Kenya", margin, y);
-    y += 10;
-    pdf.setTextColor(0);
+  const downloadSchedule = async () => {
+    const [mainLogo, sdaLogo] = await Promise.all([
+      loadImageDataUrl("/logos/kachamba.png"),
+      loadImageDataUrl("/logos/sda.png"),
+    ]);
+    const sdaSize = sdaLogo ? await imageSize(sdaLogo) : null;
 
-    sorted.forEach((item) => {
-      if (y > 272) {
-        pdf.addPage();
-        y = 20;
+    const pdf = new jsPDF({ unit: "mm", format: "a4" });
+    const W = 210;
+    const H = 297;
+    const M = 16;
+    const NAVY: [number, number, number] = [8, 24, 48];
+    const ORANGE: [number, number, number] = [240, 144, 16];
+    const ORANGE_TEXT: [number, number, number] = [184, 102, 10];
+    const INK: [number, number, number] = [8, 24, 48];
+    const MUTED: [number, number, number] = [100, 110, 125];
+    const RULE: [number, number, number] = [222, 227, 234];
+    const CONTENT_X = M + 24;
+    const CONTENT_W = W - M - CONTENT_X;
+
+    const fitBox = (size: { w: number; h: number }, max: number) => {
+      const ratio = size.w / size.h;
+      return ratio >= 1 ? { w: max, h: max / ratio } : { w: max * ratio, h: max };
+    };
+
+    // First page: tall navy header with both logos
+    const drawFirstHeader = () => {
+      pdf.setFillColor(...NAVY);
+      pdf.rect(0, 0, W, 62, "F");
+      pdf.setFillColor(...ORANGE);
+      pdf.rect(0, 62, W, 1.6, "F");
+
+      if (mainLogo) pdf.addImage(mainLogo, "PNG", M, 12, 27, 27);
+      if (sdaLogo && sdaSize) {
+        const box = fitBox(sdaSize, 24);
+        pdf.addImage(sdaLogo, "PNG", W - M - box.w, 12 + (27 - box.h) / 2, box.w, box.h);
       }
+
+      pdf.setTextColor(255, 255, 255);
       pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(11);
-      pdf.text(item.event || "Untitled event", margin, y);
-      y += 5;
+      pdf.setFontSize(26);
+      pdf.text("Itinerary", W / 2, 40, { align: "center" });
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(9.5);
-      const meta = [formatDate(item.date), item.time, item.location, item.host ? `Host: ${item.host}` : ""]
-        .filter(Boolean)
-        .join("  |  ");
-      const lines = pdf.splitTextToSize(meta, 174) as string[];
-      pdf.text(lines, margin, y);
-      y += lines.length * 4.5 + 5;
+      pdf.setTextColor(255, 214, 160);
+      pdf.text("KACHAMBA CHORUS  |  KACHOK SDA CHURCH, KISUMU, KENYA", W / 2, 50, { align: "center" });
+    };
+
+    // Other pages: slim header
+    const drawContinuationHeader = () => {
+      pdf.setFillColor(...NAVY);
+      pdf.rect(0, 0, W, 20, "F");
+      pdf.setFillColor(...ORANGE);
+      pdf.rect(0, 20, W, 1, "F");
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(11);
+      pdf.text("Itinerary", M, 12.5);
+      if (mainLogo) pdf.addImage(mainLogo, "PNG", W - M - 12, 4, 12, 12);
+    };
+
+    let y = 76;
+    let currentMonth = "";
+
+    const newPage = () => {
+      pdf.addPage();
+      drawContinuationHeader();
+      y = 32;
+    };
+
+    drawFirstHeader();
+
+    if (sorted.length === 0) {
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(11);
+      pdf.setTextColor(...MUTED);
+      pdf.text("No events scheduled yet.", M, y);
+    }
+
+    sorted.forEach((item) => {
+      const w = eventWindow(item);
+      const month = w
+        ? w.start.toLocaleDateString("en-US", { month: "long", year: "numeric" }).toUpperCase()
+        : "DATE TO BE ANNOUNCED";
+
+      // Build the lines for this row first, so we know how tall it is
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(11.5);
+      const titleLines = pdf.splitTextToSize(item.event || "Untitled event", CONTENT_W) as string[];
+
+      const metaParts = [item.time, item.location].filter(Boolean).join("  |  ");
+      const metaText = [metaParts, item.host ? `Host: ${item.host}` : ""].filter(Boolean).join("   ");
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(9);
+      const metaLines = metaText ? (pdf.splitTextToSize(metaText, CONTENT_W) as string[]) : [];
+
+      const notesText = item.notes && !/https?:\/\//.test(item.notes) ? item.notes : "";
+      pdf.setFontSize(8.5);
+      const noteLines = notesText ? (pdf.splitTextToSize(notesText, CONTENT_W).slice(0, 2) as string[]) : [];
+
+      const rowHeight =
+        titleLines.length * 5.2 + metaLines.length * 4.4 + noteLines.length * 4 + 9 + (month !== currentMonth ? 14 : 0);
+
+      if (y + rowHeight > H - 22) newPage();
+
+      // Month heading when the month changes
+      if (month !== currentMonth) {
+        currentMonth = month;
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(9);
+        pdf.setTextColor(...ORANGE_TEXT);
+        pdf.text(month, M, y);
+        pdf.setDrawColor(...RULE);
+        pdf.line(M, y + 2.2, W - M, y + 2.2);
+        y += 8;
+      }
+
+      // Date block
+      const dayText = w ? String(w.start.getDate()) : "--";
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(20);
+      pdf.setTextColor(...INK);
+      pdf.text(dayText, M, y + 6);
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(8);
+      pdf.setTextColor(...MUTED);
+      pdf.text(w ? w.start.toLocaleDateString("en-US", { weekday: "short" }) : "TBA", M, y + 11);
+
+      // Title, meta, notes
+      let ty = y + 4;
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(11.5);
+      pdf.setTextColor(...INK);
+      pdf.text(titleLines, CONTENT_X, ty);
+      ty += titleLines.length * 5.2;
+
+      if (metaLines.length) {
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(9);
+        pdf.setTextColor(...MUTED);
+        pdf.text(metaLines, CONTENT_X, ty);
+        ty += metaLines.length * 4.4;
+      }
+
+      if (noteLines.length) {
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8.5);
+        pdf.setTextColor(60, 72, 90);
+        pdf.text(noteLines, CONTENT_X, ty);
+        ty += noteLines.length * 4;
+      }
+
+      // Row separator
+      const rowBottom = Math.max(ty, y + 13) + 3;
+      pdf.setDrawColor(...RULE);
+      pdf.line(M, rowBottom, W - M, rowBottom);
+      y = rowBottom + 5;
     });
+
+    // Footers with page numbers
+    const total = pdf.getNumberOfPages();
+    for (let i = 1; i <= total; i++) {
+      pdf.setPage(i);
+      pdf.setDrawColor(...RULE);
+      pdf.line(M, H - 14, W - M, H - 14);
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(8);
+      pdf.setTextColor(...MUTED);
+      pdf.text("kachambachorus.online", M, H - 8);
+      pdf.text(`Page ${i} of ${total}`, W - M, H - 8, { align: "right" });
+    }
 
     pdf.save("kachamba-itinerary.pdf");
   };
@@ -477,7 +641,7 @@ export default function Itinerary({
           </div>
           <div className="flex items-center gap-2">
             {sorted.length > 0 && (
-              <button type="button" onClick={downloadSchedule} className={btnGhost}>
+              <button type="button" onClick={() => void downloadSchedule()} className={btnGhost}>
                 <Download className="h-3.5 w-3.5" aria-hidden="true" />
                 PDF
               </button>
