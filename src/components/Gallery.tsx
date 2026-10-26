@@ -1,199 +1,248 @@
-import React, { useEffect, useRef, useState } from "react";
-import { ZoomIn, X, Play, Image as ImageIcon } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import React, { useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { ChevronLeft, ChevronRight, Play, X } from "lucide-react";
 import { GalleryPhoto } from "../types";
 
 interface GalleryProps {
   photos?: GalleryPhoto[];
 }
 
+type Filter = "all" | "photos" | "videos";
+
+const isVideo = (photo: GalleryPhoto) =>
+  photo.mediaType === "video" || /\.(mp4|webm|mov)(\?.*)?$/i.test(photo.url || "");
+
 export default function Gallery({ photos = [] }: GalleryProps) {
-  const [selectedItem, setSelectedItem] = useState<GalleryPhoto | null>(null);
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const [filter, setFilter] = useState<Filter>("all");
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
 
+  const list = Array.isArray(photos) ? photos.filter((p) => p && p.url) : [];
+  const videoCount = list.filter(isVideo).length;
+  const photoCount = list.length - videoCount;
+
+  const visible = useMemo(() => {
+    if (filter === "photos") return list.filter((p) => !isVideo(p));
+    if (filter === "videos") return list.filter(isVideo);
+    return list;
+  }, [list, filter]);
+
+  const current = openIndex !== null ? visible[openIndex] : null;
+
+  const close = () => setOpenIndex(null);
+  const step = (dir: 1 | -1) =>
+    setOpenIndex((i) => (i === null ? null : (i + dir + visible.length) % visible.length));
+
+  // Keyboard navigation and scroll lock while the viewer is open
   useEffect(() => {
-    if (!selectedItem) return;
-
-    closeButtonRef.current?.focus();
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setSelectedItem(null);
+    if (openIndex === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+      if (e.key === "ArrowRight") step(1);
+      if (e.key === "ArrowLeft") step(-1);
     };
-
-    const previousOverflow = document.body.style.overflow;
+    const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    document.addEventListener("keydown", onKeyDown);
-
+    document.addEventListener("keydown", onKey);
     return () => {
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = prev;
+      document.removeEventListener("keydown", onKey);
     };
-  }, [selectedItem]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openIndex, visible.length]);
 
-  const isVideo = (photo: GalleryPhoto) =>
-    photo.mediaType === "video" ||
-    /\.(mp4|webm|mov)(\?.*)?$/i.test(photo.url || "");
+  // Close the viewer if the filter changes underneath it
+  useEffect(() => setOpenIndex(null), [filter]);
+
+  const tabs: { id: Filter; label: string; count: number }[] = [
+    { id: "all", label: "All", count: list.length },
+    { id: "photos", label: "Photos", count: photoCount },
+    { id: "videos", label: "Videos", count: videoCount },
+  ];
 
   return (
-    <section
-      id="gallery"
-      className="relative overflow-hidden bg-slate-900 px-6 py-24 md:px-12"
-    >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_70%_30%,rgba(245,158,11,0.04)_0%,transparent_60%)]" />
-
-      <div className="relative mx-auto max-w-6xl">
-        <div className="mb-12 text-center">
-          <div className="mb-4 flex items-center justify-center gap-3">
-            <div className="h-px w-6 bg-amber-400/50" />
-            <span className="label-caps text-[11px] text-amber-400/70">
-              Captured Moments
-            </span>
-            <div className="h-px w-6 bg-amber-400/50" />
-          </div>
-
-          <h2 className="font-display text-4xl font-bold tracking-tight text-white md:text-6xl">
-            Gallery
-          </h2>
-
-          <p className="mx-auto mt-3 max-w-sm text-sm font-light leading-relaxed text-white/40">
-            Prayer, harmony, and vibrant outreach — captured in every frame.
-          </p>
-        </div>
-
-        {photos.length === 0 ? (
-          <div className="glass rounded-2xl py-24 text-center">
-            <div className="glass mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl">
-              <ImageIcon className="h-6 w-6 text-white/25" aria-hidden="true" />
-            </div>
-            <p className="label-caps text-[11px] text-white/25">No media yet</p>
-            <p className="mt-1 text-xs text-white/20">
-              Admins can upload from the dashboard
+    <section id="gallery" className="relative bg-slate-900 px-5 py-16 md:px-10 md:py-20">
+      <div className="mx-auto max-w-6xl">
+        {/* Header */}
+        <div className="mb-10 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-xs font-semibold text-amber-400">Gallery</p>
+            <h2 className="mt-2 font-display text-[2rem] font-bold leading-tight tracking-tight text-white md:text-[2.4rem]">
+              Moments from our ministry
+            </h2>
+            <p className="mt-2 max-w-md text-sm leading-relaxed text-white/55">
+              Prayer, harmony and outreach, captured in photos and video.
             </p>
           </div>
-        ) : (
+
+          {list.length > 0 && (
+            <div role="tablist" aria-label="Filter gallery" className="flex gap-1.5">
+              {tabs.map((t) => {
+                const active = filter === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    role="tab"
+                    type="button"
+                    aria-selected={active}
+                    onClick={() => setFilter(t.id)}
+                    disabled={t.count === 0 && t.id !== "all"}
+                    className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition disabled:opacity-35 ${
+                      active
+                        ? "bg-white text-slate-950"
+                        : "border border-white/15 text-white/60 hover:border-white/35 hover:text-white"
+                    }`}
+                  >
+                    {t.label}
+                    <span className={`ml-1.5 ${active ? "text-slate-500" : "text-white/35"}`}>{t.count}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Empty state */}
+        {visible.length === 0 && (
+          <div className="rounded-2xl border border-dashed border-white/15 px-6 py-16 text-center">
+            <p className="text-sm text-white/60">
+              {list.length === 0 ? "Photos and videos will appear here once they are added." : "Nothing in this view yet."}
+            </p>
+          </div>
+        )}
+
+        {/* Grid */}
+        {visible.length > 0 && (
           <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-60px" }}
-            variants={{
-              hidden: { opacity: 0 },
-              visible: {
-                opacity: 1,
-                transition: { staggerChildren: 0.05 },
-              },
-            }}
-            className="columns-1 gap-4 space-y-4 sm:columns-2 lg:columns-3"
+            key={filter}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.25 }}
+            className="grid grid-cols-2 gap-2.5 md:grid-cols-3 md:gap-4"
           >
-            {photos.map((photo, index) => {
+            {visible.map((photo, index) => {
               const video = isVideo(photo);
-              const label = photo.title || photo.caption || "Gallery media";
+              const label = photo.title || photo.caption || (video ? "Video" : "Photo");
 
               return (
-                <motion.div
+                <button
                   key={photo.id || index}
-                  variants={{
-                    hidden: { opacity: 0, y: 12 },
-                    visible: { opacity: 1, y: 0, transition: { duration: 0.35 } },
-                  }}
-                  className="break-inside-avoid"
+                  type="button"
+                  onClick={() => setOpenIndex(index)}
+                  aria-label={`Open ${label}`}
+                  className="group relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-slate-800 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
                 >
-                  <button
-                    type="button"
-                    onClick={() => setSelectedItem(photo)}
-                    aria-label={`Open ${label}`}
-                    className="glass group relative block w-full overflow-hidden rounded-xl text-left focus:outline-none focus:ring-2 focus:ring-amber-400"
-                  >
-                    {video ? (
-                      <div className="relative">
-                        <video
-                          src={photo.url}
-                          muted
-                          playsInline
-                          preload="metadata"
-                          className="block max-h-[560px] w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                        />
-                        <span className="absolute inset-0 flex items-center justify-center bg-black/20">
-                          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/60 text-white">
-                            <Play className="h-5 w-5" aria-hidden="true" />
-                          </span>
+                  {video ? (
+                    <>
+                      <video
+                        src={photo.url}
+                        muted
+                        playsInline
+                        preload="metadata"
+                        className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
+                      />
+                      <span className="absolute inset-0 grid place-items-center bg-slate-950/25">
+                        <span className="grid h-11 w-11 place-items-center rounded-full bg-slate-950/70 text-white">
+                          <Play className="ml-0.5 h-4 w-4 fill-current" aria-hidden="true" />
                         </span>
-                      </div>
-                    ) : (
-                      <div className="relative overflow-hidden">
-                        <img
-                          src={photo.url}
-                          alt={label}
-                          loading="lazy"
-                          decoding="async"
-                          className="block max-h-[560px] w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                        />
-                        <span className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 transition group-hover:opacity-100">
-                          <span className="glass flex h-10 w-10 items-center justify-center rounded-full">
-                            <ZoomIn className="h-4 w-4 text-white" aria-hidden="true" />
-                          </span>
-                        </span>
-                      </div>
-                    )}
-
-                    {label && (
-                      <span className="block border-t border-white/5 p-3 text-xs leading-relaxed text-white/55">
-                        {label}
                       </span>
-                    )}
-                  </button>
-                </motion.div>
+                    </>
+                  ) : (
+                    <img
+                      src={photo.url}
+                      alt={label}
+                      loading="lazy"
+                      decoding="async"
+                      className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
+                    />
+                  )}
+
+                  {/* Caption: always visible on phones, slides up on desktop hover */}
+                  {(photo.title || photo.caption) && (
+                    <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/85 to-transparent px-3.5 pb-3 pt-10 text-left text-xs font-medium text-white md:translate-y-1 md:opacity-0 md:transition md:duration-300 md:group-hover:translate-y-0 md:group-hover:opacity-100">
+                      {photo.title || photo.caption}
+                    </span>
+                  )}
+                </button>
               );
             })}
           </motion.div>
         )}
       </div>
 
+      {/* Viewer */}
       <AnimatePresence>
-        {selectedItem && (
+        {current && (
           <motion.div
             role="dialog"
             aria-modal="true"
-            aria-label={selectedItem.title || selectedItem.caption || "Gallery viewer"}
+            aria-label={current.title || current.caption || "Gallery viewer"}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/92 p-4 backdrop-blur-2xl"
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-slate-950/95 p-4"
             onMouseDown={(e) => {
-              if (e.target === e.currentTarget) setSelectedItem(null);
+              if (e.target === e.currentTarget) close();
             }}
           >
-            <button
-              ref={closeButtonRef}
-              type="button"
-              onClick={() => setSelectedItem(null)}
-              aria-label="Close gallery viewer"
-              title="Close"
-              className="absolute right-5 top-5 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-amber-400"
-            >
-              <X className="h-5 w-5" aria-hidden="true" />
-            </button>
+            {/* Top bar */}
+            <div className="absolute inset-x-0 top-0 flex items-center justify-between px-5 py-4">
+              <p className="text-xs tabular-nums text-white/50">
+                {(openIndex ?? 0) + 1} / {visible.length}
+              </p>
+              <button
+                type="button"
+                onClick={close}
+                aria-label="Close gallery viewer"
+                className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+              >
+                <X className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </div>
 
-            <div className="flex max-h-[90vh] max-w-5xl flex-col items-center gap-3">
-              {isVideo(selectedItem) ? (
+            {/* Previous / next */}
+            {visible.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => step(-1)}
+                  aria-label="Previous"
+                  className="absolute left-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/10 text-white transition hover:bg-white/20 md:left-6"
+                >
+                  <ChevronLeft className="h-6 w-6" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => step(1)}
+                  aria-label="Next"
+                  className="absolute right-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/10 text-white transition hover:bg-white/20 md:right-6"
+                >
+                  <ChevronRight className="h-6 w-6" aria-hidden="true" />
+                </button>
+              </>
+            )}
+
+            {/* Media */}
+            <div className="flex max-h-[84vh] w-full max-w-5xl flex-col items-center gap-4">
+              {isVideo(current) ? (
                 <video
-                  src={selectedItem.url}
+                  key={current.url}
+                  src={current.url}
                   controls
                   autoPlay
                   playsInline
-                  className="max-h-[80vh] max-w-full rounded-xl"
+                  className="max-h-[78vh] max-w-full rounded-xl"
                 />
               ) : (
                 <img
-                  src={selectedItem.url}
-                  alt={selectedItem.title || selectedItem.caption || "Gallery"}
-                  className="max-h-[80vh] max-w-full rounded-xl object-contain"
+                  key={current.url}
+                  src={current.url}
+                  alt={current.title || current.caption || "Gallery photo"}
+                  className="max-h-[78vh] max-w-full rounded-xl object-contain"
                 />
               )}
-
-              {(selectedItem.title || selectedItem.caption) && (
-                <p className="text-center text-sm text-white/60">
-                  {selectedItem.title || selectedItem.caption}
-                </p>
+              {(current.title || current.caption) && (
+                <p className="text-center text-sm text-white/65">{current.title || current.caption}</p>
               )}
             </div>
           </motion.div>
