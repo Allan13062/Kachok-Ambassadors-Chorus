@@ -82,6 +82,8 @@ let passcodeCacheTime: number = 0;
 let fallbackPasscode: string | null = null;
 
 function isDbAvailable(): boolean {
+  // Postgres is no longer used for site data. Set USE_POSTGRES=true only to bring it back.
+  if (process.env.USE_POSTGRES !== "true") return false;
   const host = process.env.SQL_HOST;
   if (!host || host.trim() === "" || host.includes("YOUR_") || host.includes("placeholder") || host.includes("your-")) {
     return false;
@@ -381,7 +383,8 @@ async function seedCloudSqlFromLocalDb() {
 // One-time copy of content that already exists in the Postgres tables into the site store.
 // A flag stops it from running again, so items you delete don't come back.
 async function importLegacyPostgresData() {
-  if (!isDbAvailable()) return;
+  // Runs only when MIGRATE_POSTGRES=true is set, for one deployment, to copy old content into Cloudinary.
+  if (process.env.MIGRATE_POSTGRES !== "true") return;
   const state: any = await getLocalDb();
   if (state.legacyImported) return;
   const [acts, iti, ldr, music] = await Promise.all([
@@ -1233,6 +1236,32 @@ app.post("/api/mpesa/stkpush", async (req, res) => {
   }
 });
 
+// Setup check for M-Pesa. Shows whether the settings are present and Safaricom accepts
+// the keys. It never shows secret values and never sends a payment prompt.
+app.get("/api/mpesa/check", async (req, res) => {
+  const settings = mpesaSettings();
+  if (!settings.ok || !settings.s) {
+    return res.json({ ok: false, step: "settings", error: settings.error || "M-Pesa settings are incomplete." });
+  }
+  const s = settings.s;
+  try {
+    await mpesaAccessToken(s);
+  } catch (err: any) {
+    return res.json({ ok: false, step: "safaricom", error: err?.message || "Safaricom did not accept the keys." });
+  }
+  const cfg: any = await getLocalDb().catch(() => ({}));
+  const configuredType = cfg?.mpesa?.mpesa_type || cfg?.mpesa?.tillType || "buy_goods";
+  const transactionType = !s.isProd || configuredType === "paybill" ? "CustomerPayBillOnline" : "CustomerBuyGoodsOnline";
+  return res.json({
+    ok: true,
+    step: "ready",
+    environment: s.isProd ? "live" : "sandbox",
+    transactionType,
+    tillEnding: s.shortcode.slice(-3),
+    callbackUrl: s.callbackUrl,
+  });
+});
+
 // The donation page calls this until the payment is confirmed or cancelled.
 app.get("/api/mpesa/status/:checkoutRequestId", async (req, res) => {
   const checkoutRequestId = String(req.params.checkoutRequestId || "");
@@ -1448,7 +1477,7 @@ app.post("/api/inquiries", async (req, res) => {
     await syncLocalFile("inquiries", "insert", newInq);
     
     try {
-      if (process.env.SQL_HOST) {
+      if (isDbAvailable()) {
         await db.insert(inquiries).values(newInq);
       }
     } catch (pgErr: any) {
@@ -1470,7 +1499,7 @@ app.put("/api/inquiries/:id/status", requireAdmin, async (req, res) => {
     let existing: any = null;
     
     try {
-      if (process.env.SQL_HOST) {
+      if (isDbAvailable()) {
         const records = await db.select().from(inquiries).where(eq(inquiries.id, id)).limit(1);
         if (records.length > 0) existing = records[0];
       }
@@ -1495,7 +1524,7 @@ app.put("/api/inquiries/:id/status", requireAdmin, async (req, res) => {
     await syncLocalFile("inquiries", "update", updated);
 
     try {
-      if (process.env.SQL_HOST) {
+      if (isDbAvailable()) {
         await db.update(inquiries).set({ status: status || "Read" }).where(eq(inquiries.id, id));
       }
     } catch (pgErr: any) {
@@ -1515,7 +1544,7 @@ app.delete("/api/inquiries/:id", requireAdmin, async (req, res) => {
     await syncLocalFile("inquiries", "delete", id);
     
     try {
-      if (process.env.SQL_HOST) {
+      if (isDbAvailable()) {
         await db.delete(inquiries).where(eq(inquiries.id, id));
       }
     } catch (pgErr: any) {
@@ -1551,7 +1580,7 @@ app.post("/api/activities", requireAdmin, async (req, res) => {
     await syncLocalFile("activities", "insert", newAct);
     
     try {
-      if (process.env.SQL_HOST) {
+      if (isDbAvailable()) {
         await db.insert(activities).values(newAct);
       }
     } catch (pgErr: any) {
@@ -1573,7 +1602,7 @@ app.put("/api/activities/:id", requireAdmin, async (req, res) => {
     let existing: any = null;
     
     try {
-      if (process.env.SQL_HOST) {
+      if (isDbAvailable()) {
         const records = await db.select().from(activities).where(eq(activities.id, id)).limit(1);
         if (records.length > 0) existing = records[0];
       }
@@ -1604,7 +1633,7 @@ app.put("/api/activities/:id", requireAdmin, async (req, res) => {
     await syncLocalFile("activities", "update", updated);
 
     try {
-      if (process.env.SQL_HOST) {
+      if (isDbAvailable()) {
         await db.update(activities).set({
           title: title ?? existing.title,
           date: date ?? existing.date,
@@ -1632,7 +1661,7 @@ app.delete("/api/activities/:id", requireAdmin, async (req, res) => {
     await syncLocalFile("activities", "delete", id);
     
     try {
-      if (process.env.SQL_HOST) {
+      if (isDbAvailable()) {
         await db.delete(activities).where(eq(activities.id, id));
       }
     } catch (pgErr: any) {
@@ -1670,7 +1699,7 @@ app.post("/api/itinerary", requireAdmin, async (req, res) => {
     await syncLocalFile("itinerary", "insert", newIti);
     
     try {
-      if (process.env.SQL_HOST) {
+      if (isDbAvailable()) {
         await db.insert(itinerary).values(newIti);
       }
     } catch (pgErr: any) {
@@ -1729,7 +1758,7 @@ app.put("/api/itinerary/:id", requireAdmin, async (req, res) => {
     let existing: any = null;
     
     try {
-      if (process.env.SQL_HOST) {
+      if (isDbAvailable()) {
         const records = await db.select().from(itinerary).where(eq(itinerary.id, id)).limit(1);
         if (records.length > 0) existing = records[0];
       }
@@ -1762,7 +1791,7 @@ app.put("/api/itinerary/:id", requireAdmin, async (req, res) => {
     await syncLocalFile("itinerary", "update", updated);
 
     try {
-      if (process.env.SQL_HOST) {
+      if (isDbAvailable()) {
         await db.update(itinerary).set({
           event: event ?? existing.event,
           date: date ?? existing.date,
@@ -1792,7 +1821,7 @@ app.delete("/api/itinerary/:id", requireAdmin, async (req, res) => {
     await syncLocalFile("itinerary", "delete", id);
     
     try {
-      if (process.env.SQL_HOST) {
+      if (isDbAvailable()) {
         await db.delete(itinerary).where(eq(itinerary.id, id));
       }
     } catch (pgErr: any) {
@@ -2176,7 +2205,7 @@ app.post("/api/leaders", requireAdmin, async (req, res) => {
     await syncLocalFile("leaders", "insert", newLeader);
     
     try {
-      if (process.env.SQL_HOST) {
+      if (isDbAvailable()) {
         await db.insert(leaders).values(newLeader);
       }
     } catch (pgErr: any) {
@@ -2201,7 +2230,7 @@ app.put("/api/leaders/:id", requireAdmin, async (req, res) => {
     let existing: any = null;
     
     try {
-      if (process.env.SQL_HOST) {
+      if (isDbAvailable()) {
         const records = await db.select().from(leaders).where(eq(leaders.id, id)).limit(1);
         if (records.length > 0) existing = records[0];
       }
@@ -2233,7 +2262,7 @@ app.put("/api/leaders/:id", requireAdmin, async (req, res) => {
     await syncLocalFile("leaders", "update", updated);
 
     try {
-      if (process.env.SQL_HOST) {
+      if (isDbAvailable()) {
         await db.update(leaders).set({
           name: name ?? existing.name,
           role: role ?? existing.role,
@@ -2265,7 +2294,7 @@ app.delete("/api/leaders/:id", requireAdmin, async (req, res) => {
     await syncLocalFile("leaders", "delete", id);
     
     try {
-      if (process.env.SQL_HOST) {
+      if (isDbAvailable()) {
         await db.delete(leaders).where(eq(leaders.id, id));
       }
     } catch (pgErr: any) {
