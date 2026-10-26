@@ -4,6 +4,21 @@ import { motion, AnimatePresence } from "motion/react";
 import ReceiptView from "./ReceiptView";
 import { buildReceiptData } from "../lib/receipt";
 
+// Checks the payment every few seconds for up to about 100 seconds.
+async function waitForPayment(checkoutRequestId: string): Promise<{ status: "paid" | "failed" | "pending" | "error"; message?: string }> {
+  for (let attempt = 0; attempt < 25; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 4000));
+    try {
+      const res = await fetch(`/api/mpesa/status/${encodeURIComponent(checkoutRequestId)}`);
+      const data = await res.json();
+      if (data.status === "paid" || data.status === "failed") return data;
+    } catch {
+      /* network blip: keep checking */
+    }
+  }
+  return { status: "pending" };
+}
+
 export default function JoinUs() {
   const [activeTab, setActiveTab] = useState<"audition" | "mpesa">("audition");
 
@@ -145,12 +160,24 @@ export default function JoinUs() {
       }
 
       if (res.ok && data.success && data.realApi) {
-        setReceiptWhen(new Date());
-        setPushStatus({
-          type: "success",
-          message: data.message,
-          refNumber: data.checkoutRequestId || `ws_CO_${Date.now().toString().slice(3)}`
-        });
+        // Wait for Safaricom to confirm (or cancel) before showing a receipt
+        setPushStatus({ type: "loading", message: "Enter your M-Pesa PIN on your phone to confirm your contribution…" });
+        const outcome = await waitForPayment(data.checkoutRequestId);
+        if (outcome.status === "paid") {
+          setReceiptWhen(new Date());
+          setPushStatus({
+            type: "success",
+            message: "Thank you! Your contribution has been received.",
+            refNumber: data.checkoutRequestId
+          });
+        } else if (outcome.status === "failed") {
+          setPushStatus({ type: "error", message: outcome.message || "The payment was cancelled or did not go through." });
+        } else {
+          setPushStatus({
+            type: "error",
+            message: "We haven't received confirmation yet. If you completed the payment, it will appear in our records shortly."
+          });
+        }
       } else if (res.ok && data.success && !data.realApi) {
         // Server is running without live M-Pesa credentials: never pretend a payment happened.
         setPushStatus({
