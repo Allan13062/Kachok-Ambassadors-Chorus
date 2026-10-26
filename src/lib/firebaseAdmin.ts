@@ -34,11 +34,21 @@ let lastInitError: string | null = null;
 
 function loadServiceAccount(): any | null {
   if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+    const raw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
     try {
-      return JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+      return JSON.parse(raw);
     } catch {
-      lastInitError = "FIREBASE_SERVICE_ACCOUNT_KEY is set but is not valid JSON.";
-      return null;
+      // Common paste problem: the private key has real line breaks inside it. Escape them and retry.
+      try {
+        const repaired = raw.replace(
+          /-----BEGIN PRIVATE KEY-----[\s\S]*?-----END PRIVATE KEY-----\r?\n?/g,
+          (block) => block.replace(/\r?\n/g, "\\n")
+        );
+        return JSON.parse(repaired);
+      } catch {
+        lastInitError = "FIREBASE_SERVICE_ACCOUNT_KEY is set but is not valid JSON. Paste the whole downloaded file unchanged.";
+        return null;
+      }
     }
   }
 
@@ -106,15 +116,12 @@ export async function verifyAdminIdToken(idToken: string): Promise<boolean> {
 
     // Hardcoded super-admin bootstrap account - mirrors useAdminAuth.ts.
     // Recommend replacing this with a proper `admins` doc and removing the hardcode (see recommendations).
-    if (decoded.email === "allangeorge566@gmail.com") return true;
+    const bootstrapEmail = (process.env.ADMIN_EMAIL || "allangeorge566@gmail.com").toLowerCase();
+    if (decoded.email && decoded.email.toLowerCase() === bootstrapEmail) return true;
 
-    const byUid = await firestore.collection("admins").doc(decoded.uid).get();
-    if (byUid.exists) return true;
-
-    if (decoded.email) {
-      const byEmail = await firestore.collection("admins").doc(decoded.email).get();
-      if (byEmail.exists) return true;
-    }
+    const isAdminRole = (snap: any) => snap.exists && ["admin", "super_admin"].includes(snap.data()?.role);
+    if (isAdminRole(await firestore.collection("admins").doc(decoded.uid).get())) return true;
+    if (decoded.email && isAdminRole(await firestore.collection("admins").doc(decoded.email).get())) return true;
 
     return false;
   } catch (err: any) {
