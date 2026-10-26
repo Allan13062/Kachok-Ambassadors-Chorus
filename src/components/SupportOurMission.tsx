@@ -119,18 +119,50 @@ export default function SupportOurMission({ theme, webLogo }: SupportOurMissionP
     loadConfig();
   }, []);
 
-  // Timer countdown for simulated confirmation
+  // Countdown shown to the donor while we wait for their PIN
   useEffect(() => {
-    let timer: any;
-    if (paymentStep === "waiting" && countdown > 0) {
-      timer = setInterval(() => {
-        setCountdown((prev) => prev - 1);
-      }, 1000);
-    } else if (paymentStep === "waiting" && countdown === 0) {
-      handleConfirmSuccess();
-    }
+    if (paymentStep !== "waiting" || countdown <= 0) return;
+    const timer = setInterval(() => setCountdown((prev) => (prev > 0 ? prev - 1 : 0)), 1000);
     return () => clearInterval(timer);
   }, [paymentStep, countdown]);
+
+  // Ask the server (which asks Safaricom) whether the payment really went through.
+  const checkPaymentStatus = async (): Promise<void> => {
+    const id = transactionData?.checkoutRequestId;
+    if (!id) return;
+    try {
+      const res = await fetch(`/api/mpesa/status/${encodeURIComponent(id)}`);
+      const data = await res.json();
+      if (data.status === "paid") {
+        setTransactionData((prev: any) => ({ ...prev, receiptNo: data.receiptNo || prev?.receiptNo || "" }));
+        setPaymentStep("success");
+      } else if (data.status === "failed") {
+        setError(data.message || "The payment was cancelled or did not go through.");
+        setPaymentStep("idle");
+        setPushSent(false);
+      }
+    } catch (_) {
+      // Network blip: the next poll will try again
+    }
+  };
+
+  // Poll every 4 seconds for up to 2 minutes
+  useEffect(() => {
+    if (paymentStep !== "waiting") return;
+    let tries = 0;
+    const poll = setInterval(() => {
+      tries += 1;
+      if (tries > 30) {
+        clearInterval(poll);
+        setError("We did not receive a confirmation. If money left your account, contact us with your M-Pesa message.");
+        setPaymentStep("idle");
+        setPushSent(false);
+        return;
+      }
+      checkPaymentStatus();
+    }, 4000);
+    return () => clearInterval(poll);
+  }, [paymentStep, transactionData?.checkoutRequestId]);
 
   const handleCopyTill = () => {
     navigator.clipboard.writeText(mpesaConfig.tillNumber);
@@ -178,7 +210,7 @@ export default function SupportOurMission({ theme, webLogo }: SupportOurMissionP
       if (response.ok && data.success) {
         setTransactionData(data);
         setPushSent(true);
-        setCountdown(20);
+        setCountdown(30);
         setPaymentStep("waiting");
       } else {
         setError(data.error || "Failed to trigger the M-Pesa STK Push. Please try again.");
@@ -189,10 +221,6 @@ export default function SupportOurMission({ theme, webLogo }: SupportOurMissionP
       setLoading(false);
       setPaymentStep("idle");
     }
-  };
-
-  const handleConfirmSuccess = () => {
-    setPaymentStep("success");
   };
 
   const handleResetForm = () => {
@@ -272,6 +300,7 @@ export default function SupportOurMission({ theme, webLogo }: SupportOurMissionP
   // Helper to construct simulated receipt info
   const receiptNo = useMemo(() => {
     if (!transactionData) return "MPESA_DRAFT";
+    if (transactionData.receiptNo) return String(transactionData.receiptNo).toUpperCase();
     const baseId = transactionData.merchantRequestId || transactionData.checkoutRequestId || "TXN";
     // Clean alphanumeric characters to keep barcode scannable and valid Code 39
     const cleanBase = baseId.replace(/[^A-Z0-9]/ig, "").toUpperCase();
@@ -474,6 +503,7 @@ export default function SupportOurMission({ theme, webLogo }: SupportOurMissionP
           const base64Content = dataUri.split(',')[1];
           
           const payload = {
+            checkoutRequestId: transactionData?.checkoutRequestId,
             receiptNo,
             amount: Number(amount) || 0,
             phone: phone || "2547XXXXXXXX",
@@ -745,16 +775,16 @@ export default function SupportOurMission({ theme, webLogo }: SupportOurMissionP
 
                   {/* Circular visual timer overlay */}
                   <div className="inline-flex items-center justify-center p-4 rounded-2xl bg-slate-950/60 border border-slate-800 text-xs font-mono mb-6">
-                    <span className="text-slate-400">Awaiting secure callback response:</span>
+                    <span className="text-slate-400">Waiting for your PIN:</span>
                     <span className="text-amber-500 font-bold ml-2">{countdown}s</span>
                   </div>
 
                   <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
                     <button
-                      onClick={handleConfirmSuccess}
+                      onClick={checkPaymentStatus}
                       className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 py-3 rounded-xl text-xs uppercase tracking-wider transition-colors cursor-pointer"
                     >
-                      I have completed the PIN prompt
+                      Check payment status
                     </button>
                     <button
                       onClick={handleResetForm}
@@ -778,7 +808,7 @@ export default function SupportOurMission({ theme, webLogo }: SupportOurMissionP
                   <div className="p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left print:hidden">
                     <CheckCircle2 className="w-10 h-10 text-emerald-400 shrink-0" />
                     <div>
-                      <h4 className="font-sans font-bold text-white text-base">Payment Triggered Successfully</h4>
+                      <h4 className="font-sans font-bold text-white text-base">Payment Received</h4>
                       <p className="text-xs text-slate-400">
                         Thank you for supporting Kachamba Chorus. A downloadable receipt of this secure contribution transaction is drafted below.
                       </p>
