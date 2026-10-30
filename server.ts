@@ -1086,25 +1086,37 @@ app.put("/api/mpesa/config", requireAdmin, async (req, res) => {
 // ---------------------------------------------------------------------------
 type MpesaSettingsResult = { ok: boolean; error?: string; s?: { base: string; isProd: boolean; shortcode: string; passkey: string; key: string; secret: string; callbackUrl: string } };
 
-function mpesaSettings(): MpesaSettingsResult {
-  const key = process.env.MPESA_CONSUMER_KEY;
-  const secret = process.env.MPESA_CONSUMER_SECRET;
-  const passkey = process.env.MPESA_PASSKEY;
-  const shortcode = process.env.MPESA_STORE_NUMBER || process.env.MPESA_SHORTCODE;
-  // APP_URL is optional on Vercel: fall back to the deployment's own address.
-  const vercelHost = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
-  const appUrl = process.env.APP_URL || (vercelHost ? `https://${vercelHost}` : undefined);
+// Vercel values are often pasted with a trailing space or newline, which makes Safaricom reject them.
+const envClean = (name: string): string => String(process.env[name] || "").trim().replace(/^["']|["']$/g, "");
+
+// The public https address Safaricom should call back. APP_URL wins; otherwise it is worked out
+// from Vercel's own variables or from the request, so a missing APP_URL no longer blocks payments.
+function mpesaPublicUrl(req?: any): string {
+  const explicit = envClean("APP_URL");
+  if (explicit) return /^https?:\/\//i.test(explicit) ? explicit : `https://${explicit}`;
+  const vercelHost = envClean("VERCEL_PROJECT_PRODUCTION_URL") || envClean("VERCEL_URL");
+  if (vercelHost) return `https://${vercelHost}`;
+  const host = req?.headers?.["x-forwarded-host"] || req?.headers?.host;
+  return host ? `https://${String(host).split(",")[0].trim()}` : "";
+}
+
+function mpesaSettings(req?: any): MpesaSettingsResult {
+  const key = envClean("MPESA_CONSUMER_KEY");
+  const secret = envClean("MPESA_CONSUMER_SECRET");
+  const passkey = envClean("MPESA_PASSKEY");
+  const shortcode = envClean("MPESA_STORE_NUMBER") || envClean("MPESA_SHORTCODE");
+  const appUrl = mpesaPublicUrl(req);
   const missing = [
     ["MPESA_CONSUMER_KEY", key],
     ["MPESA_CONSUMER_SECRET", secret],
     ["MPESA_PASSKEY", passkey],
     ["MPESA_STORE_NUMBER", shortcode],
-    ["APP_URL (or deploy on Vercel)", appUrl],
+    ["APP_URL", appUrl],
   ].filter(([, value]) => !value).map(([name]) => name);
   if (missing.length) {
     return { ok: false, error: `Online M-Pesa is not set up yet. Add these in Vercel and redeploy: ${missing.join(", ")}.` };
   }
-  const isProd = String(process.env.MPESA_ENV || "").trim().toLowerCase() !== "sandbox";
+  const isProd = envClean("MPESA_ENV").toLowerCase() !== "sandbox";
   return {
     ok: true,
     s: {
@@ -1114,7 +1126,7 @@ function mpesaSettings(): MpesaSettingsResult {
       passkey: String(passkey),
       key: String(key),
       secret: String(secret),
-      callbackUrl: `${(/^https?:\/\//.test(String(appUrl)) ? String(appUrl) : `https://${appUrl}`).replace(/\/$/, "")}/api/mpesa/callback`,
+      callbackUrl: `${String(appUrl).replace(/\/$/, "")}/api/mpesa/callback`,
     },
   };
 }
@@ -1174,7 +1186,7 @@ app.post("/api/mpesa/stkpush", async (req, res) => {
       return res.status(400).json({ error: "The amount must be at least KES 1." });
     }
 
-    const settings = mpesaSettings();
+    const settings = mpesaSettings(req);
     if (!settings.ok) return res.status(503).json({ success: false, realApi: false, error: settings.error });
     const s = settings.s;
 
@@ -1195,7 +1207,13 @@ app.post("/api/mpesa/stkpush", async (req, res) => {
       TransactionType: transactionType,
       Amount: numericAmount,
       PartyA: Number(formattedPhone),
-      PartyB: Number(s.shortcode),
+      // Buy Goods: BusinessShortCode is the Store (head office) number, PartyB is the Till that receives the money.
+      // Paybill: both are the Paybill number.
+      PartyB: Number(
+        transactionType === "CustomerBuyGoodsOnline"
+          ? (envClean("MPESA_TILL_NUMBER") || String(config?.mpesa?.mpesa_till || config?.mpesa?.tillNumber || "").replace(/\D/g, "") || "4119041")
+          : s.shortcode
+      ),
       PhoneNumber: Number(formattedPhone),
       CallBackURL: s.callbackUrl,
       AccountReference: "Kachamba",
@@ -1241,7 +1259,7 @@ app.post("/api/mpesa/stkpush", async (req, res) => {
 // Setup check for M-Pesa. Shows whether the settings are present and Safaricom accepts
 // the keys. It never shows secret values and never sends a payment prompt.
 app.get("/api/mpesa/check", async (req, res) => {
-  const settings = mpesaSettings();
+  const settings = mpesaSettings(req);
   if (!settings.ok || !settings.s) {
     return res.json({ ok: false, step: "settings", error: settings.error || "M-Pesa settings are incomplete." });
   }
@@ -1273,7 +1291,7 @@ app.get("/api/mpesa/status/:checkoutRequestId", async (req, res) => {
     if (saved?.status === "paid") return res.json({ status: "paid", receiptNo: saved.receiptNo || "" });
     if (saved?.status === "failed") return res.json({ status: "failed", message: saved.message || "The payment was cancelled or did not go through." });
 
-    const settings = mpesaSettings();
+    const settings = mpesaSettings(req);
     if (!settings.ok) return res.status(503).json({ status: "error", message: settings.error });
     const s = settings.s;
 
@@ -1293,7 +1311,7 @@ app.get("/api/mpesa/status/:checkoutRequestId", async (req, res) => {
 
     if (String(data.ResultCode) === "0") {
       await recordPaymentOutcome(checkoutRequestId, { status: "paid" });
-      return res.json({ status: "paid", message: data.ResultDesc || "", receiptNo: saved?.receiptNo || "" });
+      return res.json({ status: "paid", message: data.ResultDesc || "" });
     }
     if (data.ResultCode !== undefined && data.ResultCode !== null) {
       // Cancelled, timed out, or insufficient funds
@@ -1341,39 +1359,6 @@ app.get("/api/mpesa/receipts", requireAdmin, async (req, res) => {
     res.json({ receipts });
   } catch (err: any) {
     res.status(500).json({ error: err?.message || "Could not load receipts" });
-  }
-});
-
-// Attach the generated receipt PDF to a payment that Safaricom has confirmed.
-// Only confirmed payments can be saved, so nobody can forge receipts.
-app.post("/api/mpesa/receipt/save", async (req, res) => {
-  try {
-    const { checkoutRequestId, pdfBase64 } = req.body || {};
-    if (!checkoutRequestId) return res.status(400).json({ success: false, error: "checkoutRequestId is required." });
-    const localDb: any = await getLocalDb();
-    const payment = (localDb.payments || []).find((p: any) => p.id === String(checkoutRequestId));
-    if (!payment || payment.status !== "paid") {
-      return res.status(403).json({ success: false, error: "This payment has not been confirmed." });
-    }
-    const receiptNo = payment.receiptNo;
-    if (!receiptNo) return res.json({ success: true, pdfUrl: "" });
-
-    let pdfUrl = "";
-    if (pdfBase64 && isCloudinaryAvailable()) {
-      try {
-        const up: any = await cloudinary.uploader.upload(`data:application/pdf;base64,${pdfBase64}`, {
-          resource_type: "image", folder: "kachamba-receipts", public_id: `receipt-${receiptNo}`, overwrite: true,
-        });
-        pdfUrl = up.secure_url || "";
-      } catch (e: any) {
-        console.warn("[M-Pesa] Receipt PDF upload failed:", e?.message || e);
-      }
-    }
-    const existing = (localDb.receipts || []).find((r: any) => r.receiptNo === receiptNo);
-    if (existing && pdfUrl) await syncLocalFile("receipts", "update", { ...existing, pdfUrl });
-    return res.json({ success: true, pdfUrl });
-  } catch (err: any) {
-    return res.status(500).json({ success: false, error: err?.message || "Could not save the receipt." });
   }
 });
 
