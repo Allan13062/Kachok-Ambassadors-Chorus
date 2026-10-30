@@ -12,7 +12,7 @@
 
 import fs from "fs";
 import path from "path";
-import { pool } from "./src/db/index.ts";
+import { pool } from "./src/db/index.js";
 
 const STATE_ID = "main";
 const SEED_PATH = path.join(process.cwd(), "data", "db.json");
