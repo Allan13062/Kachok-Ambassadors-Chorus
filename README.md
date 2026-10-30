@@ -22,14 +22,13 @@ The Kachamba Chorus website is built to connect the musical group with its fans,
 
 ## 🛠️ Tech Stack
 
-*(Note: Update these placeholders with the actual technologies you used!)*
-* **Frontend:** HTML5, CSS3, JavaScript / React.js 
+* **Frontend:** HTML5, CSS3, Tailwindcss JavaScript / React.js 
 * **Backend:** Node.js / Python / PHP
 * **Hosting/Deployment:** Vercel / Netlify / cPanel 
 
 ## 👨‍💻 Meet the Developer
 
-This platform was passionately designed, developed, and is maintained by me. I believe in leveraging technology to elevate the arts and bring communities together through music.
+This platform was passionately designed, developed, and is maintained by Allan George. I believe in leveraging technology to elevate the arts and bring communities together through music
 
 ![Developer Profile](https://user49391.na.imgto.link/public/20261030/f51150f1e622b570a0d5b6ae-867139.avif)
 
