@@ -30,7 +30,7 @@ The Kachamba Chorus website is built to connect the musical group with its fans,
 
 This platform was passionately designed, developed, and is maintained by me. I believe in leveraging technology to elevate the arts and bring communities together through music.
 
-![Developer Profile](https://imagetourls.com/en/v?u=https%3A%2F%2Fcdn.imagetourls.com%2Fuploads%2FtyImg%2FmmAhRCJA.jpg)
+![Developer Profile](https://user49391.na.imgto.link/public/20261030/f51150f1e622b570a0d5b6ae-867139.avif)
 
 ## 🚀 Getting Started (For Contributors)
 
