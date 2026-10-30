@@ -3,6 +3,7 @@
 Welcome to the official repository for **Kachamba Chorus**! 
 
 This project serves as the digital home and dedicated web platform for the chorus, designed to bring our music, events, and community to a wider audience.
+![Kachamba Chorus](https://img.remit.ee/i/I5UzPtEkqqXC)
 
 ## 🌐 Live Demo
 
