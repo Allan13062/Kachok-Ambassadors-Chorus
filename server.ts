@@ -13,7 +13,7 @@ import { GoogleGenAI } from "@google/genai";
 import { Readable } from "stream";
 import { v2 as cloudinary } from "cloudinary";
 
-import { db } from "./src/db/index.ts";
+import { db, pool } from "./src/db/index.ts";
 import { getLocalDb, saveLocalDb, insertItem, deleteItem, getSession, deleteSession, saveFile, getFile } from "./dbStorage.ts";
 import { timingSafeEqual, randomBytes, scryptSync } from "crypto";
 import { verifyAdminIdToken } from "./src/lib/firebaseAdmin.ts";
@@ -1256,6 +1256,35 @@ app.post("/api/mpesa/stkpush", async (req, res) => {
   }
 });
 
+// Shows exactly why the database connection works or fails (never prints the password).
+app.get("/api/db/check", async (req, res) => {
+  const vars = {
+    SQL_HOST: !!process.env.SQL_HOST,
+    SQL_USER: !!process.env.SQL_USER,
+    SQL_PASSWORD: !!process.env.SQL_PASSWORD,
+    SQL_DB_NAME: !!process.env.SQL_DB_NAME,
+  };
+  const hints: string[] = [];
+  for (const k of ["SQL_HOST", "SQL_USER", "SQL_PASSWORD", "SQL_DB_NAME"]) {
+    const v = process.env[k];
+    if (v && (v !== v.trim() || /^["']|["']$/.test(v))) hints.push(`${k} has a space or quote mark at the start or end. Re-enter it without them.`);
+  }
+  if (process.env.SQL_HOST && /[\/:@?]/.test(process.env.SQL_HOST)) hints.push("SQL_HOST must be only the host name (no postgresql://, port, slashes or ?options).");
+  if (Object.values(vars).some((v) => !v)) {
+    return res.json({ ok: false, step: "variables", present: vars, hints, error: "Some SQL_* variables are missing in this deployment. Add them and redeploy." });
+  }
+  try {
+    const started = Date.now();
+    await Promise.race([
+      pool.query("SELECT 1"),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Timed out after 12 seconds waiting for the database.")), 12000)),
+    ]);
+    return res.json({ ok: true, step: "connected", host: process.env.SQL_HOST, ms: Date.now() - started, present: vars, hints });
+  } catch (err: any) {
+    return res.json({ ok: false, step: "connect", host: process.env.SQL_HOST, present: vars, hints, error: err?.message || String(err), code: err?.code || null });
+  }
+});
+
 // Setup check for M-Pesa. Shows whether the settings are present and Safaricom accepts
 // the keys. It never shows secret values and never sends a payment prompt.
 app.get("/api/mpesa/check", async (req, res) => {
@@ -1311,7 +1340,7 @@ app.get("/api/mpesa/status/:checkoutRequestId", async (req, res) => {
 
     if (String(data.ResultCode) === "0") {
       await recordPaymentOutcome(checkoutRequestId, { status: "paid" });
-      return res.json({ status: "paid", message: data.ResultDesc || "" });
+      return res.json({ status: "paid", message: data.ResultDesc || "", receiptNo: saved?.receiptNo || "" });
     }
     if (data.ResultCode !== undefined && data.ResultCode !== null) {
       // Cancelled, timed out, or insufficient funds
@@ -1359,6 +1388,39 @@ app.get("/api/mpesa/receipts", requireAdmin, async (req, res) => {
     res.json({ receipts });
   } catch (err: any) {
     res.status(500).json({ error: err?.message || "Could not load receipts" });
+  }
+});
+
+// Attach the generated receipt PDF to a payment that Safaricom has confirmed.
+// Only confirmed payments can be saved, so nobody can forge receipts.
+app.post("/api/mpesa/receipt/save", async (req, res) => {
+  try {
+    const { checkoutRequestId, pdfBase64 } = req.body || {};
+    if (!checkoutRequestId) return res.status(400).json({ success: false, error: "checkoutRequestId is required." });
+    const localDb: any = await getLocalDb();
+    const payment = (localDb.payments || []).find((p: any) => p.id === String(checkoutRequestId));
+    if (!payment || payment.status !== "paid") {
+      return res.status(403).json({ success: false, error: "This payment has not been confirmed." });
+    }
+    const receiptNo = payment.receiptNo;
+    if (!receiptNo) return res.json({ success: true, pdfUrl: "" });
+
+    let pdfUrl = "";
+    if (pdfBase64 && isCloudinaryAvailable()) {
+      try {
+        const up: any = await cloudinary.uploader.upload(`data:application/pdf;base64,${pdfBase64}`, {
+          resource_type: "image", folder: "kachamba-receipts", public_id: `receipt-${receiptNo}`, overwrite: true,
+        });
+        pdfUrl = up.secure_url || "";
+      } catch (e: any) {
+        console.warn("[M-Pesa] Receipt PDF upload failed:", e?.message || e);
+      }
+    }
+    const existing = (localDb.receipts || []).find((r: any) => r.receiptNo === receiptNo);
+    if (existing && pdfUrl) await syncLocalFile("receipts", "update", { ...existing, pdfUrl });
+    return res.json({ success: true, pdfUrl });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err?.message || "Could not save the receipt." });
   }
 });
 
