@@ -25,11 +25,12 @@ const navItems = [
   ["Music", "music"],
   ["Gallery", "gallery"],
   ["Join", "join"],
+  ["Support", "support"],
   ["Contact", "contact"],
 ] as const;
 
 const FALLBACK_LOGO =
-  "https://www.image2url.com/r2/default/images/1781098447744-9bfd4cd8-4c62-4a1a-b218-7ccd6f1b36d2.png";
+  "/logo.png";
 
 export default function Header({
   isAdmin,
@@ -42,16 +43,13 @@ export default function Header({
 }: HeaderProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [hidden, setHidden] = useState(false);
   const lastY = useRef(0);
 
   useEffect(() => {
     const onScroll = () => {
       const y = window.scrollY;
-      const max = document.documentElement.scrollHeight - window.innerHeight;
       setScrolled(y > 24);
-      setProgress(max > 0 ? (y / max) * 100 : 0);
       if (y < 100) setHidden(false);
       else if (y > lastY.current + 8) setHidden(true);
       else if (y < lastY.current - 8) setHidden(false);
@@ -106,18 +104,18 @@ export default function Header({
           <img
             src={webLogo || FALLBACK_LOGO}
             alt=""
-            className="h-9 w-9 rounded-full border-2 border-white/20 object-cover"
+            className="h-9 w-9 rounded-full border border-white/20 object-cover"
             loading="eager"
             decoding="async"
             referrerPolicy="no-referrer"
           />
-          <span className="brand-name font-display font-bold">
+          <span className="font-display text-[1.2rem] font-bold tracking-tight">
             Kachamba<span className="text-white/50"> Chorus</span>
           </span>
         </button>
 
         {/* Desktop navigation */}
-        <nav className="hidden items-center gap-0.5 lg:flex" aria-label="Primary navigation">
+        <nav className="hidden items-center gap-0.5 xl:flex" aria-label="Primary navigation">
           {navItems.map(([label, id]) => {
             const active = activeSection === id;
             return (
@@ -145,7 +143,7 @@ export default function Header({
         </nav>
 
         {/* Desktop actions */}
-        <div className="hidden items-center gap-2 lg:flex">
+        <div className="hidden items-center gap-2 xl:flex">
           <button
             type="button"
             onClick={onToggleTheme}
@@ -181,80 +179,77 @@ export default function Header({
           aria-label={mobileOpen ? "Close navigation menu" : "Open navigation menu"}
           aria-expanded={mobileOpen}
           aria-controls="mobile-navigation"
-          className="grid h-10 w-10 place-items-center rounded-full border border-white/20 lg:hidden"
+          className="grid h-10 w-10 place-items-center rounded-full border border-white/20 xl:hidden"
         >
           {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
       </div>
 
-      {/* Scroll progress */}
-      <div
-        className="absolute bottom-0 left-0 h-[2px]"
-        style={{
-          width: `${progress}%`,
-          background: "var(--fill-primary)",
-        }}
-      />
-
-      {/* Mobile dropdown panel (white in both modes) */}
+      {/* Mobile full-screen sheet */}
       <AnimatePresence>
         {mobileOpen && (
           <motion.nav
             id="mobile-navigation"
             aria-label="Mobile navigation"
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-x-0 top-[68px] z-40 max-h-[calc(100vh-68px)] overflow-y-auto bg-white pb-8 text-[#0B2A4A] shadow-2xl shadow-[#0B2A4A]/20 lg:hidden"
+            className="fixed inset-x-0 bottom-0 top-[68px] overflow-y-auto bg-slate-950 px-6 pb-10 pt-4 xl:hidden"
           >
-            <ul>
-              {navItems.map(([label, id]) => {
-                const active = activeSection === id;
-                return (
-                  <li key={id}>
-                    <button
-                      type="button"
-                      onClick={() => scrollTo(id)}
-                      aria-current={active ? "true" : undefined}
-                      className={`flex w-full items-center px-[3.25rem] py-[1.1rem] text-left font-display text-[1.05rem] font-medium transition ${
-                        active ? "bg-[#F07426] text-white" : "text-[#0B2A4A] hover:bg-[#F4F8FC]"
+            <ul className="divide-y divide-white/10">
+              {navItems.map(([label, id], i) => (
+                <motion.li
+                  key={id}
+                  initial={{ opacity: 0, x: -12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.035 * i, duration: 0.35 }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => scrollTo(id)}
+                    className="flex w-full items-center gap-3 py-3 text-left"
+                  >
+                    <span
+                      className="h-2 w-2 shrink-0 rounded-full"
+                      style={{ background: activeSection === id ? "var(--fill-primary)" : "var(--color-slate-600)" }}
+                    />
+                    <span
+                      className={`font-display text-2xl font-bold tracking-tight ${
+                        activeSection === id ? "text-[color:var(--hue-primary)]" : ""
                       }`}
                     >
                       {label}
-                    </button>
-                  </li>
-                );
-              })}
+                    </span>
+                  </button>
+                </motion.li>
+              ))}
             </ul>
 
-            <div className="mt-6 grid grid-cols-2 gap-3 px-6">
-              <button
-                type="button"
-                onClick={onToggleTheme}
-                className="flex items-center justify-center gap-2 rounded-lg border-2 border-[#0B2A4A] py-3 text-[13px] font-semibold text-[#0B2A4A]"
-              >
+            <div className="mt-8 grid grid-cols-2 gap-3">
+              <button type="button" onClick={onToggleTheme} className="btn-outline !py-3 !text-[13px]">
                 {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                 {isDark ? "Light mode" : "Dark mode"}
               </button>
               <button
                 type="button"
                 onClick={isAdmin ? onLogout : onOpenAdmin}
-                className="flex items-center justify-center gap-2 rounded-lg border-2 border-[#0B2A4A] py-3 text-[13px] font-semibold text-[#0B2A4A]"
+                className="btn-outline !py-3 !text-[13px]"
               >
                 <Lock className="h-4 w-4" />
                 {isAdmin ? "Logout" : "Admin"}
               </button>
             </div>
-            <div className="px-6 pt-3">
-              <button type="button" onClick={() => scrollTo("contact")} className="btn-navy w-full">
-                Book the chorus
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => scrollTo("contact")}
+              className="btn-solid fill-accent mt-3 w-full !py-3.5"
+            >
+              Book the chorus
+            </button>
           </motion.nav>
         )}
       </AnimatePresence>
     </motion.header>
   );
 }
-
