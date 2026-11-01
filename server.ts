@@ -1,4 +1,4 @@
-import "./src/envLoader.ts";
+import "./src/envLoader.js";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -13,11 +13,11 @@ import { GoogleGenAI } from "@google/genai";
 import { Readable } from "stream";
 import { v2 as cloudinary } from "cloudinary";
 
-import { db, pool } from "./src/db/index.ts";
-import { getLocalDb, saveLocalDb, insertItem, deleteItem, getSession, deleteSession, saveFile, getFile } from "./dbStorage.ts";
+import { db, pool } from "./src/db/index.js";
+import { getLocalDb, saveLocalDb, insertItem, deleteItem, getSession, deleteSession, saveFile, getFile } from "./dbStorage.js";
 import { timingSafeEqual, randomBytes, scryptSync } from "crypto";
-import { verifyAdminIdToken } from "./src/lib/firebaseAdmin.ts";
-import { activities, itinerary, leaders, inquiries, musicConfig, adminConfig, uploads, users, gallery } from "./src/db/schema.ts";
+import { verifyAdminIdToken } from "./src/lib/firebaseAdmin.js";
+import { activities, itinerary, leaders, inquiries, musicConfig, adminConfig, uploads, users, gallery } from "./src/db/schema.js";
 import { eq } from "drizzle-orm";
 
 const app = express();
