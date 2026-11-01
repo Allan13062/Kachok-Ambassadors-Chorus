@@ -1,4 +1,20 @@
-import { pgTable, text, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp, jsonb } from "drizzle-orm/pg-core";
+
+// App state document storage
+export const appState = pgTable("app_state", {
+  id: text("id").primaryKey(),
+  data: jsonb("data").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+
+// App files storage
+export const appFiles = pgTable("app_files", {
+  id: text("id").primaryKey(),
+  filename: text("filename"),
+  mimeType: text("mime_type"),
+  data: text("data").notNull(),
+  createdAt: timestamp("created_at").defaultNow()
+});
 
 // Activities Table
 export const activities = pgTable("activities", {

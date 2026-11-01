@@ -22,5 +22,15 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "include": [
+    "src",
+    "server.ts",
+    "dbStorage.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "app"
+  ]
 }

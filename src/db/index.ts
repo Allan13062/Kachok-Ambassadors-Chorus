@@ -6,8 +6,8 @@ const { Pool } = pg;
 
 export const createPool = () => {
   let host = process.env.SQL_HOST;
-  const user = process.env.SQL_USER;
-  const password = process.env.SQL_PASSWORD;
+  const user = process.env.SQL_ADMIN_USER || process.env.SQL_USER;
+  const password = process.env.SQL_ADMIN_PASSWORD || process.env.SQL_PASSWORD;
   const database = process.env.SQL_DB_NAME;
 
   if (!host || !user || !password || !database) {
