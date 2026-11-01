@@ -172,3 +172,28 @@ export const donations = pgTable("donations", {
   createdAt: timestamp("created_at").defaultNow(),
   completedAt: timestamp("completed_at")
 });
+import { pgTable, serial, varchar, numeric, integer, text, timestamp } from 'drizzle-orm/pg-core';
+
+// 1. Table to save M-Pesa tracking numbers and payment results
+export const mpesaTransactions = pgTable('mpesa_transactions', {
+  id: serial('id').primaryKey(),
+  merchantRequestId: varchar('merchant_request_id', { length: 100 }).notNull().unique(),
+  checkoutRequestId: varchar('checkout_request_id', { length: 100 }).notNull().unique(),
+  phoneNumber: varchar('phone_number', { length: 15 }).notNull(),
+  amount: numeric('amount', { precision: 10, scale: 2 }).notNull(),
+  status: varchar('status', { length: 20 }).default('PENDING'), // PENDING, SUCCESS, FAILED
+  mpesaReceiptNumber: varchar('mpesa_receipt_number', { length: 50 }).unique(),
+  resultCode: integer('result_code'),
+  resultDesc: text('result_desc'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+// 2. Table to save internet links to your church's uploaded photos or audio files
+export const churchUploads = pgTable('church_uploads', {
+  id: serial('id').primaryKey(),
+  fileName: varchar('file_name', { length: 255 }).notNull(),
+  fileType: varchar('file_type', { length: 50 }).notNull(), // Example: 'image/jpeg' or 'audio/mp3'
+  storageUrl: text('storage_url').notNull(), // The link showing where the file is stored online
+  createdAt: timestamp('created_at').defaultNow(),
+});
