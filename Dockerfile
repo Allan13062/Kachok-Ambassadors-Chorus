@@ -1,36 +1,22 @@
-# Use node Alpine image for lightweight build
-FROM node:20-alpine AS builder
-
+# ---- Build stage: builds the React site and bundles the server ----
+FROM node:22-alpine AS builder
 WORKDIR /app
 
-# Copy dependency files
+# "npm install" (not "npm ci"): package-lock.json is out of sync with package.json
 COPY package*.json ./
+RUN npm install
 
-# Install all dependencies (including devDependencies for build)
-RUN npm ci
-
-# Copy the rest of the application files
 COPY . .
-
-# Build Vite frontend and compile the backend server using esbuild
 RUN npm run build
 
-# --- Production Environment ---
-FROM node:20-alpine
-
+# ---- Production stage ----
+FROM node:22-alpine
 WORKDIR /app
-
 ENV NODE_ENV=production
 
-# Copy built artifacts and production dependencies
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/package.json ./
+RUN npm install --omit=dev
 
-# Install only production dependencies
-RUN npm ci --only=production
-
-# Expose port (Internal container port)
 EXPOSE 3000
-
-# Start command
 CMD ["npm", "start"]
