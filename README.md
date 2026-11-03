@@ -24,7 +24,7 @@ The Kachamba Chorus website is built to connect the musical group with its fans,
 
 * **Frontend:** HTML5, CSS3, Tailwindcss JavaScript / React.js 
 * **Backend:** Node.js / Python / PHP
-* **Hosting/Deployment:** Vercel / Netlify / cPanel 
+* **Hosting/Deployment:** Vercel / Render
 
 ## 👨‍💻 Meet the Developer
 
