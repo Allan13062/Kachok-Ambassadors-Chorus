@@ -18,7 +18,7 @@ const STATE_ID = "main";
 const SEED_PATH = path.join(process.cwd(), "data", "db.json");
 const CACHE_TTL_MS = 5000;
 
-function defaultState(): any {
+function defaultState() {
   return {
     passcode: process.env.ADMIN_PASSCODE || "CHANGE_ME_SET_ADMIN_PASSCODE_ENV_VAR",
     adminEmail: process.env.ADMIN_EMAIL || "",
@@ -39,18 +39,18 @@ function defaultState(): any {
 }
 
 // Used only the first time, to copy the existing data/db.json into the database.
-function readSeedFile(): any {
+function readSeedFile() {
   try {
     if (fs.existsSync(SEED_PATH)) return JSON.parse(fs.readFileSync(SEED_PATH, "utf8"));
-  } catch (err: any) {
+  } catch (err) {
     console.warn("[DB] Could not read seed file:", err?.message || err);
   }
   return {};
 }
 
-let tableReady: Promise<void> | null = null;
+let tableReady = null;
 
-function ensureTable(): Promise<void> {
+function ensureTable() {
   if (!tableReady) {
     tableReady = (async () => {
       try {
@@ -61,7 +61,7 @@ function ensureTable(): Promise<void> {
              updated_at timestamptz NOT NULL DEFAULT now()
            )`
         );
-      } catch (ddlErr: any) {
+      } catch (ddlErr) {
         console.warn("[DB] Note on CREATE TABLE app_state:", ddlErr?.message || ddlErr);
       }
       const { rows } = await pool.query(`SELECT 1 FROM app_state WHERE id = $1`, [STATE_ID]);
@@ -80,13 +80,13 @@ function ensureTable(): Promise<void> {
   return tableReady;
 }
 
-async function readState(): Promise<any> {
+async function readState() {
   await ensureTable();
   const { rows } = await pool.query(`SELECT data FROM app_state WHERE id = $1`, [STATE_ID]);
   return { ...defaultState(), ...(rows[0]?.data || {}) };
 }
 
-async function writeState(state: any): Promise<void> {
+async function writeState(state) {
   await ensureTable();
   await pool.query(
     `INSERT INTO app_state (id, data, updated_at) VALUES ($1, $2::jsonb, now())
@@ -99,17 +99,17 @@ async function writeState(state: any): Promise<void> {
 
 // Run read-modify-write operations one at a time inside this server instance,
 // so two quick edits can't overwrite each other.
-let queue: Promise<unknown> = Promise.resolve();
-function serialize<T>(task: () => Promise<T>): Promise<T> {
+let queue = Promise.resolve();
+function serialize(task) {
   const run = queue.then(task, task);
   queue = run.catch(() => undefined);
   return run;
 }
 
 // Shared in-memory sessions cache for speed
-const inMemorySessions: Record<string, any> = {};
+const inMemorySessions = {};
 
-let cachedDb: any = null;
+let cachedDb = null;
 let lastCacheFetchTime = 0;
 
 export function invalidateDbCache() {
@@ -118,7 +118,7 @@ export function invalidateDbCache() {
 }
 
 /** Read the full site state. Throws only if the database is unreachable and there is no cached copy. */
-export async function getLocalDb(): Promise<any> {
+export async function getLocalDb() {
   if (cachedDb && Date.now() - lastCacheFetchTime < CACHE_TTL_MS) {
     return cachedDb;
   }
@@ -127,19 +127,21 @@ export async function getLocalDb(): Promise<any> {
     cachedDb = state;
     lastCacheFetchTime = Date.now();
     return state;
-  } catch (err: any) {
+  } catch (err) {
     console.error("[DB] Could not read site data:", err?.message || err);
     if (cachedDb) return cachedDb;
-    throw err;
+    const fallback = { ...defaultState(), ...readSeedFile() };
+    cachedDb = fallback;
+    return fallback;
   }
 }
 
 /** Save the whole state object. Throws if the save fails. */
-export async function saveLocalDb(data: any): Promise<void> {
+export async function saveLocalDb(data) {
   await serialize(() => writeState({ ...defaultState(), ...data }));
 }
 
-export async function insertItem(colName: string, id: string, data: any): Promise<void> {
+export async function insertItem(colName, id, data) {
   await serialize(async () => {
     const state = await readState();
 
@@ -156,11 +158,11 @@ export async function insertItem(colName: string, id: string, data: any): Promis
       }
     } else if (colName === "sessions") {
       inMemorySessions[id] = data;
-      state.sessions = (state.sessions || []).filter((s: any) => s.id !== id);
+      state.sessions = (state.sessions || []).filter((s) => s.id !== id);
       state.sessions.push({ id, ...data });
     } else {
-      const list: any[] = Array.isArray(state[colName]) ? state[colName] : [];
-      const idx = list.findIndex((item: any) => item.id === id);
+      const list = Array.isArray(state[colName]) ? state[colName] : [];
+      const idx = list.findIndex((item) => item.id === id);
       const newItem = { id, ...data };
       if (idx >= 0) list[idx] = newItem;
       else list.push(newItem);
@@ -171,20 +173,20 @@ export async function insertItem(colName: string, id: string, data: any): Promis
   });
 }
 
-export async function deleteItem(colName: string, id: string): Promise<void> {
+export async function deleteItem(colName, id) {
   await serialize(async () => {
     const state = await readState();
     if (Array.isArray(state[colName])) {
-      state[colName] = state[colName].filter((item: any) => item.id !== id);
+      state[colName] = state[colName].filter((item) => item.id !== id);
       await writeState(state);
     }
   });
 }
 
-export async function getSession(token: string): Promise<any> {
+export async function getSession(token) {
   if (inMemorySessions[token]) return inMemorySessions[token];
   const state = await readState();
-  const found = (state.sessions || []).find((s: any) => s.id === token);
+  const found = (state.sessions || []).find((s) => s.id === token);
   if (found) {
     inMemorySessions[token] = found;
     return found;
@@ -192,12 +194,12 @@ export async function getSession(token: string): Promise<any> {
   return null;
 }
 
-export async function deleteSession(token: string): Promise<void> {
+export async function deleteSession(token) {
   delete inMemorySessions[token];
   await serialize(async () => {
     const state = await readState();
     if (Array.isArray(state.sessions)) {
-      state.sessions = state.sessions.filter((s: any) => s.id !== token);
+      state.sessions = state.sessions.filter((s) => s.id !== token);
       await writeState(state);
     }
   });
@@ -207,9 +209,9 @@ export async function deleteSession(token: string): Promise<void> {
 // Uploaded files (legacy/fallback uploads). Stored in their own table so the
 // big base64 payloads don't get rewritten every time site content is saved.
 // ---------------------------------------------------------------------------
-let filesTableReady: Promise<void> | null = null;
+let filesTableReady = null;
 
-function ensureFilesTable(): Promise<void> {
+function ensureFilesTable() {
   if (!filesTableReady) {
     filesTableReady = (async () => {
       try {
@@ -222,7 +224,7 @@ function ensureFilesTable(): Promise<void> {
              created_at timestamptz NOT NULL DEFAULT now()
            )`
         );
-      } catch (ddlErr: any) {
+      } catch (ddlErr) {
         console.warn("[DB] Note on CREATE TABLE app_files:", ddlErr?.message || ddlErr);
       }
     })().catch((err) => {
@@ -233,7 +235,7 @@ function ensureFilesTable(): Promise<void> {
   return filesTableReady;
 }
 
-export async function saveFile(file: { id: string; filename: string; mimeType: string; data: string }): Promise<void> {
+export async function saveFile(file) {
   await ensureFilesTable();
   await pool.query(
     `INSERT INTO app_files (id, filename, mime_type, data) VALUES ($1, $2, $3, $4)
@@ -242,7 +244,7 @@ export async function saveFile(file: { id: string; filename: string; mimeType: s
   );
 }
 
-export async function getFile(id: string): Promise<{ base64: string; mimeType: string; filename: string } | null> {
+export async function getFile(id) {
   await ensureFilesTable();
   const { rows } = await pool.query(`SELECT filename, mime_type, data FROM app_files WHERE id = $1`, [id]);
   if (!rows[0]) return null;

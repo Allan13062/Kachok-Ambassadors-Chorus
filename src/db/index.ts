@@ -5,6 +5,20 @@ import * as schema from "./schema.ts";
 const { Pool } = pg;
 
 export const createPool = () => {
+  if (process.env.DATABASE_URL) {
+    let connStr = process.env.DATABASE_URL;
+    if (connStr.includes("-pooler")) {
+      console.log("[Postgres Client] Auto-handling Neon pooler host in DATABASE_URL.");
+      connStr = connStr.replace("-pooler", "");
+    }
+    const isServerless = connStr.includes("neon.tech") || connStr.includes("supabase.co") || connStr.includes("supa") || connStr.includes("render.com") || connStr.includes("sslmode=require");
+    return new Pool({
+      connectionString: connStr,
+      connectionTimeoutMillis: 15000,
+      ssl: isServerless ? { rejectUnauthorized: false } : undefined,
+    });
+  }
+
   let host = process.env.SQL_HOST;
   const user = process.env.SQL_ADMIN_USER || process.env.SQL_USER;
   const password = process.env.SQL_ADMIN_PASSWORD || process.env.SQL_PASSWORD;
@@ -23,7 +37,7 @@ export const createPool = () => {
   }
 
   // Serverless Postgres engines (Neon, Supabase) require SSL connections
-  const isServerless = host?.includes("neon.tech") || host?.includes("supabase.co") || host?.includes("supa");
+  const isServerless = host?.includes("neon.tech") || host?.includes("supabase.co") || host?.includes("supa") || host?.includes("render.com");
 
   return new Pool({
     host,

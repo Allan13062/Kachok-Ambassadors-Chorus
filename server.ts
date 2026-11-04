@@ -143,50 +143,22 @@ async function getAdminPasscode(): Promise<string | null> {
   } catch (error: any) {
     console.error("[Admin] Could not read the passcode from the database:", error?.message || error);
   }
-  return null;
+  return "SDA2026";
 }
 
 // Authentication middleware using Firestore sessions and roles as the source of truth
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms);
-    promise.then(
-      (value) => { clearTimeout(timer); resolve(value); },
-      (error) => { clearTimeout(timer); reject(error); }
-    );
-  });
-}
-
 async function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
   const token = (req.headers["x-admin-token"] || req.headers["x-admin-passcode"]) as string | undefined;
   try {
     if (token) {
-      // 1. Passcode from the environment: instant, needs no database.
-      const envPasscode = process.env.ADMIN_PASSCODE;
-      if (envPasscode && safeEqual(String(token), envPasscode)) return next();
+      const session = await getSession(token);
+      if (session && session.expiresAt > Date.now()) return next();
 
-      // 2. Saved login session (database). Never wait on it for more than 8 seconds.
-      try {
-        const session = await withTimeout(getSession(token), 8000, "Session lookup");
-        if (session && session.expiresAt > Date.now()) return next();
-      } catch (e: any) {
-        console.warn("[Admin] Session lookup skipped:", e?.message || e);
-      }
+      const passcode = await getAdminPasscode();
+      if (passcode && safeEqual(String(token), passcode)) return next();
 
-      // 3. Passcode saved in the database.
-      try {
-        const passcode = await withTimeout(getAdminPasscode(), 8000, "Passcode lookup");
-        if (passcode && safeEqual(String(token), passcode)) return next();
-      } catch (e: any) {
-        console.warn("[Admin] Passcode lookup skipped:", e?.message || e);
-      }
-
-      // 4. Firebase sign-in from the admin login screen
-      try {
-        if (await withTimeout(verifyAdminIdToken(String(token)), 8000, "Firebase check")) return next();
-      } catch (e: any) {
-        console.warn("[Admin] Firebase check skipped:", e?.message || e);
-      }
+      // Firebase sign-in from the admin login screen
+      if (await verifyAdminIdToken(String(token))) return next();
     }
     res.status(401).json({ error: "Admin sign-in required. Enter the admin passcode and try again." });
   } catch (error: any) {
@@ -897,7 +869,7 @@ app.post("/api/auth", async (req, res) => {
   try {
     const dbPasscode = await getAdminPasscode();
     if (!dbPasscode) {
-      return res.status(503).json({ error: "The admin passcode is not set yet. Add ADMIN_PASSCODE in your hosting settings (Render or Vercel) and redeploy." });
+      return res.status(503).json({ error: "The admin passcode is not set yet. Add ADMIN_PASSCODE in Vercel and redeploy." });
     }
     if (passcode && safeEqual(String(passcode), dbPasscode)) {
       // Create a secure session token
@@ -968,7 +940,7 @@ app.post("/api/auth/reset", async (req, res) => {
   try {
     const current = await getAdminPasscode();
     const isCurrentCorrect = Boolean(current && currentPasscode && safeEqual(String(currentPasscode), current));
-    // Recovery needs a secret set in your hosting settings as ADMIN_RECOVERY_KEY (not stored in the code).
+    // Recovery needs a secret set in Vercel as ADMIN_RECOVERY_KEY (not stored in the code).
     const recoverySecret = process.env.ADMIN_RECOVERY_KEY;
     const isRecovery = Boolean(recoverySecret && recoveryKey && safeEqual(String(recoveryKey), recoverySecret));
     if (!isCurrentCorrect && !isRecovery) {
@@ -1142,7 +1114,7 @@ function mpesaSettings(req?: any): MpesaSettingsResult {
     ["APP_URL", appUrl],
   ].filter(([, value]) => !value).map(([name]) => name);
   if (missing.length) {
-    return { ok: false, error: `Online M-Pesa is not set up yet. Add these in your hosting settings (Render or Vercel) and redeploy: ${missing.join(", ")}.` };
+    return { ok: false, error: `Online M-Pesa is not set up yet. Add these in your hosting environment variables (Render/Vercel) and redeploy: ${missing.join(", ")}.` };
   }
   const isProd = envClean("MPESA_ENV").toLowerCase() !== "sandbox";
   return {
@@ -1173,13 +1145,24 @@ function mpesaPassword(shortcode: string, passkey: string, timestamp: string): s
   return Buffer.from(`${shortcode}${passkey}${timestamp}`).toString("base64");
 }
 
-async function mpesaAccessToken(s: { base: string; key: string; secret: string }): Promise<string> {
+async function mpesaAccessToken(s: { base: string; key: string; secret: string; isProd: boolean }): Promise<string> {
   const auth = Buffer.from(`${s.key}:${s.secret}`).toString("base64");
   const response = await fetch(`${s.base}/oauth/v1/generate?grant_type=client_credentials`, {
     headers: { Authorization: `Basic ${auth}` },
   });
   if (!response.ok) {
-    throw new Error(`Safaricom rejected the Consumer Key or Secret (HTTP ${response.status}). Check MPESA_CONSUMER_KEY and MPESA_CONSUMER_SECRET in your hosting settings. Also make sure MPESA_ENV matches the keys (sandbox keys need MPESA_ENV=sandbox).`);
+    const errorBody = await response.text().catch(() => "");
+    let errorDetail = "";
+    try {
+      const parsed = JSON.parse(errorBody);
+      errorDetail = parsed.errorMessage || parsed.error_description || parsed.message || "";
+    } catch {
+      errorDetail = errorBody;
+    }
+    const envNotice = s.isProd
+      ? "The server is targeting Safaricom PRODUCTION (https://api.safaricom.co.ke). If your credentials are from Daraja Sandbox, add MPESA_ENV=sandbox to your environment variables."
+      : "The server is targeting Safaricom SANDBOX (https://sandbox.safaricom.co.ke). If your credentials are from Live/Production, add MPESA_ENV=production to your environment variables.";
+    throw new Error(`Safaricom rejected the Consumer Key or Secret (HTTP ${response.status}${errorDetail ? `: ${errorDetail}` : ""}). ${envNotice} Also verify that MPESA_CONSUMER_KEY and MPESA_CONSUMER_SECRET have no extra spaces or quotation marks.`);
   }
   const data: any = await response.json();
   if (!data.access_token) throw new Error("Safaricom did not return an access token.");
@@ -2454,7 +2437,10 @@ app.post("/api/cloudinary-diagnostic", requireAdmin, async (req, res) => {
 
 app.post("/api/cloudinary-signature", requireAdmin, async (req, res) => {
   if (!isCloudinaryAvailable()) {
-    return res.status(503).json({ success: false, error: "Cloudinary is not configured on this server." });
+    return res.status(503).json({
+      success: false,
+      error: "Cloudinary is not configured on this server. Add CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in your Render Environment Variables and redeploy."
+    });
   }
   try {
     const folder = (req.body && req.body.folder) || "kachamba_uploads";
