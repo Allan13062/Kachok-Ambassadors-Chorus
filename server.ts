@@ -21,7 +21,7 @@ import { activities, itinerary, leaders, inquiries, musicConfig, adminConfig, up
 import { eq } from "drizzle-orm";
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 const DB_PATH = path.join(process.cwd(), "data", "db.json");
 
 // Ensure uploads folder exists (skip mkdir on Vercel - filesystem is read-only; uploads go to Cloudinary)
@@ -147,18 +147,46 @@ async function getAdminPasscode(): Promise<string | null> {
 }
 
 // Authentication middleware using Firestore sessions and roles as the source of truth
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms);
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (error) => { clearTimeout(timer); reject(error); }
+    );
+  });
+}
+
 async function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
   const token = (req.headers["x-admin-token"] || req.headers["x-admin-passcode"]) as string | undefined;
   try {
     if (token) {
-      const session = await getSession(token);
-      if (session && session.expiresAt > Date.now()) return next();
+      // 1. Passcode from the environment: instant, needs no database.
+      const envPasscode = process.env.ADMIN_PASSCODE;
+      if (envPasscode && safeEqual(String(token), envPasscode)) return next();
 
-      const passcode = await getAdminPasscode();
-      if (passcode && safeEqual(String(token), passcode)) return next();
+      // 2. Saved login session (database). Never wait on it for more than 8 seconds.
+      try {
+        const session = await withTimeout(getSession(token), 8000, "Session lookup");
+        if (session && session.expiresAt > Date.now()) return next();
+      } catch (e: any) {
+        console.warn("[Admin] Session lookup skipped:", e?.message || e);
+      }
 
-      // Firebase sign-in from the admin login screen
-      if (await verifyAdminIdToken(String(token))) return next();
+      // 3. Passcode saved in the database.
+      try {
+        const passcode = await withTimeout(getAdminPasscode(), 8000, "Passcode lookup");
+        if (passcode && safeEqual(String(token), passcode)) return next();
+      } catch (e: any) {
+        console.warn("[Admin] Passcode lookup skipped:", e?.message || e);
+      }
+
+      // 4. Firebase sign-in from the admin login screen
+      try {
+        if (await withTimeout(verifyAdminIdToken(String(token)), 8000, "Firebase check")) return next();
+      } catch (e: any) {
+        console.warn("[Admin] Firebase check skipped:", e?.message || e);
+      }
     }
     res.status(401).json({ error: "Admin sign-in required. Enter the admin passcode and try again." });
   } catch (error: any) {
@@ -869,7 +897,7 @@ app.post("/api/auth", async (req, res) => {
   try {
     const dbPasscode = await getAdminPasscode();
     if (!dbPasscode) {
-      return res.status(503).json({ error: "The admin passcode is not set yet. Add ADMIN_PASSCODE in Vercel and redeploy." });
+      return res.status(503).json({ error: "The admin passcode is not set yet. Add ADMIN_PASSCODE in your hosting settings (Render or Vercel) and redeploy." });
     }
     if (passcode && safeEqual(String(passcode), dbPasscode)) {
       // Create a secure session token
@@ -940,7 +968,7 @@ app.post("/api/auth/reset", async (req, res) => {
   try {
     const current = await getAdminPasscode();
     const isCurrentCorrect = Boolean(current && currentPasscode && safeEqual(String(currentPasscode), current));
-    // Recovery needs a secret set in Vercel as ADMIN_RECOVERY_KEY (not stored in the code).
+    // Recovery needs a secret set in your hosting settings as ADMIN_RECOVERY_KEY (not stored in the code).
     const recoverySecret = process.env.ADMIN_RECOVERY_KEY;
     const isRecovery = Boolean(recoverySecret && recoveryKey && safeEqual(String(recoveryKey), recoverySecret));
     if (!isCurrentCorrect && !isRecovery) {
@@ -1114,7 +1142,7 @@ function mpesaSettings(req?: any): MpesaSettingsResult {
     ["APP_URL", appUrl],
   ].filter(([, value]) => !value).map(([name]) => name);
   if (missing.length) {
-    return { ok: false, error: `Online M-Pesa is not set up yet. Add these in Vercel and redeploy: ${missing.join(", ")}.` };
+    return { ok: false, error: `Online M-Pesa is not set up yet. Add these in your hosting settings (Render or Vercel) and redeploy: ${missing.join(", ")}.` };
   }
   const isProd = envClean("MPESA_ENV").toLowerCase() !== "sandbox";
   return {
@@ -1151,7 +1179,7 @@ async function mpesaAccessToken(s: { base: string; key: string; secret: string }
     headers: { Authorization: `Basic ${auth}` },
   });
   if (!response.ok) {
-    throw new Error(`Safaricom rejected the Consumer Key or Secret (HTTP ${response.status}). Check MPESA_CONSUMER_KEY and MPESA_CONSUMER_SECRET in Vercel.`);
+    throw new Error(`Safaricom rejected the Consumer Key or Secret (HTTP ${response.status}). Check MPESA_CONSUMER_KEY and MPESA_CONSUMER_SECRET in your hosting settings. Also make sure MPESA_ENV matches the keys (sandbox keys need MPESA_ENV=sandbox).`);
   }
   const data: any = await response.json();
   if (!data.access_token) throw new Error("Safaricom did not return an access token.");
