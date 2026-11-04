@@ -1065,6 +1065,11 @@ export default function AdminPanel({
       return url || processedBase64;
     } catch (err) {
       console.error("Error during base64 upload in AdminPanel:", err);
+      window.alert(
+        "The photo could not be uploaded to Cloudinary, so it was NOT saved permanently.\n\n" +
+        ((err as any)?.message || "Unknown error") +
+        "\n\nCheck the Cloudinary settings and your admin sign-in, then try again."
+      );
     }
     return processedBase64;
   };
