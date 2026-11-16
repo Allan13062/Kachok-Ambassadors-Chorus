@@ -1,4 +1,4 @@
-import "./src/envLoader.js";
+import "./src/envLoader.ts";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -13,15 +13,15 @@ import { GoogleGenAI } from "@google/genai";
 import { Readable } from "stream";
 import { v2 as cloudinary } from "cloudinary";
 
-import { db, pool } from "./src/db/index.js";
-import { getLocalDb, saveLocalDb, insertItem, deleteItem, getSession, deleteSession, saveFile, getFile } from "./dbStorage.js";
+import { db } from "./src/db/index.ts";
+import { getLocalDb, saveLocalDb, insertItem, deleteItem, getSession, deleteSession, saveFile, getFile } from "./dbStorage.ts";
 import { timingSafeEqual, randomBytes, scryptSync } from "crypto";
-import { verifyAdminIdToken } from "./src/lib/firebaseAdmin.js";
-import { activities, itinerary, leaders, inquiries, musicConfig, adminConfig, uploads, users, gallery } from "./src/db/schema.js";
+import { verifyAdminIdToken } from "./src/lib/firebaseAdmin.ts";
+import { activities, itinerary, leaders, inquiries, musicConfig, adminConfig, uploads, users, gallery } from "./src/db/schema.ts";
 import { eq } from "drizzle-orm";
 
 const app = express();
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = 3000;
 const DB_PATH = path.join(process.cwd(), "data", "db.json");
 
 // Ensure uploads folder exists (skip mkdir on Vercel - filesystem is read-only; uploads go to Cloudinary)
@@ -143,7 +143,7 @@ async function getAdminPasscode(): Promise<string | null> {
   } catch (error: any) {
     console.error("[Admin] Could not read the passcode from the database:", error?.message || error);
   }
-  return "SDA2026";
+  return null;
 }
 
 // Authentication middleware using Firestore sessions and roles as the source of truth
@@ -1114,7 +1114,7 @@ function mpesaSettings(req?: any): MpesaSettingsResult {
     ["APP_URL", appUrl],
   ].filter(([, value]) => !value).map(([name]) => name);
   if (missing.length) {
-    return { ok: false, error: `Online M-Pesa is not set up yet. Add these in your hosting environment variables (Render/Vercel) and redeploy: ${missing.join(", ")}.` };
+    return { ok: false, error: `Online M-Pesa is not set up yet. Add these in your hosting dashboard (Render or Vercel) and redeploy: ${missing.join(", ")}.` };
   }
   const isProd = envClean("MPESA_ENV").toLowerCase() !== "sandbox";
   return {
@@ -1145,24 +1145,17 @@ function mpesaPassword(shortcode: string, passkey: string, timestamp: string): s
   return Buffer.from(`${shortcode}${passkey}${timestamp}`).toString("base64");
 }
 
-async function mpesaAccessToken(s: { base: string; key: string; secret: string; isProd: boolean }): Promise<string> {
+async function mpesaAccessToken(s: { base: string; key: string; secret: string }): Promise<string> {
   const auth = Buffer.from(`${s.key}:${s.secret}`).toString("base64");
   const response = await fetch(`${s.base}/oauth/v1/generate?grant_type=client_credentials`, {
     headers: { Authorization: `Basic ${auth}` },
   });
   if (!response.ok) {
-    const errorBody = await response.text().catch(() => "");
-    let errorDetail = "";
-    try {
-      const parsed = JSON.parse(errorBody);
-      errorDetail = parsed.errorMessage || parsed.error_description || parsed.message || "";
-    } catch {
-      errorDetail = errorBody;
-    }
-    const envNotice = s.isProd
-      ? "The server is targeting Safaricom PRODUCTION (https://api.safaricom.co.ke). If your credentials are from Daraja Sandbox, add MPESA_ENV=sandbox to your environment variables."
-      : "The server is targeting Safaricom SANDBOX (https://sandbox.safaricom.co.ke). If your credentials are from Live/Production, add MPESA_ENV=production to your environment variables.";
-    throw new Error(`Safaricom rejected the Consumer Key or Secret (HTTP ${response.status}${errorDetail ? `: ${errorDetail}` : ""}). ${envNotice} Also verify that MPESA_CONSUMER_KEY and MPESA_CONSUMER_SECRET have no extra spaces or quotation marks.`);
+    const mode = s.base.includes("sandbox") ? "SANDBOX" : "LIVE (production)";
+    let said = "";
+    try { said = (await response.text()).replace(/\s+/g, " ").slice(0, 160); } catch { /* ignore */ }
+    console.error(`[M-Pesa] OAuth rejected on ${mode}: HTTP ${response.status} ${said} | key length ${s.key.length}, secret length ${s.secret.length}`);
+    throw new Error(`Safaricom rejected the Consumer Key or Secret (HTTP ${response.status}) on the ${mode} server. Live keys only work when MPESA_ENV is not "sandbox"; sandbox keys only work when MPESA_ENV=sandbox. Also confirm the keys were saved in the dashboard of the host that serves this site, then redeploy. (Key length ${s.key.length}, secret length ${s.secret.length}; Daraja keys are normally about 48 and 64 characters.${said ? " Safaricom said: " + said : ""})`);
   }
   const data: any = await response.json();
   if (!data.access_token) throw new Error("Safaricom did not return an access token.");
@@ -1267,35 +1260,6 @@ app.post("/api/mpesa/stkpush", async (req, res) => {
   }
 });
 
-// Shows exactly why the database connection works or fails (never prints the password).
-app.get("/api/db/check", async (req, res) => {
-  const vars = {
-    SQL_HOST: !!process.env.SQL_HOST,
-    SQL_USER: !!process.env.SQL_USER,
-    SQL_PASSWORD: !!process.env.SQL_PASSWORD,
-    SQL_DB_NAME: !!process.env.SQL_DB_NAME,
-  };
-  const hints: string[] = [];
-  for (const k of ["SQL_HOST", "SQL_USER", "SQL_PASSWORD", "SQL_DB_NAME"]) {
-    const v = process.env[k];
-    if (v && (v !== v.trim() || /^["']|["']$/.test(v))) hints.push(`${k} has a space or quote mark at the start or end. Re-enter it without them.`);
-  }
-  if (process.env.SQL_HOST && /[\/:@?]/.test(process.env.SQL_HOST)) hints.push("SQL_HOST must be only the host name (no postgresql://, port, slashes or ?options).");
-  if (Object.values(vars).some((v) => !v)) {
-    return res.json({ ok: false, step: "variables", present: vars, hints, error: "Some SQL_* variables are missing in this deployment. Add them and redeploy." });
-  }
-  try {
-    const started = Date.now();
-    await Promise.race([
-      pool.query("SELECT 1"),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("Timed out after 12 seconds waiting for the database.")), 12000)),
-    ]);
-    return res.json({ ok: true, step: "connected", host: process.env.SQL_HOST, ms: Date.now() - started, present: vars, hints });
-  } catch (err: any) {
-    return res.json({ ok: false, step: "connect", host: process.env.SQL_HOST, present: vars, hints, error: err?.message || String(err), code: err?.code || null });
-  }
-});
-
 // Setup check for M-Pesa. Shows whether the settings are present and Safaricom accepts
 // the keys. It never shows secret values and never sends a payment prompt.
 app.get("/api/mpesa/check", async (req, res) => {
@@ -1351,7 +1315,7 @@ app.get("/api/mpesa/status/:checkoutRequestId", async (req, res) => {
 
     if (String(data.ResultCode) === "0") {
       await recordPaymentOutcome(checkoutRequestId, { status: "paid" });
-      return res.json({ status: "paid", message: data.ResultDesc || "", receiptNo: saved?.receiptNo || "" });
+      return res.json({ status: "paid", message: data.ResultDesc || "" });
     }
     if (data.ResultCode !== undefined && data.ResultCode !== null) {
       // Cancelled, timed out, or insufficient funds
@@ -1399,39 +1363,6 @@ app.get("/api/mpesa/receipts", requireAdmin, async (req, res) => {
     res.json({ receipts });
   } catch (err: any) {
     res.status(500).json({ error: err?.message || "Could not load receipts" });
-  }
-});
-
-// Attach the generated receipt PDF to a payment that Safaricom has confirmed.
-// Only confirmed payments can be saved, so nobody can forge receipts.
-app.post("/api/mpesa/receipt/save", async (req, res) => {
-  try {
-    const { checkoutRequestId, pdfBase64 } = req.body || {};
-    if (!checkoutRequestId) return res.status(400).json({ success: false, error: "checkoutRequestId is required." });
-    const localDb: any = await getLocalDb();
-    const payment = (localDb.payments || []).find((p: any) => p.id === String(checkoutRequestId));
-    if (!payment || payment.status !== "paid") {
-      return res.status(403).json({ success: false, error: "This payment has not been confirmed." });
-    }
-    const receiptNo = payment.receiptNo;
-    if (!receiptNo) return res.json({ success: true, pdfUrl: "" });
-
-    let pdfUrl = "";
-    if (pdfBase64 && isCloudinaryAvailable()) {
-      try {
-        const up: any = await cloudinary.uploader.upload(`data:application/pdf;base64,${pdfBase64}`, {
-          resource_type: "image", folder: "kachamba-receipts", public_id: `receipt-${receiptNo}`, overwrite: true,
-        });
-        pdfUrl = up.secure_url || "";
-      } catch (e: any) {
-        console.warn("[M-Pesa] Receipt PDF upload failed:", e?.message || e);
-      }
-    }
-    const existing = (localDb.receipts || []).find((r: any) => r.receiptNo === receiptNo);
-    if (existing && pdfUrl) await syncLocalFile("receipts", "update", { ...existing, pdfUrl });
-    return res.json({ success: true, pdfUrl });
-  } catch (err: any) {
-    return res.status(500).json({ success: false, error: err?.message || "Could not save the receipt." });
   }
 });
 
@@ -2437,10 +2368,7 @@ app.post("/api/cloudinary-diagnostic", requireAdmin, async (req, res) => {
 
 app.post("/api/cloudinary-signature", requireAdmin, async (req, res) => {
   if (!isCloudinaryAvailable()) {
-    return res.status(503).json({
-      success: false,
-      error: "Cloudinary is not configured on this server. Add CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in your Render Environment Variables and redeploy."
-    });
+    return res.status(503).json({ success: false, error: "Cloudinary is not configured on this server." });
   }
   try {
     const folder = (req.body && req.body.folder) || "kachamba_uploads";
